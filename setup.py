@@ -102,6 +102,13 @@ class BuildDeps(Command):
             if not run_command(cmd):
                 print "error installing %s" % name
                 sys.exit(1)
+        # Touch zope/__init__.py to allow zope.interface to be imported. This
+        # is normally done by a z.i-provided *-nspkg.pth, and works if we run
+        # the venv's bin/python, but not when we merely add its directory to
+        # sys.path like bin/petmail does.
+        pyver = "python"+sys.version[0:3]
+        venv_sitedir = os.path.join("deps-venv/lib", pyver, "site-packages")
+        open(os.path.join(venv_sitedir, "zope", "__init__.py"),"w").close()
         print "deps installed into deps-venv"
 
 commands = {

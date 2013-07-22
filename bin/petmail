@@ -3,9 +3,18 @@
 import sys, os
 
 # this 'petmail' script is in bin/petmail, below the source tree's root
-# directory. We want to add $ROOT to sys.path so we can import $ROOT/petmail
+# directory
 me = os.path.abspath(sys.argv[0])
 root = os.path.dirname(os.path.dirname(me))
+
+# if present, we include the deps-venv site-packages directory
+venv_root = os.path.join(root, "deps-venv")
+if os.path.isdir(venv_root):
+    pyver = "python"+sys.version[0:3]
+    venv_sitedir = os.path.join(venv_root, "lib", pyver, "site-packages")
+    sys.path.insert(0, venv_sitedir)
+
+# Then we want to add $ROOT to sys.path, so we can import $ROOT/petmail
 sys.path.insert(0, root)
 
 # thus this should always work:
