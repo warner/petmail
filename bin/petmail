@@ -1,0 +1,18 @@
+#!/usr/bin/env python
+
+import sys, os
+
+# this 'petmail' script is in bin/petmail, below the source tree's root
+# directory. We want to add $ROOT to sys.path so we can import $ROOT/petmail
+me = os.path.abspath(sys.argv[0])
+root = os.path.dirname(os.path.dirname(me))
+sys.path.insert(0, root)
+
+# thus this should always work:
+from petmail.scripts.runner import run
+
+# Delegate everything else off to scripts.runner, which must be careful to
+# not import too much unless the command specifically asks for it.
+
+rc = run(sys.argv[1:], sys.stdout, sys.stderr)
+sys.exit(rc)
