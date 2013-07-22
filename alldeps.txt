@@ -1,0 +1,4 @@
+zope.interface-4.0.5 1a7c84716bbd9981915b64a81d8a3f076a5934a8c8df4224655469b3564940cc https://pypi.python.org/packages/source/z/zope.interface/zope.interface-4.0.5.zip
+twisted-13.1.0 110e957dd8fc4c6eaba8abe4f0477e60b2873e3cf1c260325863fd2ef69341c6 https://pypi.python.org/packages/source/T/Twisted/Twisted-13.1.0.tar.bz2
+#python-ed25519-0.9 abc https://pypi.python.org/packages/source/e/ed25519/ed25519-0.9.tar.gz
+#pynacl-? abc ?
