@@ -2,6 +2,14 @@
 import sys, os, hashlib, urllib2, subprocess, shutil
 from distutils.core import setup, Command
 
+import versioneer
+versioneer.versionfile_source = "petmail/_version.py"
+versioneer.versionfile_build = "petmail/_version.py"
+versioneer.tag_prefix = "v"
+versioneer.parentdir_prefix = "petmail-"
+
+commands = versioneer.get_cmdclass()
+
 def run_command(args, cwd=None, verbose=False):
     try:
         # remember shell=False, so use e.g. git.cmd on windows, not just git
@@ -77,6 +85,7 @@ class FetchDeps(Command):
                 outf.close()
         verify_deps()
         print "All dependencies fetched and verified"
+commands["fetch_deps"] = FetchDeps
 
 class BuildDeps(Command):
     description = "build dependencies"
@@ -110,13 +119,10 @@ class BuildDeps(Command):
         venv_sitedir = os.path.join("deps-venv/lib", pyver, "site-packages")
         open(os.path.join(venv_sitedir, "zope", "__init__.py"),"w").close()
         print "deps installed into deps-venv"
-
-commands = {
-    "fetch_deps": FetchDeps,
-    "build_deps": BuildDeps,
-    }
+commands["build_deps"] = BuildDeps
 
 setup(name="petmail",
+      version=versioneer.get_version(),
       description="Secure messaging and files",
       author="Brian Warner",
       author_email="warner-petmail@lothar.com",
