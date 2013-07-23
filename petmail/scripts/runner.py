@@ -98,6 +98,23 @@ class Options(usage.Options):
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
 
+    def opt_version(self):
+        """Display version information"""
+        from .. import __version__
+        print "Petmail version: %s" % __version__
+        import twisted.copyright
+        print "Twisted version: %s" % twisted.copyright.version
+        sys.exit(0)
+
+    def opt_full_version(self):
+        """Display detailed version information"""
+        from .._version import get_versions
+        v = get_versions()
+        print "Petmail version: %s (%s)" % (v["version"], v["full"])
+        import twisted.copyright
+        print "Twisted version: %s" % twisted.copyright.version
+        sys.exit(0)
+
     def getUsage(self, **kwargs):
         t = usage.Options.getUsage(self, **kwargs)
         return t + "\nPlease run 'petmail <command> --help' for more details on each command.\n"
