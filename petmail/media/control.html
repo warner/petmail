@@ -1,0 +1,126 @@
+<html>
+<head>
+ <link rel="stylesheet" href="/media/petmail.css" type="text/css" />
+ <script type="text/javascript" src="/media/d3-2.7.0.min.js"></script>
+ <script type="text/javascript" src="/media/control.js"></script>
+ <title>Petmail Control Panel</title>
+</head>
+
+<body>
+ <h1>Petmail Control Panel</h1>
+ <script>
+   var token = "%(token)s";
+ </script>
+
+ <form class="reload-form" action="control" method="post">
+  <input type="hidden" name="token" value="%(token)s">
+  <input type="submit" value="Reload Control Panel" name="submit">
+ </form>
+
+<div id="tabs">
+  <ul>
+    <li><a href="#tabs-node-control">Node Control</a></li>
+    <li><a href="#tabs-profile">Your Profile</a></li>
+    <li><a href="#tabs-address-book">Address Book</a></li>
+    <li><a href="#tabs-invitations">Accept an Invitation</a></li>
+  </ul>
+  <div id="tabs-node-control">
+    <ul>
+      <li>Webport: <span class="fixed" id="webport">?</span></li>
+      <li>Relay Location: <span class="fixed" id="relay_location">?</span>
+       (<span id="relay_connected">?</span>)</li>
+      <li>Client Pubkey: <span class="fixed" id="pubkey">?</span></li>
+    </ul>
+    <div>Send Message:
+      <ul>
+        <li>To: <input id="message-to" type="text" name="address"/></li>
+        <li>Message: <input id="message-message"type="text" name="message"/></li>
+        <li><input id="send-message"  type="submit" value="Send!"/></li>
+      </ul>
+    </div>
+  </div>
+  <div id="tabs-profile">
+    <ul>
+      <li>Name: <span id="profile-name">?</span>
+        <input class="hidden" id="profile-name-input" type="text"/>
+        <a class="small" id="profile-name-open-input" href="#">edit</a>
+      </li>
+      <li> Icon:
+        <div id="profile-icon-drop" class="profile-icon-drop">
+          <img id="profile-icon" alt="(none)" src="">
+        </div>
+        <span class="small">Drag/drop icon image or
+          <a id="profile-open-icon-uploader" href="#">upload</a></span>
+        <!-- FF9 (android) can ask for images from the camera -->
+        <input id="profile-icon-upload" class="hidden"
+               type="file" accept="image/*"/>
+      </li>
+    </ul>
+  </div>
+  <div id="tabs-address-book">
+    <h3>Address Book
+      <span class="small"><a id="address-book-reload" href="#">reload</a></span>
+    </h3>
+
+    <div id="address-book-controls">
+      <h3 id="toggle-pending-invitations" class="hidden"><a href="#">Pending Invitations
+      (<span id="count-pending-invitations">?</span>)</a></h3>
+      <div id="pending-invitations" class="hidden"><ul/></div>
+
+      <h3 id="invite"><input type="submit" value="Invite a Friend"/></h3>
+      <div id="invite-prepare-invitation" class="hidden">
+        <p>prepare to invite someone here</p>
+          <ul>
+            <li>Name: <input id="invite-to" type="text"/>
+            <input id="send-invitation"  type="submit" value="Send!"/>
+            <a id="invite-cancel" class="small" href="#">cancel</a>
+            </li>
+          </ul>
+      </div>
+    </div>
+
+    <div id="address-book-main">
+      <div id="address-book-body">
+        <div>
+          <img id="address-book-icon" src="">
+          <span class="address-book-icon-right">
+            <span class="gray">Petname:</span>
+            <span id="address-book-petname"></span>
+          </span>
+        </div>
+        <div class="address-book-attributes">
+          <div><span class="gray">Selfname:</span>
+            <span id="address-book-selfname"></span>
+          </div>
+          <div><span class="gray">Their Pubkey:</span>
+            <span id="address-book-their-pubkey"></span>
+          </div>
+        </div>
+      </div>
+      <div id="address-book-sidebar">
+        <ul id="address-book"></ul>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="tabs-invitations">
+    <ul>
+      <li>Their Name: <input id="invite-from" type="text"/></li>
+      <li>Paste Invitation Code: <input id="invite-code" type="text"/></li>
+      <li><input id="accept-invitation" type="submit" value="Accept"/></li>
+    </ul>
+  </div>
+</div>
+
+<!-- templates -->
+<div id="templates" class="hidden">
+  <li class="address-book-entry">
+    <img class="icon" src=""></img>
+    <span class="name"></span>
+    <a href="#" class="delete small">delete</a>
+  </li>
+</div>
+
+</body>
+</html>

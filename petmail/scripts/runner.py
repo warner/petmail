@@ -39,13 +39,6 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("relay", "r", "tcp:host=localhost:port=5773", "Relay location"),
         ]
 
-class CreateRelayOptions(BasedirArgument, usage.Options):
-    optParameters = [
-        ("basedir","d",os.path.expanduser("~/.toolbed-relay"),"Base directory"),
-        ("relayport", "p", "tcp:5773", "TCP port for the relay."),
-        ("webport","p", "tcp:0", "TCP port for the relay's HTTP interface."),
-        ]
-
 class StartNodeOptions(BasedirParameterMixin, StartArguments, usage.Options):
     optFlags = [
         ("no-open", "n", "Do not automatically open the control panel"),
@@ -94,7 +87,6 @@ class Options(usage.Options):
                    ("invite", None, InviteOptions, "Create an Invitation"),
                    ("accept", None, AcceptOptions, "Accept an Invitation"),
 
-                   #("create-relay", None, CreateRelayOptions, "Create a relay"),
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
 

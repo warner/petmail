@@ -1,0 +1,11 @@
+<html>
+ <body>
+  <form id="login" action="control" method="post">
+   <input type="hidden" name="token" value="%s">
+   <input type="submit" value="Begin Session" name="begin">
+  </form>
+ <script>
+   window.setTimeout(function() {document.getElementById("login").submit()}, 0);
+ </script>
+ </body>
+</html>
