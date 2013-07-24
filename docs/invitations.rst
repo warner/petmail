@@ -54,6 +54,11 @@ Rendezvous Server
 All Petmail clients use the same Firebase-hosted rendezvous server. The
 access coordinates are hard-wired into the client.
 
+For local development, clients also use a "local-fs" rendezvous service,
+which is simply a subdirectory of the source tree named ".rendezvous".
+Channels correspond to files in this directory. Files older than 15 minutes
+are deleted at node startup.
+
 Details
 -------
 
