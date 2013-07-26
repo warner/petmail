@@ -183,3 +183,20 @@ S2
 box(pubTo, privFrom, msg) = "b0"+pubTo+pubFrom+nonce+boxed = 2+32+32+24+msg+32
 sign(from, msg) = "s0"+pubFrom+signed = 2+32+msg+64
 
+
+C: receiving client identifier (sender must not learn/distinguish)
+A: sender secret (client+sender can know, mailbox must not learn/distinguish)
+B: per-message (mailbox can know)
+M: mailbox secret (only mailbox knows, everyone can distinguish)
+
+mailbox should wind up with f(C,M)
+aim for (AB+1 - AB)*MC
+    (AB+1)*MC - ABMC
+    sender knows A,B, ACM, AM, not C, not CM
+    sender can build ABCM,
+    mailbox can safely be told AB, BCM, ABCM
+    mailbox can apply M, unlike anyone else. So it adds or multiplies by M.
+     sender gives AB, ABCM to mailbox
+     AB(1+CM)
+
+or (AB+1 - AB)*(M+C)
