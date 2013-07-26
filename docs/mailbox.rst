@@ -27,12 +27,30 @@ Transport Types
 
 The following transports are defined or planned:
 
+* tcp: a special wire protocol (defined below) is used on a simple TCP
+  connection.
 * http: this defines a set of POST and GET messages which enqueue, retrieve,
   and delete messages
 * file: [for local development] this transport uses a local subdirectory, and
   stores one message per file
 * smtp: messages are delivered as normal SMTP messages, consumed by a
   receiving node rather than by a human
+
+Each transport descriptor needs to convey three pieces of information:
+
+* Reachability data for the mailbox. This is frequently a hostname/IP-address
+  and a port number. Some transports have other forms of indirection, so this
+  could instead be a Tor hidden-service (.onion) address, or a SMTP mailbox
+  name (username@host), or a local directory name.
+* Encryption pubkey for the mailbox. This is a 32-byte Curve25519 pubkey. All
+  clients who share a mailbox will use the same pubkey. The intention is to
+  conceal the ultimate recipient of each message from an eavesdropper
+  watching the mailbox's inlet.
+* Client Identifier. This is a 32-byte random string, unique to each client.
+  Messages will contain this identifier inside the encrypted payload, so it
+  will be visible to the mailbox service itself, but not to an eavesdropper.
+  Mailboxes will maintain a table mapping client-identifier to the client,
+  allowing each client to fetch only its own messages.
 
 Renting an Inbox
 ----------------
@@ -76,3 +94,92 @@ encrypted using an ephemeral sending key.
 
 When a Tor hidden service is used as a transport, an eavesdropper should
 learn even less.
+
+Wire Protocol
+-------------
+
+To deliver messages via the raw TCP transport, a TCP connection is
+established to the mailbox's address and port. This connection can be used
+for multiple messages. Each message is encapsulated as follows:
+
+* A two-byte version indicator, "v1" (0x76 0x31)
+* A netstring containing the message (decimal length, ":", message, "."). The
+  body of the netstring is:
+** 32-byte Curve25519 pubkey of the mailbox. Multiple nodes will share a
+   mailbox: all their messages will use the same mailbox pubkey. The idea is
+   to conceal the ultimate recipient of the message from an eavesdropper (but
+   not from the mailbox itself).
+** 32-byte ephemeral Curve25519 pubkey. For each message delivered to this
+   transport, an ephemeral keypair is created. The message is encrypted with
+   the NaCl "box" function, using this ephemeral private key and the
+   mailbox's public key. The ephemeral public key is then attached to the
+   message so the mailbox can decrypt it.
+** 24-byte nonce, randomly generated
+** Encrypted message body, including 32-byte MAC. Output of crypto_box().
+
+The decrypted message body is as follows:
+
+* A two-byte version indicator, "m1" (0x6d 0x31)
+* 68-byte Encrypted Client Identifier, described below
+* 32-byte Curve25519 pubkey of the recipient. This comes from the receiving
+  client node's published transport record. Users who have multiple mailboxes
+  will use the same pubkey everywhere.
+* 32-byte Curve25519 ephemeral pubkey of the sender.
+
+Each sender gets a different Encrypted Client Identifier. The mailbox will be
+able to decrypt this to get the recipient's single Client Identifier. To
+compute the ECI:
+
+* create a random keypair A
+* compute X = xor(CI, SHA256(scalarmult(privA, pubMailbox)))
+* return "eci0"+pubA+X (4+32+32=68 bytes)
+
+The mailbox will compute SHA256(scalarmult(privMailbox, pubA)) and XOR with
+the ECI to retrieve the client's CI.
+
+Each message involves the use of several Curve25519 keypairs. Many of these
+are created just for the one message, and discarded afterwards.
+
+* keyA: used to build the ECI. Unique per (sender,recipient) pair. Created by
+  the recipient before creating the transport descriptor given to the sender
+  during introduction. Protects the real CI until it is inside the mailbox.
+  Lifetime is the same as the transport descriptor (potentially unlimited).
+* keyB: used to conceal the ECI (and the ultimate recipient) from an
+  eavesdropper. Created by the sender for each delivered message (sending the
+  same message to multiple mailboxes will use multiple keyBs). Protects the
+  message until it is inside the mailbox. Lifetime is a single transport.
+* keyC: used to  ..
+
+THINKING OUT LOUD
+
+recipient knows secret A, computes X=f(A)
+sender should get a value X
+mailbox should get random B and Y=f(X,B)
+mailbox knows secret C
+mailbox should compute g(B,C,Y) to get constant Z, maps Z to client
+
+recipient has one A, gA
+recipient picks B,gB for each sender
+recipient sends ... to mailbox, mailbox computes CI, registers with recipient
+sender given ...
+sender picks C,gC for each message
+mailbox has one D,gD
+mailbox given gC, C*gD*..
+mailbox computes CI= ...
+
+S1
+ sender gets Y, 
+ S1Ta -> CI
+   sender computes S1gM
+   sender gives Y
+   mailbox computes X=MgS1, CI=xor(X,Y)
+ S1Tb -> CI
+S2
+ S2Tc -> CI
+ S2Td -> CI
+
+ (gM)   =   (M)
+
+box(pubTo, privFrom, msg) = "b0"+pubTo+pubFrom+nonce+boxed = 2+32+32+24+msg+32
+sign(from, msg) = "s0"+pubFrom+signed = 2+32+msg+64
+
