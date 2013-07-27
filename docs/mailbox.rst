@@ -253,19 +253,39 @@ the larger target set by having the sender sign a MAC, which is used to
 authenticate the ephemeral pubkey, and then publish the MAC key afterwards.
 
 
+Sender Flow
+-----------
 
-Wire Protocol
--------------
+Each sender creates a `transport message`, then submits it to a
+transport-specific handler which is responsible for getting the message to
+the mailbox.
 
-To deliver messages via the raw TCP transport, a TCP connection is
-established to the mailbox's address and port. This connection can be used
-for multiple messages, concatenated together (i.e. the connection can be
-nailed up and messages delivered later). Each message is encapsulated as
-follows:
+To provide the security properties described above, the final transport
+message wraps several layers of other messages. The process starts with a
+`payload`, which is a message dictionary (anything that can be serialized to
+JSON). The `encoded payload` is the two-byte version identifier "p1" (0x70
+0x31) concatenated with the UTF8-encoded JSON-serialized payload.
 
-* A two-byte version indicator, "v1" (0x76 0x31)
-* A netstring containing the message (decimal length, ":", message, "."). The
-  body of the netstring is:
+The sender then uses the addressbook entry to determine:
+
+* the recipient's current (rotating) public key, "current-recip"
+* the recipient's stable public key "stable-recip"
+* the sender's stable signing key (for just this recipient) "stable-sender"
+
+and creates three ephemeral keypairs k1/k2/k3.
+
+The sender signs pubkey3 with their stable-sender key. They concatenate this
+signed message (which is always 32+64=96 bytes long) with the encoded payload
+to get the innermost body "msgC". They then encrypt msgC with the Curve25519
+box() function, using to=current-recip and from=privkey3, to get msgB.
+
+They encrypt msgB with to=stable-recip, from=privkey2 to get msgA
+
+They encrypt msgA with to=mailbox, from=privkey1 to get msgM.
+
+...
+
+The transport message is:
 
   * 32-byte Curve25519 pubkey of the mailbox. Multiple nodes will share a
     mailbox: all their messages will use the same mailbox pubkey. The idea is
@@ -278,6 +298,19 @@ follows:
     attached to the message so the mailbox can decrypt it.
   * 24-byte nonce, randomly generated
   * Encrypted outer message body, with 32-byte MAC. Output of crypto_box().
+
+Wire Protocol
+-------------
+
+To deliver transport messages via the raw TCP transport, a TCP connection is
+established to the mailbox's address and port. This connection can be used
+for multiple messages, concatenated together (i.e. the connection can be
+nailed up and messages delivered later). Each message is encapsulated as
+follows:
+
+* A two-byte version indicator, "v1" (0x76 0x31)
+* A netstring containing the transport message (decimal length, ":", message,
+  ".").
 
 The mailbox decrypts the message body to obtain the following inner message:
 
