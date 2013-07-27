@@ -121,12 +121,13 @@ of this (e.g. by sending through Tor).
 A future version of this protocol should provide the following unlinkability
 properties:
 
-1: The mailbox cannot distinguish which sender provided a message (from the
+1. The mailbox cannot distinguish which sender provided a message (from the
    contents of the message.. they still might discern source IP address,
    etc). The mailbox can compute a recipient identifier, to know how to route
    the message, which will the the same no matter which sender created it.
    Two successive messages from the same sender cannot be identified as such.
-2: Two senders cannot distinguish whether their transport descriptors refer
+
+2. Two senders cannot distinguish whether their transport descriptors refer
    to the same recipient or not, except for the shared mailbox addressing
    information. If Alice and Bob are senders, Carol and Dave are two
    recipients who rent mailboxes from the same host, then Alice gets two
@@ -134,11 +135,13 @@ properties:
    their descriptors, they should not be able to distinguish whether AC+BC go
    to the same person, or AC+BD. Alice herself cannot tell if AC+AD go to
    different people or the same person.
-3: The recipient is not required to communicate with the mailbox to add each
+3. The recipient is not required to communicate with the mailbox to add each
    new sender, but can create new descriptors herself.
-4: The sender can produce any number of messages without needing to acquire
+
+4. The sender can produce any number of messages without needing to acquire
    new tokens or information from the recipient.
-5: The mailbox can determine the recipient of a message in constant time,
+
+5. The mailbox can determine the recipient of a message in constant time,
    rather than iterating through the full list of registered recipients
    looking for a match.
 
