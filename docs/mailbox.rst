@@ -36,21 +36,35 @@ The following transports are defined or planned:
 * smtp: messages are delivered as normal SMTP messages, consumed by a
   receiving node rather than by a human
 
-Each transport descriptor needs to convey three pieces of information:
+Each transport descriptor needs to convey four pieces of information:
 
 * Reachability data for the mailbox. This is frequently a hostname/IP-address
   and a port number. Some transports have other forms of indirection, so this
   could instead be a Tor hidden-service (.onion) address, or a SMTP mailbox
   name (username@host), or a local directory name.
 * Encryption pubkey for the mailbox. This is a 32-byte Curve25519 pubkey. All
-  clients who share a mailbox will use the same pubkey. The intention is to
-  conceal the ultimate recipient of each message from an eavesdropper
-  watching the mailbox's inlet.
-* Client Identifier. This is a 32-byte random string, unique to each client.
-  Messages will contain this identifier inside the encrypted payload, so it
-  will be visible to the mailbox service itself, but not to an eavesdropper.
-  Mailboxes will maintain a table mapping client-identifier to the client,
-  allowing each client to fetch only its own messages.
+  clients who share a mailbox will use the same pubkey. This is used to
+  encrypt the outer message, which will be decrypted by the mailbox. The
+  intention is to conceal the ultimate recipient of each inner message from
+  an eavesdropper watching the mailbox's inlet.
+* Client Identifier. This is a 32-byte string, unique to each client.
+  Messages will contain this identifier inside the outer-encrypted payload,
+  so it will be visible to the mailbox service itself, but not to an
+  eavesdropper. Mailboxes will maintain a table mapping client-identifier to
+  the client, allowing each client to fetch only its own messages.
+* Client Pubkey: a 32-byte Curve25519 public key. This will be used to
+  encrypt the inner message, and will be decrypted by the recipient.
+
+Multiple recipient nodes will share a mailbox service. Each will have a
+distinct client identifier and client pubkey, but their transport
+reachability data and mailbox pubkey will be the same.
+
+Multiple mailbox services could share the same reachability address. Their
+messages would be distinguished by the mailbox pubkey.
+
+Clients can use multiple mailbox services. All four components of the
+transport descriptor will be different, including the client pubkey.
+
 
 Renting an Inbox
 ----------------
@@ -88,115 +102,113 @@ All Petmail messages are encrypted by node-to-node Curve25519 keypairs.
 Messages sent to a transport are additionally encrypted by a
 transport-specific key, so that an eavesdropper cannot distinguish the final
 recipient of the message. Eve should only learn the intended transport, and
-whatever she can glean from the source of the message. Transport descriptors
-include the Curve25519 pubkey of the transport server, and messages are
-encrypted using an ephemeral sending key.
+whatever she can glean from the source of the message (e.g. source IP address
+or timing information). Transport descriptors include the Curve25519 pubkey
+of the transport server, and messages are encrypted using an ephemeral
+sending key.
 
 When a Tor hidden service is used as a transport, an eavesdropper should
 learn even less.
+
+Anonymity
+---------
+
+The current protocol provides limited unlinkability. A mailbox cannot use the
+contents of the message it sees to determine which sender provided it. Of
+course, senders must disguise their transport address to take full advantage
+of this (e.g. by sending through Tor).
+
+A future version of this protocol should provide the following unlinkability
+properties:
+
+1: The mailbox cannot distinguish which sender provided a message (from the
+   contents of the message.. they still might discern source IP address,
+   etc). The mailbox can compute a recipient identifier, to know how to route
+   the message, which will the the same no matter which sender created it.
+   Two successive messages from the same sender cannot be identified as such.
+2: Two senders cannot distinguish whether their transport descriptors refer
+   to the same recipient or not, except for the shared mailbox addressing
+   information. If Alice and Bob are senders, Carol and Dave are two
+   recipients who rent mailboxes from the same host, then Alice gets two
+   descriptors AC and AD, and Bob gets BC and BD. When Alice and Bob compare
+   their descriptors, they should not be able to distinguish whether AC+BC go
+   to the same person, or AC+BD. Alice herself cannot tell if AC+AD go to
+   different people or the same person.
+3: The recipient is not required to communicate with the mailbox to add each
+   new sender, but can create new descriptors herself.
+4: The sender can produce any number of messages without needing to acquire
+   new tokens or information from the recipient.
+5: The mailbox can determine the recipient of a message in constant time,
+   rather than iterating through the full list of registered recipients
+   looking for a match.
+
+I don't yet know of a protocol that can satisfy these conditions. Tthere are
+a number of simpler protocols that provide a subset:
+
+* Give each sender the (same) client identifier, each sender includes the
+  identifier in their message. This provides 1/3/4/5, but not 2. This is
+  the current protocol.
+* Register a different client identifier for each sender. Senders include the
+  identifier in their message. This provides 2/4/5 but not 1 or 3.
+* Give each sender a big list of single-use tokens, each of which is a
+  randomly encrypted copy of the client identifier, using the mailbox's
+  public key. This would provide 1/2/3/5 but not 4.
+
+I expect a complete protocol would involve the senders getting
+differently-blinded copies of the client identifier, then blinding these
+tokens themselves for each message they send. It may be necessary to give up
+on #5 (mailbox efficiency) to achieve the other four.
 
 Wire Protocol
 -------------
 
 To deliver messages via the raw TCP transport, a TCP connection is
 established to the mailbox's address and port. This connection can be used
-for multiple messages. Each message is encapsulated as follows:
+for multiple messages, concatenated together (i.e. the connection can be
+nailed up and messages delivered later). Each message is encapsulated as
+follows:
 
 * A two-byte version indicator, "v1" (0x76 0x31)
 * A netstring containing the message (decimal length, ":", message, "."). The
   body of the netstring is:
-** 32-byte Curve25519 pubkey of the mailbox. Multiple nodes will share a
-   mailbox: all their messages will use the same mailbox pubkey. The idea is
-   to conceal the ultimate recipient of the message from an eavesdropper (but
-   not from the mailbox itself).
-** 32-byte ephemeral Curve25519 pubkey. For each message delivered to this
-   transport, an ephemeral keypair is created. The message is encrypted with
-   the NaCl "box" function, using this ephemeral private key and the
-   mailbox's public key. The ephemeral public key is then attached to the
-   message so the mailbox can decrypt it.
-** 24-byte nonce, randomly generated
-** Encrypted message body, including 32-byte MAC. Output of crypto_box().
 
-The decrypted message body is as follows:
+  * 32-byte Curve25519 pubkey of the mailbox. Multiple nodes will share a
+    mailbox: all their messages will use the same mailbox pubkey. The idea is
+    to conceal the ultimate recipient of the message from an eavesdropper
+    (but not from the mailbox itself).
+  * 32-byte ephemeral Curve25519 pubkey (outer key). For each message
+    delivered to this transport, an ephemeral keypair is created. The message
+    is encrypted with the NaCl "box" function, using this ephemeral private
+    key and the mailbox's public key. The ephemeral public key is then
+    attached to the message so the mailbox can decrypt it.
+  * 24-byte nonce, randomly generated
+  * Encrypted outer message body, with 32-byte MAC. Output of crypto_box().
 
-* A two-byte version indicator, "m1" (0x6d 0x31)
-* 68-byte Encrypted Client Identifier, described below
-* 32-byte Curve25519 pubkey of the recipient. This comes from the receiving
-  client node's published transport record. Users who have multiple mailboxes
-  will use the same pubkey everywhere.
-* 32-byte Curve25519 ephemeral pubkey of the sender.
+The mailbox decrypts the message body to obtain the following inner message:
 
-Each sender gets a different Encrypted Client Identifier. The mailbox will be
-able to decrypt this to get the recipient's single Client Identifier. To
-compute the ECI:
+* A three-byte version indicator, "ci1" (0x63 0x69 0x31)
+* 32-byte Client Identifier
+* the inner message:
 
-* create a random keypair A
-* compute X = xor(CI, SHA256(scalarmult(privA, pubMailbox)))
-* return "eci0"+pubA+X (4+32+32=68 bytes)
+  * A two-byte version indicator, "m1" (0x6d 0x31)
+  * 32-byte Curve25519 ephemeral pubkey (inner key) of the sender.
+  * 24-byte nonce
+  * encrypted inner message body
 
-The mailbox will compute SHA256(scalarmult(privMailbox, pubA)) and XOR with
-the ECI to retrieve the client's CI.
+The mailbox uses the Client Identifier to locate the client's queue, then
+stores the inner message in that queue.
 
-Each message involves the use of several Curve25519 keypairs. Many of these
-are created just for the one message, and discarded afterwards.
+Client Flow
+-----------
 
-* keyA: used to build the ECI. Unique per (sender,recipient) pair. Created by
-  the recipient before creating the transport descriptor given to the sender
-  during introduction. Protects the real CI until it is inside the mailbox.
-  Lifetime is the same as the transport descriptor (potentially unlimited).
-* keyB: used to conceal the ECI (and the ultimate recipient) from an
-  eavesdropper. Created by the sender for each delivered message (sending the
-  same message to multiple mailboxes will use multiple keyBs). Protects the
-  message until it is inside the mailbox. Lifetime is a single transport.
-* keyC: used to  ..
+The recipient contacts the mailbox and retrieves any queued messages intended
+for its client identifier, using a protocol that depends on the mailbox type.
+The client then instructs the mailbox to delete the queued messages. If the
+client maintains multiple client identifiers with the same mailbox service,
+it must retrieve each set of messages separately. Each retrieved message is
+associated with exactly one client identifier.
 
-THINKING OUT LOUD
-
-recipient knows secret A, computes X=f(A)
-sender should get a value X
-mailbox should get random B and Y=f(X,B)
-mailbox knows secret C
-mailbox should compute g(B,C,Y) to get constant Z, maps Z to client
-
-recipient has one A, gA
-recipient picks B,gB for each sender
-recipient sends ... to mailbox, mailbox computes CI, registers with recipient
-sender given ...
-sender picks C,gC for each message
-mailbox has one D,gD
-mailbox given gC, C*gD*..
-mailbox computes CI= ...
-
-S1
- sender gets Y, 
- S1Ta -> CI
-   sender computes S1gM
-   sender gives Y
-   mailbox computes X=MgS1, CI=xor(X,Y)
- S1Tb -> CI
-S2
- S2Tc -> CI
- S2Td -> CI
-
- (gM)   =   (M)
-
-box(pubTo, privFrom, msg) = "b0"+pubTo+pubFrom+nonce+boxed = 2+32+32+24+msg+32
-sign(from, msg) = "s0"+pubFrom+signed = 2+32+msg+64
-
-
-C: receiving client identifier (sender must not learn/distinguish)
-A: sender secret (client+sender can know, mailbox must not learn/distinguish)
-B: per-message (mailbox can know)
-M: mailbox secret (only mailbox knows, everyone can distinguish)
-
-mailbox should wind up with f(C,M)
-aim for (AB+1 - AB)*MC
-    (AB+1)*MC - ABMC
-    sender knows A,B, ACM, AM, not C, not CM
-    sender can build ABCM,
-    mailbox can safely be told AB, BCM, ABCM
-    mailbox can apply M, unlike anyone else. So it adds or multiplies by M.
-     sender gives AB, ABCM to mailbox
-     AB(1+CM)
-
-or (AB+1 - AB)*(M+C)
+The recipient must maintain a table that maps from (mailbox+CI) to a keypair.
+This pubkey will be the same one as in the sender's mailbox descriptor. The
+recipient uses the matching privkey, and the ephmeral pubkey in the message,
+to decrypt the body.
