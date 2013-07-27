@@ -17,9 +17,10 @@ provides NAT-traversal facilities, or when the client has a public IP
 address.
 
 Clients may advertise mailboxes with transport types that are unrecognized by
-other clients. Some transports offer realtime confirmation of delivery, while
-others are high-latency send-and-hope. Senders may elect to deliver multiple
-copies of their message in parallel, and receivers must tolerate duplicates.
+other clients: these are ignored. Some transports offer realtime confirmation
+of delivery, while others are high-latency send-and-hope. Senders may elect
+to deliver multiple copies of their message in parallel, and receivers must
+tolerate (ignore) duplicates.
 
 
 Transport Types
@@ -36,7 +37,7 @@ The following transports are defined or planned:
 * smtp: messages are delivered as normal SMTP messages, consumed by a
   receiving node rather than by a human
 
-Each transport descriptor needs to convey four pieces of information:
+Each transport descriptor needs to convey three pieces of information:
 
 * Reachability data for the mailbox. This is frequently a hostname/IP-address
   and a port number. Some transports have other forms of indirection, so this
@@ -52,18 +53,20 @@ Each transport descriptor needs to convey four pieces of information:
   so it will be visible to the mailbox service itself, but not to an
   eavesdropper. Mailboxes will maintain a table mapping client-identifier to
   the client, allowing each client to fetch only its own messages.
-* Client Pubkey: a 32-byte Curve25519 public key. This will be used to
-  encrypt the inner message, and will be decrypted by the recipient.
+
+Recipients will also supply a Recipient Pubkey to the sender. This is
+independent of the mailbox descriptors. This pubkey will be used to encrypt
+the inner message, to be decrypted by the recipient, not the mailbox.
 
 Multiple recipient nodes will share a mailbox service. Each will have a
-distinct client identifier and client pubkey, but their transport
-reachability data and mailbox pubkey will be the same.
+distinct client identifier, but their transport reachability data and mailbox
+pubkey will be the same.
 
 Multiple mailbox services could share the same reachability address. Their
 messages would be distinguished by the mailbox pubkey.
 
-Clients can use multiple mailbox services. All four components of the
-transport descriptor will be different, including the client pubkey.
+Clients can use multiple mailbox services. All three components of the
+transport descriptor will be different, including the client identifier.
 
 
 Renting an Inbox
@@ -98,8 +101,8 @@ or weeks.
 Transport Security
 ------------------
 
-All Petmail messages are encrypted by node-to-node Curve25519 keypairs.
-Messages sent to a transport are additionally encrypted by a
+All Petmail messages are encrypted by sender-to-recipient Curve25519
+keypairs. Messages sent to a transport are additionally encrypted by a
 transport-specific key, so that an eavesdropper cannot distinguish the final
 recipient of the message. Eve should only learn the intended transport, and
 whatever she can glean from the source of the message (e.g. source IP address
@@ -194,7 +197,8 @@ The mailbox decrypts the message body to obtain the following inner message:
 * the inner message:
 
   * A two-byte version indicator, "m1" (0x6d 0x31)
-  * 32-byte Curve25519 ephemeral pubkey (inner key) of the sender.
+  * 32-byte Curve25519 "to" pubkey of the recipient
+  * 32-byte Curve25519 "from" ephemeral pubkey (inner key) of the sender.
   * 24-byte nonce
   * encrypted inner message body
 
@@ -211,7 +215,14 @@ client maintains multiple client identifiers with the same mailbox service,
 it must retrieve each set of messages separately. Each retrieved message is
 associated with exactly one client identifier.
 
-The recipient must maintain a table that maps from (mailbox+CI) to a keypair.
-This pubkey will be the same one as in the sender's mailbox descriptor. The
-recipient uses the matching privkey, and the ephmeral pubkey in the message,
-to decrypt the body.
+The recipient must maintain a table that maps from (mailbox+CI) to a keypair
+(or set of keypairs). The inner message "to" pubkey (which comes from the
+sender's mailbox descriptor) must be in this list: if not, the message should
+be ignored (to prevent a confirmation attack, where a sender uses the pubkey
+from one descriptor with the mailbox data from a different one, to confirm
+that they two recipients are in fact the same person). The corresponding
+privkey, and the message "from" key, are used to decrypt the body.
+
+The decrypted body is then delivered to the Dispatcher for routing. Some
+messages are intended for the user, others are consumed internally for
+maintenance purposes.
