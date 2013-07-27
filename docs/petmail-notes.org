@@ -1,7 +1,7 @@
 
 Unsorted design notes.
 
-* forward-security
+* forward-secrecy
 ** basically we need to change the encryption key after each message. The
    recipient gives the sender a new key, the sender uses it until they
    receive the next one (perhaps after a single message, or on some time
@@ -31,3 +31,39 @@ Unsorted design notes.
     verifying key. "me" section holds current/recent curve25519 private keys
     (discarded when historical messages are destroyed and sender has acked
     rotation)
+** note that using different recipient pubkeys over time (per sender) enables
+   the mailbox to distinguish senders. Would need an extra layer of wrapping
+   to prevent that.
+*** mailbox gets box(to=mailbox,from=ephem1,A)
+*** A contains box(to=stable-recip, from=ephem2, B)
+*** mailbox decrypts A to get B, gives B to recipient
+*** B contains box(to=current-recip, from=ephem3, C)
+*** recipient decrypts B to get C, C is actual inner message
+*** current-recip is rotated. stable-recip is the same for all senders and
+    all time, and is used as the client identifier
+*** if current-recip is rotated frequently enough, you could get away without
+    the extra layer (if every sender+message pair used a different recipient
+    key). Seems fragile though.
+*** forward security of stable-recip: compromise of that key enables
+    mailboxes to distinguish senders.
+
+* repudiation
+** general goal is for message recipient to be convinced of the sender, but
+   nobody else
+** signing message content rules that out
+** sending a MAC key in a way that can only be read by the recipient works
+** signing an ephmeral pubkey works
+*** box(to=recip,from=ephem,msg=(sign(by=sender,msg=ephem)+body))
+
+* message format
+** so, to obtain sender-indistinguishability-by-mailbox, forward-security for
+   message contents, and sender-repudiability of messages, use this:
+** mailbox gets box(to=mailbox,from=ephem1,A)
+** A contains box(to=stable-recip, from=ephem2, B)
+*** stable-recip is the same for all senders, for all messages, and is the
+    client identifier that the mailbox uses to route the message
+*** mailbox decrypts A to get B, gives B to recipient
+** B contains box(to=current-recip, from=ephem3, C)
+*** recipient decrypts B to get C
+** C contains sign(by=stable-sender, msg=ephem3) and actual body
+

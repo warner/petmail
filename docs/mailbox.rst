@@ -165,6 +165,95 @@ differently-blinded copies of the client identifier, then blinding these
 tokens themselves for each message they send. It may be necessary to give up
 on #5 (mailbox efficiency) to achieve the other four.
 
+Forward Secrecy
+---------------
+
+The mailbox protocol should provide `forward secrecy`, which means that old
+messages cannot be decrypted by an attacker even if they learn both node's
+current private state. In practice, this is difficult to obtain:
+
+* neither sender nor recipient can keep logs of the message contents
+* parts of the message may be quoted in reply messages
+* node state may be included in system backups
+* operating systems do not make it easy to erase data from swap partitions
+
+However, we should at least make it possible. A user who wants proper forward
+security may need to take additional steps to improve their chances of
+actually getting it.
+
+To achieve this requires the two communicating nodes to regularly rotate
+their keys. A message is readble (and vulnerable to later compromise) up
+until the moment that all private keys involved in its creation are securely
+deleted.
+
+Petmail senders use ephemeral keypairs when creating a message, so one of the
+two private keys is discarded immediately after encryption. The recipient
+must retain the corresponding private key until the last message encrypted to
+it is deleted.
+
+While this portion of the system is not yet defined, the intention is to have
+recipients update their senders with new rotating public keys. The sender
+periodically gets a signed list of numbered pubkeys. It sends one message for
+each pubkey until it runs out, then it re-uses the last pubkey until a new
+batch arrives. Each message includes the sequence number and the pubkey that
+was used. Upon receipt of each message, the recipient can safely delete the
+corresponding private keys with earlier sequence numbers (knowing the sender
+has forgotten the matching pubkeys).
+
+To obtain sender-indistinguishability at the mailbox, these pubkeys should
+not be exposed to the mailbox (as any repeats indicate two messages were from
+the same sender). So these keys must be wrapped in another encrypted box,
+using a stable recipient pubkey. Compromise of the stable recipient privkey
+enables the mailbox to distinguish different senders, but does not compromise
+any message contents.
+
+Sender Repudiability
+--------------------
+
+Senders should not have to treat their private communications as irrevocable
+public statements (unless they specifically ask for that). When Alice sends a
+message to Bob, Bob should be convinced of its authenticity (Alice approved
+of the message contents and intended for Bob to see them), but Bob should not
+be able to convince anyone else that the message came from Alice.
+
+One common technique to achieve this is to deliver a MAC key over a secure
+channel to the recipient (so they know that only the sender could have
+provided it, and nobody else knows it), then MAC each message instead of
+signing it. The recipient can forge her own messages, since she knows the MAC
+key too, making the author set (sender, recipient). Some systems go further
+and publish the MAC key after confirming receipt of the message, to increase
+the potential author set to be (sender, recipient, eavesdroppers). And
+attempting to prove authenticity to a third party, by revealing the MAC key,
+inevitably adds the third party to the author set as well.
+
+Another technique is to have the sender sign a single-use encryption key.
+
+Petmail uses a variant of this technique that uses one of the ephemeral
+public keys as a verifier. The innermost message is encrypted by the
+Curve25519 box() function. The "to" public key is the recipient's current
+(rotating) pubkey. The "from" private key is ephemeral, created by the sender
+for this one message.
+
+The inner message contains both the real payload and a signed message. The
+signed body is the ephemeral pubkey used for this one message, and is made
+with the sender's long-term signing key, for which the recipient knows the
+corresponding verifying key.
+
+When Bob receives this message, he can show the signed ephemeral key to a
+third-party, who will be convinced that Alice did indeed intend to send
+(somebody) a message encrypted with the privkey. Bob can also show the boxed
+message, and reveal his (rotating) private key, to show that Alice might have
+written the message. But since Bob knows the private key, Bob could have
+written that message (or indeed any message) himself.
+
+This does not provide the large authorship set that publishing the MAC key
+would offer, but still includes at least the recipient in the set, which is
+enough to fulfill the goals of repudiability. It might be possible to achieve
+the larger target set by having the sender sign a MAC, which is used to
+authenticate the ephemeral pubkey, and then publish the MAC key afterwards.
+
+
+
 Wire Protocol
 -------------
 
