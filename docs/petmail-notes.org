@@ -1,0 +1,33 @@
+
+Unsorted design notes.
+
+* forward-security
+** basically we need to change the encryption key after each message. The
+   recipient gives the sender a new key, the sender uses it until they
+   receive the next one (perhaps after a single message, or on some time
+   schedule). Sender deliberately forgets the previous key.
+** different schemes:
+*** Symmetric key. Must be unique to each sender/recipient pair. Both sides
+    must hold it until the key rotates. If either side reveals it, all
+    messages are compromised. Provides both confidentiality and
+    authentication (no other sender knows the key).
+*** pair-wise curve25519 keys. Each sender/recipient pair has two keypairs.
+    Provides both confidentiality and authentication. Must hold the sending
+    key until the other side stops using it to authenticate you, must hold
+    the receiving key until the other side stops using it to encrypt to you.
+*** recipient curve25519 key, sender ephemeral curve25519 key, sender
+    long-term ed25519 key. Each message (or at least the ephemeral sending
+    key) is signed to get authenticity. Sender uses new keypair for each
+    message, discards privkey as soon as the message is encrypted, minimizing
+    exposure window of sender. Recipient switches keys periodically. Sender
+    remembers recipient pubkey until notified of the next one. Recipient
+    holds privkey until the message has been read and destroyed.
+** last one seems most useful
+** addressbook entries contain:
+*** for outbound messages: "them" section holds next-message curve25519
+    public "to" key (replaced when they rotate it), "me" section holds my
+    long-term ed25519 signing key (different for each recipient)
+*** for inbound messages: "them" section holds their long-term ed25519
+    verifying key. "me" section holds current/recent curve25519 private keys
+    (discarded when historical messages are destroyed and sender has acked
+    rotation)
