@@ -271,17 +271,24 @@ The sender then uses the addressbook entry to determine:
 * the recipient's current (rotating) public key, "current-recip"
 * the recipient's stable public key "stable-recip"
 * the sender's stable signing key (for just this recipient) "stable-sender"
+* the mailbox's stable public key, "mailbox"
 
-and creates three ephemeral keypairs k1/k2/k3.
+and creates three ephemeral keypairs pubkey1/pubkey2/pubkey3 (with
+corresponding privkey1/privkey2/privkey3).
 
-The sender signs pubkey3 with their stable-sender key. They concatenate this
-signed message (which is always 32+64=96 bytes long) with the encoded payload
-to get the innermost body "msgC". They then encrypt msgC with the Curve25519
-box() function, using to=current-recip and from=privkey3, to get msgB.
+The sender then builds the layered message as follows:
 
-They encrypt msgB with to=stable-recip, from=privkey2 to get msgA
+* msgD = sign(by=stable-sender, msg=pubkey3) + encoded-payload
+* msgC = encrypt(to=current-recip, from=privkey3)
+* msgB = encrypt(to=stable-recip, from-privkey2)
+* msgA = encrypt(to=mailbox, from=privkey1)
 
-They encrypt msgA with to=mailbox, from=privkey1 to get msgM.
+Note that sign(by=X,msg=Y) produces the the concatenation of the 32-byte
+verifying key pubX, the msg Y, and the 64-byte Ed25519 signature components R
+and S. Likewise, encrypt(to=X, from=Y, msg=Z) produces the concatenation of
+the 32-byte pubX, the 32-byte pubY, a 24-byte random nonce, the encrypted
+body, and the 32-byte MAC. This is the output of crypto_box() appended to the
+two pubkeys and the nonce.
 
 ...
 
