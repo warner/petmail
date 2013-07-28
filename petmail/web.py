@@ -220,7 +220,7 @@ class Control(resource.Resource):
 
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
-    def __init__(self, db):
+    def __init__(self):
         resource.Resource.__init__(self)
         self.putChild("", static.Data("Hello\n", "text/plain"))
         self.putChild("media", static.File(MEDIA_DIRNAME))
@@ -230,15 +230,15 @@ class WebPort(service.MultiService):
         service.MultiService.__init__(self)
         self.basedir = basedir
         self.node = node
-        self.db = db
 
-        root = Root(db)
+        root = Root()
+
         if node.client:
             # Access tokens last as long as the node is running: they are
             # cleared at each startup. It's important to clear these before
             # the web port starts listening, to avoid a race with 'petmail
             # open' adding a new nonce
-            cursor = self.db.cursor()
+            cursor = db.cursor()
             cursor.execute("DELETE FROM `webapi_access_tokens`")
             cursor.execute("DELETE FROM `webapi_opener_tokens`")
 
@@ -249,7 +249,7 @@ class WebPort(service.MultiService):
             access_token = make_nonce()
             cursor.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
                            (access_token,))
-            self.db.commit()
+            db.commit()
 
             root.putChild("open-control", ControlOpener(db, access_token))
             root.putChild("control", Control(access_token))
