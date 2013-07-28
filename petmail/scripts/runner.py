@@ -53,6 +53,12 @@ class OpenOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("no-open", "n", "Don't open webbrowser, just show URL"),
         ]
 
+class SampleOptions(BasedirParameterMixin, usage.Options):
+    optFlags = [
+        ("error", "e", "Cause a command error (400)"),
+        ("server-error", "s", "Cause a server error (500)"),
+        ]
+
 class InviteOptions(BasedirParameterMixin, usage.Options):
     #("petname", "n", None, "Petname for the person being invited"),
     def parseArgs(self, petname):
@@ -84,6 +90,7 @@ class Options(usage.Options):
                    ("restart", None, RestartNodeOptions, "Restart a node"),
                    ("open", None, OpenOptions, "Open web control panel"),
 
+                   ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Create an Invitation"),
                    ("accept", None, AcceptOptions, "Accept an Invitation"),
 
@@ -149,6 +156,10 @@ def test(so, stdout, stderr):
     #unittest.main(module="petmail.test.test_netstrings", argv=args)
     sys.exit(0) # just in case
 
+def sample(*args):
+    from .sample import sample
+    return sample(*args)
+
 def invite(*args):
     from .create_invitation import create_invitation
     return create_invitation(*args)
@@ -165,6 +176,7 @@ DISPATCH = {"create-node": create_node,
             "create-relay": create_relay,
             "test": test,
 
+            "sample": sample,
             "invite": invite,
             "accept": accept,
             }
