@@ -15,6 +15,12 @@ except ImportError:
     raise
     sys.exit(1)
 
+class NoNodeError(Exception):
+    def __init__(self, basedir):
+        self.basedir = basedir
+    def __str__(self):
+        return "NoNodeError: '%s' doesn't look like a Petmail basedir, quitting" % self.basedir
+
 class BasedirParameterMixin:
     optParameters = [
         ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
@@ -55,6 +61,7 @@ class OpenOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
 
 class SampleOptions(BasedirParameterMixin, usage.Options):
     optFlags = [
+        ("success-object", "o", "Return a success object, not success string"),
         ("error", "e", "Cause a command error (400)"),
         ("server-error", "s", "Cause a server error (500)"),
         ]
@@ -202,4 +209,7 @@ def run(args, stdout, stderr):
         print >>stderr, e
         print >>stderr, "Please run 'python setup.py build'"
         raise
+        return 1
+    except NoNodeError, e:
+        print >>stderr, e
         return 1

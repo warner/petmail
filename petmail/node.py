@@ -37,12 +37,6 @@ class Node(service.MultiService):
     def init_webport(self):
         w = web.WebPort(self.basedir, self, self.db)
         w.setServiceParent(self)
-        # clear initial nonces. It's important to do this before the web port
-        # starts listening, to avoid a race with 'petmail open' adding a new
-        # nonce
-        c = self.db.cursor()
-        c.execute("DELETE FROM webui_initial_nonces")
-        self.db.commit()
 
     def init_client(self):
         from . import client

@@ -13,12 +13,12 @@ CREATE TABLE `services`
  `name` STRING
 );
 
-CREATE TABLE `webui_initial_nonces`
+CREATE TABLE `webapi_opener_tokens`
 (
- `nonce` STRING
+ `token` STRING
 );
 
-CREATE TABLE `webui_access_tokens`
+CREATE TABLE `webapi_access_tokens`
 (
  `token` STRING
 );

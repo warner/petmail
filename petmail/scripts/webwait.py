@@ -6,17 +6,18 @@
 # TODO: handle 'restart' correctly by writing something into the DB to
 # distinguish between the old node and the new one. Maybe.
 
-import os, sys
-import urllib, time
-import urlparse, httplib
+import os, sys, time
+import urllib, urlparse, httplib, json
+from socket import error as socket_error
+from StringIO import StringIO
 from .. import database
+from .runner import NoNodeError
 
 def get_url_and_token(basedir, err):
     basedir = os.path.abspath(basedir)
     dbfile = os.path.join(basedir, "petmail.db")
     if not (os.path.isdir(basedir) and os.path.exists(dbfile)):
-        print >>err, "'%s' doesn't look like a Petmail basedir, quitting" % basedir
-        return 1
+        raise NoNodeError(basedir)
     sqlite, db = database.get_db(dbfile, err)
     c = db.cursor()
     c.execute("SELECT webport FROM node LIMIT 1")
@@ -28,7 +29,7 @@ def get_url_and_token(basedir, err):
         # Node has not yet chosen a port number. It needs to be started.
         return None, None
     url = "http://localhost:%d/" % portnum
-    c.execute("SELECT token FROM webui_access_tokens LIMIT 1")
+    c.execute("SELECT token FROM webapi_access_tokens LIMIT 1")
     (token,) = c.fetchone()
     if not token:
         # Node has assigned a port, but not created a token. Wait longer.

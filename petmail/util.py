@@ -1,5 +1,5 @@
 
-import os, base64
+import os, base64, hashlib
 
 class BadPrefixError(Exception):
     pass
@@ -55,3 +55,7 @@ def from_ascii(s_ascii, prefix="", encoding="base64"):
 
 def make_nonce():
     return base64.b32encode(os.urandom(32)).strip("=").lower()
+
+def equal(a, b):
+    # not vulnerable to timing attack
+    return hashlib.sha256(a).digest() == hashlib.sha256(b).digest()

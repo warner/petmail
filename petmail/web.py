@@ -2,7 +2,7 @@ import os, json
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from twisted.python import log
-from .util import make_nonce
+from .util import make_nonce, equal
 
 MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
 
@@ -53,9 +53,9 @@ class ClientEventsProtocol(SSEProtocol):
         self.sendEvent(data, name=what)
 
 class Events(SSEResource):
-    def __init__(self, control, db, client):
+    def __init__(self, access_token, db, client):
         SSEResource.__init__(self)
-        self.control = control
+        self.access_token = access_token
         self.db = db
         self.client = client
 
@@ -64,24 +64,69 @@ class Events(SSEResource):
 
     def render_GET(self, request):
         token = request.args["token"][0]
-        if token not in self.control.get_tokens():
+        if not equal(token, self.access_token):
             request.setHeader("content-type", "text/plain")
             return ("Sorry, this session token is expired,"
                     " please run 'petmail open' again\n")
         return SSEResource.render_GET(self, request)
 
-class API(resource.Resource):
-    def __init__(self, control, db, client):
+class CommandError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+handlers = {}
+
+class BaseHandler(resource.Resource):
+    def __init__(self, db, client, payload):
         resource.Resource.__init__(self)
-        self.control = control
+        self.db = db
+        self.client = client
+        self.payload = payload
+    def render_POST(self, request):
+        try:
+            results = self.handle(self.payload.get("args", {}))
+            if isinstance(results, str):
+                data = {"ok": True, "text": results}
+            else:
+                data = results
+        except CommandError, e:
+            request.setResponseCode(http.BAD_REQUEST, "command error")
+            data = {"err": e.msg}
+        return json.dumps(data)
+
+class Sample(BaseHandler):
+    def handle(self, payload):
+        if payload.get("error"):
+            raise CommandError("sample error text")
+        if payload.get("server-error"):
+            raise ValueError("sample server error")
+        if payload.get("success-object"):
+            return {"ok": "sample ok object"}
+        return "sample ok"
+handlers["sample"] = Sample
+
+class API(resource.Resource):
+    def __init__(self, access_token, db, client):
+        resource.Resource.__init__(self)
+        self.access_token = access_token
         self.db = db
         self.client = client
 
-    def render_POST(self, request):
-        r = json.loads(request.content.read())
-        if not r["token"] in self.control.get_tokens():
+    def getChild(self, path, request):
+        # everything requires a token, check it here
+        payload = json.loads(request.content.read())
+        if not equal(payload["token"], self.access_token):
             request.setResponseCode(http.UNAUTHORIZED, "bad token")
             return "Invalid token"
+        rclass = handlers.get(path)
+        if not rclass:
+            request.setResponseCode(http.NOT_FOUND, "unknown method")
+            return "Unknown method"
+        r = rclass(self.db, self.client, payload)
+        return r
+
+class OFF:
+    def render_POST(self, request):
         method = str(r["method"])
         c = self.db.cursor()
         data = None
@@ -134,48 +179,47 @@ class API(resource.Resource):
             return json.dumps(data)
         return json.dumps({"text": str(text)})
 
-class Control(resource.Resource):
-    def __init__(self, db):
+class ControlOpener(resource.Resource):
+    def __init__(self, db, access_token):
         resource.Resource.__init__(self)
         self.db = db
-
-    def get_tokens(self):
-        c = self.db.cursor()
-        c.execute("SELECT `token` FROM `webui_access_tokens`")
-        return set([str(row[0]) for row in c.fetchall()])
+        self.access_token = access_token
 
     def render_GET(self, request):
         request.setHeader("content-type", "text/plain")
-        if "nonce" not in request.args:
+        if "opener-token" not in request.args:
             return "Please use 'petmail open' to get to the control panel\n"
-        nonce = request.args["nonce"][0]
+        opener_token = request.args["opener-token"][0]
         c = self.db.cursor()
-        c.execute("SELECT nonce FROM webui_initial_nonces")
-        nonces = [str(row[0]) for row in c.fetchall()]
-        if nonce not in nonces:
-            return ("Sorry, that nonce is expired or invalid,"
+        c.execute("SELECT token FROM webapi_opener_tokens")
+        tokens = [str(row[0]) for row in c.fetchall()]
+        if opener_token not in tokens:
+            return ("Sorry, that opener-token is expired or invalid,"
                     " please run 'petmail open' again\n")
-        # good nonce, single-use
-        c.execute("DELETE FROM webui_initial_nonces WHERE nonce=?", (nonce,))
-        # this token lasts as long as the node is running: it is cleared at
-        # startup
-        token = make_nonce()
-        c.execute("INSERT INTO `webui_access_tokens` VALUES (?)", (token,))
+        # good opener-token, single-use
+        c.execute("DELETE FROM webapi_opener_tokens WHERE token=?",
+                  (opener_token,))
         self.db.commit()
+
         request.setHeader("content-type", "text/html")
-        return read_media("login.html") % token
+        return read_media("login.html") % self.access_token
+
+class Control(resource.Resource):
+    def __init__(self, access_token):
+        resource.Resource.__init__(self)
+        self.access_token = access_token
 
     def render_POST(self, request):
         token = request.args["token"][0]
-        if token not in self.get_tokens():
+        if not equal(token, self.access_token):
             request.setHeader("content-type", "text/plain")
-            return ("Sorry, this session token is expired,"
+            return ("Sorry, this access token is expired,"
                     " please run 'petmail open' again\n")
         return read_media("control.html") % {"token": token}
 
 
 class Root(resource.Resource):
-    # child_FOO is a nevow thing, not in twisted.web.resource thing
+    # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self, db):
         resource.Resource.__init__(self)
         self.putChild("", static.Data("Hello\n", "text/plain"))
@@ -190,14 +234,32 @@ class WebPort(service.MultiService):
 
         root = Root(db)
         if node.client:
-            self.db.cursor().execute("DELETE FROM `webui_access_tokens`")
+            # Access tokens last as long as the node is running: they are
+            # cleared at each startup. It's important to clear these before
+            # the web port starts listening, to avoid a race with 'petmail
+            # open' adding a new nonce
+            cursor = self.db.cursor()
+            cursor.execute("DELETE FROM `webapi_access_tokens`")
+            cursor.execute("DELETE FROM `webapi_opener_tokens`")
+
+            # The access token will be used by both CLI commands (which read
+            # it directly from the database) and the frontend web client
+            # (which fetches it from /open-control with a single-use opener
+            # token).
+            access_token = make_nonce()
+            cursor.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
+                           (access_token,))
             self.db.commit()
-            c = Control(db)
-            capi = API(c, db, node.client)
-            c.putChild("api", capi)
-            client_events = Events(c, db, node.client)
-            c.putChild("events", client_events)
-            root.putChild("control", c)
+
+            root.putChild("open-control", ControlOpener(db, access_token))
+            root.putChild("control", Control(access_token))
+
+            api = resource.Resource() # /api
+            api_v1 = API(access_token, db, node.client) # /api/v1
+            client_events = Events(access_token, db, node.client) # /api/v1/events
+            api_v1.putChild("events", client_events)
+            api.putChild("v1", api_v1)
+            root.putChild("api", api)
 
         site = server.Site(root)
         webport = str(node.get_node_config("webport"))
