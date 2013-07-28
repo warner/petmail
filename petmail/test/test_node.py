@@ -2,6 +2,7 @@ import os, sys
 from StringIO import StringIO
 from twisted.trial import unittest
 from twisted.internet import threads # CLI tests use deferToThread
+from twisted.internet import defer
 from twisted.internet.utils import getProcessOutputAndValue
 from ..scripts import runner
 
@@ -54,8 +55,30 @@ class CLIinProcessMixin(CLIinThreadMixin):
                                      os.environ)
         return d
 
-class CLI(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
+    def anyways(self, res, cb, *args, **kwargs):
+        # always run the cleanup callback
+        d = defer.maybeDeferred(cb, *args, **kwargs)
+        # if it succeeds, return the original result (which might be a
+        # Failure). Otherwise return the cleanup failure.
+        d.addCallbacks(lambda _: res, lambda f: f)
+        return d
 
+class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
+
+    def test_run(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node", basedir)
+        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
+        d.addCallback(lambda _: self.cliMustSucceed("open", "-n", "-d",basedir))
+        def _check_url(out):
+            self.failUnlessSubstring("Node appears to be running, opening browser", out)
+            self.failUnlessSubstring("Please open: http://localhost:", out)
+            self.failUnlessSubstring("/open-control?opener-token=", out)
+        d.addCallback(_check_url)
+        d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
+        return d
+
+class CLI(CLIinThreadMixin, BasedirMixin, unittest.TestCase):
     def test_create(self):
         basedir = os.path.join(self.make_basedir(), "node1")
         d = self.cliMustSucceed("create-node", basedir)
@@ -64,12 +87,3 @@ class CLI(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
             self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
         d.addCallback(_check)
         return d
-
-    def test_run(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-node", basedir)
-        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
-        d.addCallback(lambda _: self.cliMustSucceed("open", "-n", "-d",basedir))
-        d.addCallback(lambda _: self.cliMustSucceed("stop", basedir))
-        return d
-
