@@ -111,59 +111,34 @@ of the transport server, and messages are encrypted using an ephemeral
 sending key.
 
 When a Tor hidden service is used as a transport, an eavesdropper should
-learn even less.
+learn even less. Hidden services offer their own strong transport security,
+but for consistency we encrypt to the same mailbox key anyways. TLS/HTTPS
+could offer the same properties, but only when used in a forward-secret mode,
+and only if the client verifies the certificate properly, neither of which
+are particularly convenient, so we use the mailbox key here too.
 
 Anonymity
 ---------
 
-The current protocol provides limited unlinkability. A mailbox cannot use the
-contents of the message it sees to determine which sender provided it. Of
-course, senders must disguise their transport address to take full advantage
-of this (e.g. by sending through Tor).
+The current protocol provides only very limited unlinkability of messages.
+Eavesdroppers do not learn anything from the contents of the inbound mailbox
+messages, leaving them with only timing and source-address information.
+However the mailbox itself can observe the target key for each message
+delivered to the same recipient. These keys change periodically, to achieve
+forward secrecy (described below), however a single sender is likely to
+create multiple messages with the same destination key, allowing the mailbox
+to link those messages as belonging to the same sender.
 
-A future version of this protocol should provide the following unlinkability
-properties:
+The mailbox can also use timing and source-address information to correlate
+senders and their messages. It may be possible to mitigate this by using Tor
+hidden services, carefully (and expensively) creating a new connection for
+each message, and delivering messages on a random schedule.
 
-1. The mailbox cannot distinguish which sender provided a message (from the
-   contents of the message.. they still might discern source IP address,
-   etc). The mailbox can compute a recipient identifier, to know how to route
-   the message, which will the the same no matter which sender created it.
-   Two successive messages from the same sender cannot be identified as such.
-
-2. Two senders cannot distinguish whether their transport descriptors refer
-   to the same recipient or not, except for the shared mailbox addressing
-   information. If Alice and Bob are senders, Carol and Dave are two
-   recipients who rent mailboxes from the same host, then Alice gets two
-   descriptors AC and AD, and Bob gets BC and BD. When Alice and Bob compare
-   their descriptors, they should not be able to distinguish whether AC+BC go
-   to the same person, or AC+BD. Alice herself cannot tell if AC+AD go to
-   different people or the same person.
-3. The recipient is not required to communicate with the mailbox to add each
-   new sender, but can create new descriptors herself.
-
-4. The sender can produce any number of messages without needing to acquire
-   new tokens or information from the recipient.
-
-5. The mailbox can determine the recipient of a message in constant time,
-   rather than iterating through the full list of registered recipients
-   looking for a match.
-
-I don't yet know of a protocol that can satisfy these conditions. Tthere are
-a number of simpler protocols that provide a subset:
-
-* Give each sender the (same) client identifier, each sender includes the
-  identifier in their message. This provides 1/3/4/5, but not 2. This is
-  the current protocol.
-* Register a different client identifier for each sender. Senders include the
-  identifier in their message. This provides 2/4/5 but not 1 or 3.
-* Give each sender a big list of single-use tokens, each of which is a
-  randomly encrypted copy of the client identifier, using the mailbox's
-  public key. This would provide 1/2/3/5 but not 4.
-
-I expect a complete protocol would involve the senders getting
-differently-blinded copies of the client identifier, then blinding these
-tokens themselves for each message they send. It may be necessary to give up
-on #5 (mailbox efficiency) to achieve the other four.
+A more complex protocol exists (see `petmail-notes.org
+<petmail-notes.org>`_), with an additional encryption layer, that hides the
+rotating target keys from the mailbox. A future version of the client, which
+uses a transport (randomized Tor) that hides the other correlations, may
+switch to this larger protocol.
 
 Forward Secrecy
 ---------------
@@ -201,30 +176,32 @@ corresponding private keys with earlier sequence numbers (knowing the sender
 has forgotten the matching pubkeys).
 
 To obtain sender-indistinguishability at the mailbox, these pubkeys should
-not be exposed to the mailbox (as any repeats indicate two messages were from
-the same sender). So these keys must be wrapped in another encrypted box,
-using a stable recipient pubkey. Compromise of the stable recipient privkey
-enables the mailbox to distinguish different senders, but does not compromise
-any message contents.
+not be exposed to the mailbox (as any repeated usage would indicate two
+messages were from the same sender). So these keys must be wrapped in another
+encrypted box, using a stable recipient pubkey. Compromise of the stable
+recipient privkey enables the mailbox to distinguish different senders, but
+does not compromise any message contents. The current Petmail protocol does
+not use this wrapping, but a future version might.
 
-Sender Repudiability
---------------------
+Sender Deniability
+------------------
 
 Senders should not have to treat their private communications as irrevocable
 public statements (unless they specifically ask for that). When Alice sends a
 message to Bob, Bob should be convinced of its authenticity (Alice approved
 of the message contents and intended for Bob to see them), but Bob should not
-be able to convince anyone else that the message came from Alice.
+be able to convince anyone else that the message came from Alice. Alice
+should be able to deny authorship of the message.
 
-One common technique to achieve this is to deliver a MAC key over a secure
-channel to the recipient (so they know that only the sender could have
-provided it, and nobody else knows it), then MAC each message instead of
-signing it. The recipient can forge her own messages, since she knows the MAC
-key too, making the author set (sender, recipient). Some systems go further
-and publish the MAC key after confirming receipt of the message, to increase
-the potential author set to be (sender, recipient, eavesdroppers). And
-attempting to prove authenticity to a third party, by revealing the MAC key,
-inevitably adds the third party to the author set as well.
+To achieve this, one technique is to deliver a MAC key over a secure channel
+to the recipient (so they know that only the sender could have provided it,
+and nobody else knows it), then MAC each message instead of signing it. The
+recipient can forge her own messages, since she knows the MAC key too, making
+the author set (sender, recipient). Some systems, like OTR, go further and
+publish the MAC key after confirming receipt of the message, to increase the
+potential author set to be (sender, recipient, eavesdroppers). And attempting
+to prove authenticity to a third party, by revealing the MAC key, inevitably
+adds the third party to the author set as well.
 
 Another technique is to have the sender sign a single-use encryption key.
 
@@ -240,17 +217,21 @@ with the sender's long-term signing key, for which the recipient knows the
 corresponding verifying key.
 
 When Bob receives this message, he can show the signed ephemeral key to a
-third-party, who will be convinced that Alice did indeed intend to send
-(somebody) a message encrypted with the privkey. Bob can also show the boxed
-message, and reveal his (rotating) private key, to show that Alice might have
-written the message. But since Bob knows the private key, Bob could have
-written that message (or indeed any message) himself.
+third party, who will be convinced that Alice did indeed intend to send
+(somebody) a message encrypted with the corresponding privkey. Bob can also
+show the boxed message, and reveal his (rotating) private key, to show that
+Alice might have written the message. But the message could be written by
+anyone who knows either of the private keys, and since Bob knows his own
+private key, Bob could have written that message (or indeed any message)
+himself.
 
-This does not provide the large authorship set that publishing the MAC key
-would offer, but still includes at least the recipient in the set, which is
-enough to fulfill the goals of repudiability. It might be possible to achieve
-the larger target set by having the sender sign a MAC, which is used to
-authenticate the ephemeral pubkey, and then publish the MAC key afterwards.
+This does not provide the large authorship set OTR gets by publishing the MAC
+key, but still includes at least the recipient in the set, which is enough to
+fulfill the goals of deniability. It might be possible to achieve the larger
+target set by having the sender sign a MAC, which is used to authenticate the
+ephemeral pubkey, and then publish the MAC key afterwards. Note that the
+sender cannot safely publish their ephemeral private key, as that is also
+what protects the confidentiality of the message.
 
 
 Sender Flow
@@ -269,89 +250,96 @@ JSON). The `encoded payload` is the two-byte version identifier "p1" (0x70
 The sender then uses the addressbook entry to determine:
 
 * the recipient's current (rotating) public key, "current-recip"
-* the recipient's stable public key "stable-recip"
+* the recipient's client-identifier string
 * the sender's stable signing key (for just this recipient) "stable-sender"
 * the mailbox's stable public key, "mailbox"
 
-and creates three ephemeral keypairs pubkey1/pubkey2/pubkey3 (with
-corresponding privkey1/privkey2/privkey3).
+and creates two ephemeral keypairs pubkey1/pubkey2 (with corresponding
+privkey1/privkey2).
 
 The sender then builds the layered message as follows:
 
-* msgD = sign(by=stable-sender, msg=pubkey3) + encoded-payload
-* msgC = encrypt(to=current-recip, from=privkey3)
-* msgB = encrypt(to=stable-recip, from-privkey2)
-* msgA = encrypt(to=mailbox, from=privkey1)
+* msgD = sign(by=stable-sender, pubkey2) + encoded-payload
+* msgC = encrypt(to=current-recip, from=privkey2, msgD)
+* msgB = client-id + msgC
+* msgA = encrypt(to=mailbox, from=privkey1, msgB)
 
-Note that sign(by=X,msg=Y) produces the the concatenation of the 32-byte
-verifying key pubX, the msg Y, and the 64-byte Ed25519 signature components R
-and S. Likewise, encrypt(to=X, from=Y, msg=Z) produces the concatenation of
-the 32-byte pubX, the 32-byte pubY, a 24-byte random nonce, the encrypted
-body, and the 32-byte MAC. This is the output of crypto_box() appended to the
-two pubkeys and the nonce.
+Some notes on terminology:
 
-...
-
-The transport message is:
-
-  * 32-byte Curve25519 pubkey of the mailbox. Multiple nodes will share a
-    mailbox: all their messages will use the same mailbox pubkey. The idea is
-    to conceal the ultimate recipient of the message from an eavesdropper
-    (but not from the mailbox itself).
-  * 32-byte ephemeral Curve25519 pubkey (outer key). For each message
-    delivered to this transport, an ephemeral keypair is created. The message
-    is encrypted with the NaCl "box" function, using this ephemeral private
-    key and the mailbox's public key. The ephemeral public key is then
-    attached to the message so the mailbox can decrypt it.
-  * 24-byte nonce, randomly generated
-  * Encrypted outer message body, with 32-byte MAC. Output of crypto_box().
+* sign(by=X,msg=Y) returns the concatenation of the 32-byte verifying key
+  pubX, the msg Y, and the 64-byte Ed25519 signature (R and S concatenated
+  together)
+* encrypt(to=X, from=Y, Z) produces the concatenation of the 32-byte pubX,
+  the 32-byte pubY, a 24-byte random nonce, the encrypted message Z, and the
+  32-byte Poly1305 MAC. This is built by concatenating the two pubkeys, the
+  nonce, and the output of crypto_box().
 
 Wire Protocol
 -------------
 
-To deliver transport messages via the raw TCP transport, a TCP connection is
-established to the mailbox's address and port. This connection can be used
-for multiple messages, concatenated together (i.e. the connection can be
-nailed up and messages delivered later). Each message is encapsulated as
-follows:
+To deliver transport messages ("msgA" above) via the raw TCP transport, a TCP
+connection is established to the mailbox's address and port. This connection
+can be used for multiple messages, concatenated together (i.e. the connection
+can be nailed up and messages delivered later). Each message is encapsulated
+as follows:
 
 * A two-byte version indicator, "v1" (0x76 0x31)
-* A netstring containing the transport message (decimal length, ":", message,
-  ".").
+* A netstring with the transport message (decimal length, ":", msgA, ".").
+  msgA contains:
 
-The mailbox decrypts the message body to obtain the following inner message:
-
-* A three-byte version indicator, "ci1" (0x63 0x69 0x31)
-* 32-byte Client Identifier
-* the inner message:
-
-  * A two-byte version indicator, "m1" (0x6d 0x31)
-  * 32-byte Curve25519 "to" pubkey of the recipient
-  * 32-byte Curve25519 "from" ephemeral pubkey (inner key) of the sender.
+  * 32-byte mailbox pubkey
+  * 32-byte sender ephemeral pubkey (pubkey1)
   * 24-byte nonce
-  * encrypted inner message body
+  * encrypted msgB
+  * 32-byte MAC
 
-The mailbox uses the Client Identifier to locate the client's queue, then
-stores the inner message in that queue.
+The mailbox checks the mailbox pubkey to make sure it matches that of the
+mailbox, and discards the message otherwise. (This pubkey could be used to
+allow multiple mailboxes to share the same transport channel or TCP port). It
+then uses the mailbox privkey and pubkey1 to decrypt the message and obtain
+msgB.
+
+It then splits msgB into the 32-byte client-id and the inner msgC, and
+enqueues msgC to the matching recipient. If the client-id is unrecognized, it
+returns an error.
+
+When the message has been safely queued, connection-oriented transports (TCP,
+Tor) indicate success by writing "ok:" (0x6f 0x6b 0x3a) followed by the
+32-byte SHA256 hash of the encapsulated transport message (everything from
+"v1" to the netstring's trailing ".") to the connection. If an error occurs,
+it writes "error: MSG." instead, where "MSG" is any string that does not
+contain a period. Non-connection oriented transports can log successes and
+errors but do not (and cannot) inform the sender.
 
 Client Flow
 -----------
 
 The recipient contacts the mailbox and retrieves any queued messages intended
 for its client identifier, using a protocol that depends on the mailbox type.
-The client then instructs the mailbox to delete the queued messages. If the
-client maintains multiple client identifiers with the same mailbox service,
-it must retrieve each set of messages separately. Each retrieved message is
-associated with exactly one client identifier.
+It gets the full contents of "msgC" as described above. The client then
+instructs the mailbox to delete the queued messages. If the client maintains
+multiple client identifiers with the same mailbox service, it must retrieve
+each set of messages separately. Each retrieved message is associated with
+exactly one client identifier.
 
 The recipient must maintain a table that maps from (mailbox+CI) to a keypair
-(or set of keypairs). The inner message "to" pubkey (which comes from the
+(or set of keypairs). The "to" pubkey of the outer msgC (which comes from the
 sender's mailbox descriptor) must be in this list: if not, the message should
 be ignored (to prevent a confirmation attack, where a sender uses the pubkey
 from one descriptor with the mailbox data from a different one, to confirm
 that they two recipients are in fact the same person). The corresponding
-privkey, and the message "from" key, are used to decrypt the body.
+private key, and the message "from" key (pubkey2), are used to decrypt the
+msgC body to obtain msgD.
 
-The decrypted body is then delivered to the Dispatcher for routing. Some
-messages are intended for the user, others are consumed internally for
-maintenance purposes.
+The recipient then splits the signed message out of msgD and verifies the
+signature. If the signature is invalid, or the signed message's "by" key does
+not match the pubkey2 used as a "from" key for msgC, the message is discarded
+and an error is logged.
+
+The encoded payload is then checked for the leading "p1" version string, and
+logged+discarded (with a "unrecognized payload version" message) if it is not
+present. Then the rest of the encoded payload is UTF8-decoded and
+JSON-unserialized, and the resulting payload object is delivered to the
+Dispatcher for routing. Some messages are intended for the user, others are
+consumed internally for maintenance purposes; this is determined by fields
+inside the payload object.
