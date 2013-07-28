@@ -3,7 +3,7 @@
 # dependency set, or parts of petmail that require things from the dependency
 # set, until runtime, inside a command that specifically needs it.
 
-import os, sys, shutil
+import os, sys
 
 try:
     # do not import anything from Twisted that requires the reactor, to allow
@@ -80,14 +80,9 @@ class AcceptOptions(BasedirParameterMixin, usage.Options):
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
         if not test_args:
-            vmaj,vmin = sys.version_info[0:2]
-            if vmaj == 2 and vmin < 7:
-                print "Sorry, test-discovery requires py2.7"
-                print "Try ./petmail test petmail.test.test_netstrings"
-                sys.exit(1)
-            self.test_args = ["discover", "-v"] # require unittest from py2.7
+            self.test_args = ["petmail"]
         else:
-            self.test_args = ["-v"] + list(test_args)
+            self.test_args = list(test_args)
 
 class Options(usage.Options):
     synopsis = "\nUsage: petmail <command>"
@@ -155,12 +150,9 @@ def create_relay(*args):
     return create_relay(*args)
 
 def test(so, stdout, stderr):
-    import unittest
-    if os.path.exists("_test"):
-        shutil.rmtree("_test")
-    args = ["python -m unittest"] + list(so.test_args)
-    unittest.main(module=None, argv=args)
-    #unittest.main(module="petmail.test.test_netstrings", argv=args)
+    from twisted.scripts import trial as twisted_trial
+    sys.argv = ["trial"] + so.test_args
+    twisted_trial.run() # this does not return
     sys.exit(0) # just in case
 
 def sample(*args):
