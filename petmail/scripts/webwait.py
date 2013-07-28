@@ -52,9 +52,9 @@ def wait(basedir, err=sys.stderr):
         tries += 1
         if tries % 30 == 0:
             if baseurl:
-                print "still waiting for %s to respond" % baseurl
+                print >>err, "still waiting for %s to respond" % baseurl
             else:
-                print "still waiting for %s to decide on a URL" % basedir
+                print >>err, "still waiting for %s to decide on a URL" % basedir
 
     raise RuntimeError("gave up after 100s")
 

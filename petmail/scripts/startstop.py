@@ -32,8 +32,8 @@ def start(so, out, err):
     try:
         twistd_config.parseOptions(twistd_args)
     except usage.error, ue:
-        print twistd_config
-        print "petmail %s: %s" % (so.subCommand, ue)
+        print >>err, twistd_config
+        print >>err, "petmail %s: %s" % (so.subCommand, ue)
         return 1
     twistd_config.loadedPlugins = {"XYZ": MyPlugin(basedir, dbfile)}
     # this spawns off a child process, and the parent calls os._exit(0), so
@@ -83,7 +83,7 @@ def stop(so, out, err):
         os.kill(pid, signal.SIGKILL)
     except OSError, oserr:
         if oserr.errno == 3:
-            print oserr.strerror
+            print >>err, oserr.strerror
             # the process didn't exist, so wipe the pid file
             os.remove(pidfile)
             return 2

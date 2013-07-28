@@ -149,7 +149,11 @@ def create_relay(*args):
     from .create_node import create_relay
     return create_relay(*args)
 
+petmail_executable = []
+
 def test(so, stdout, stderr):
+    petmail = os.path.abspath(sys.argv[0])
+    petmail_executable.append(petmail) # to run bin/petmail in a subprocess
     from twisted.scripts import trial as twisted_trial
     sys.argv = ["trial"] + so.test_args
     twisted_trial.run() # this does not return
