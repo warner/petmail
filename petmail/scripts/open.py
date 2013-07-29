@@ -26,3 +26,4 @@ def open_control_panel(so, out, err):
         print >>out, "Please open: %s" % url
     else:
         webbrowser.open(url)
+    return 0

@@ -118,3 +118,27 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         basedir = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir)
         n = self.startNode(basedir)
+        d = self.cliMustSucceed("open", "-n", "-d", basedir)
+        d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir))
+        d.addCallback(self.failUnlessEqual, "True\n", "one")
+        d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir,
+                                                    "-o"))
+        d.addCallback(self.failUnlessEqual, "sample ok object\n", "two")
+        d.addCallback(lambda _: self.cli("sample", "-d", basedir, "-e"))
+        def _fail1((out,err,rc)):
+            self.failIfEqual(rc, 0)
+            self.failUnlessEqual(out, "")
+            self.failUnlessEqual(err, "sample error text\n")
+        d.addCallback(_fail1)
+        return d
+        # Also test --server-error . This isn't ready yet.
+        d.addCallback(lambda _: self.cli("sample", "-d", basedir, "-s"))
+        # that should raise a ValueError
+        def _no_error(res):
+            self.fail("expected a failure, not %s" % (res,))
+        def _got_error(f):
+            f.check(ValueError)
+            print str(f)
+        d.addCallbacks(_no_error, _got_error)
+        return d
+
