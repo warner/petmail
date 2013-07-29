@@ -65,6 +65,8 @@ class SampleOptions(BasedirParameterMixin, usage.Options):
         ("error", "e", "Cause a command error (400)"),
         ("server-error", "s", "Cause a server error (500)"),
         ]
+    def parseArgs(self, data="no data"):
+        self["data"] = data
 
 class InviteOptions(BasedirParameterMixin, usage.Options):
     #("petname", "n", None, "Petname for the person being invited"),

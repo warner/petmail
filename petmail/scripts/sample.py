@@ -4,6 +4,7 @@ from .webwait import command
 
 def sample(so, out=sys.stdout, err=sys.stderr):
     args = {}
+    args["data"] = so["data"]
     if so["success-object"]:
         args["success-object"] = True
     if so["error"]:

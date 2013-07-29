@@ -96,6 +96,7 @@ class BaseHandler(resource.Resource):
 
 class Sample(BaseHandler):
     def handle(self, payload):
+        self.client._debug_sample = payload["data"]
         if payload.get("error"):
             raise CommandError("sample error text")
         if payload.get("server-error"):

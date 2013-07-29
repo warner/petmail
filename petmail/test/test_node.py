@@ -121,9 +121,13 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         d = self.cliMustSucceed("open", "-n", "-d", basedir)
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir))
         d.addCallback(self.failUnlessEqual, "True\n", "one")
+        d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
+                                                     "no data"))
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir,
-                                                    "-o"))
+                                                    "-o", "other data"))
         d.addCallback(self.failUnlessEqual, "sample ok object\n", "two")
+        d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
+                                                     "other data"))
         d.addCallback(lambda _: self.cli("sample", "-d", basedir, "-e"))
         def _fail1((out,err,rc)):
             self.failIfEqual(rc, 0)
