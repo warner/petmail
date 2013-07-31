@@ -151,3 +151,21 @@ Unsorted design notes.
     differently-blinded copies of the client identifier, then blinding these
     tokens themselves for each message they send. It may be necessary to
     give up on #5 (mailbox efficiency) to achieve the other four.
+** protocol3
+*** msgA = enc(to=transport,from=key1,msgB)
+*** msgB = recipient-id + enc(to=recip-stable, from=key2, msgC)
+**** could merge recipient-id and recip-stable
+*** msgC = sender-id + sign(by=sender-stable,key3) + enc(to=recip-current,
+    from=key3, body)
+**** could merge sender-id and sender-stable
+** protocol4
+*** msgA = enc(to=transport,from=key1,msgB)
+*** msgB = recipient-id + enc(to=recip-stable, from=key2, msgC)
+*** msgC = sender-id + enc(to=recip-current, from=key3, msgD)
+*** msgD = sign(by=sender-stable,key3) + body
+*** key3 could be sender-current instead, remove sender-id, recipient does
+    lookup in 2*len(senders) table to find sender id, remove signature in
+    msgD. Might interfere with deniability
+
+
+
