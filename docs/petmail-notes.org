@@ -166,6 +166,32 @@ Unsorted design notes.
 *** key3 could be sender-current instead, remove sender-id, recipient does
     lookup in 2*len(senders) table to find sender id, remove signature in
     msgD. Might interfere with deniability
-
+** protocol5
+*** msgA = pubkey1+enc(to=transport,from=key1,msgB)
+*** msgB = recipient-id + pubkey2+enc(to=recip-current, from=key2, msgC)
+**** recip-current is *not* visible in msgB, only pubkey2, to hide sender
+     correlations from server
+*** msgC = sign(by=sender-stable,key2) + body
+*** recipient does 2*len(senders) trial decryptions of msgB
+**** each sender holds a (distinct) single recip-current pubkey, recipient
+     remembers the privkey for both previous and next. When recipient sees a
+     message encrypted to "next", they rotate (forget "previous", create new
+     "next" key, deliver pubkey to sender)
+*** msgA hides recipient from eavesdroppers, only useful with shared servers
+*** msgB: hides sender from server, provides confidentiality, provides
+    forward secrecy against sender compromise (random key2), provides forward
+    secrecy against recipient compromise (rotating recip-current).
+*** msgC (sig) provides deniable authentication of sender
+** protocol6
+*** msgA = pubkey1+enc(to=transport,from=key1,msgB)
+*** msgB = recip-stable + pubkey2 + enc(to=recip-stable, from=key2, msgC)
+*** msgC = sender-stable + sign(by=sender-stable,key3) + pubkey3 + recip-current + enc(to=recip-current, from=key3, msgD)
+**** recipient looks up sender-stable in a table, finds two entries
+     (previous+new), finds which one matches recip-current, decrypts, maybe
+     rotates. No trial decryptions.
+*** msgD = body
+*** so msgA hides recipient form eavesdroppers
+*** msgB hides sender from server
+*** msgC provides confidentiality
 
 
