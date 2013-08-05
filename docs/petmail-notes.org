@@ -1,6 +1,28 @@
 
 Unsorted design notes.
 
+* what does Bob=sigkeyB really mean? what do we want it to mean?
+** "Bob" = the other person who knew the shared secret invitation code
+** when alice pushes the "send a message to Bob" button:
+*** Bob can read the message, plus perhaps others Bob decides to allow
+** when alice's agent displays "From: Bob" on a message:
+*** Bob must know the contents
+*** Bob must have meant to send it to Alice ("the other invitation person")
+** each time a new key is exchanged, we must ask: does it maintain these?
+** easier to study with simpler models (without PFS, repudiation, pseudonyms)
+*** one curve25519 pubkey per user (for both confidentiality and auth)
+*** one ed25519 verfkey per user which signs messages and rotating pubkeys
+*** verfkey per recip*sender, repudiably signs messages and rotating pubkeys
+** best bet:
+*** use SIGMA-proven signed ephemeral DH pubkey pairs. adds an extra message?
+*** http://webee.technion.ac.il/~hugo/sigma-pdf.pdf
+*** A->B: MAC(by=code, tmpA)
+*** B->A: MAC(by=code, tmpB), enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB))
+*** A->B: enc(to=B,from=A, verfA+sig(tmpA+tmpB))
+**** add MAC(by=sharedkey, A) inside the enc() part? SIGMA uses this, but I
+     think that just putting A inside the enc() is equivalent
+
+
 * forward-secrecy
 ** basically we need to change the encryption key after each message. The
    recipient gives the sender a new key, the sender uses it until they
@@ -46,6 +68,7 @@ Unsorted design notes.
     key). Seems fragile though.
 *** forward security of stable-recip: compromise of that key enables
     mailboxes to distinguish senders.
+
 
 * repudiation
 ** general goal is for message recipient to be convinced of the sender, but
