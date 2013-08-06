@@ -80,10 +80,25 @@ channel, waiting for changes.
 
 The second client reads that message and prepares a similar one of its own.
 It also uses the two ephemeral pubkeys to create a boxed record containing
-its long-term signing key, a Curve25519 pubkey for use in this connection,
-and a copy of its transport record (listing the mailboxes it uses for inbound
-messages). The two items are concatented and appended to the channel.
+its long-term verifying key, a signed copy of the two ephemeral pubkeys, and
+a signed copy of its transport record (listing the mailboxes it uses for
+inbound messages). The two items are concatented and appended to the channel.
+Note that the long-term verifying key is different for each sender (so each
+pair of users will involve two verifying keys).
 
-The first client retrieves those messages and appends its own boxed record.
+The transport record will include: the long-term Curve25519 pubkey (used to
+hide messages from the mailbox server), the current rotating pubkey (used to
+provide forward-secrecy), and the mailbox descriptor string (which will
+include a pubkey for the mailbox server).
+
+The first client then retrieves those messages and appends its own boxed
+record.
 
 The second client retrieves the boxed record and then destroys the channel.
+
+The complete protocol looks like this:
+
+* A->B: symbox(key=code, tmpA)
+* B->A: symbox(key=code, tmpB), enc(tmpA/tmpB, verfB+sig(tmpA+tmpB)+sig(tportB))
+* A->B: enc(tmpB/tmpA, verbA+sig(tmpB+tmpA)+sig(tportA))
+* B->A: destroy channel

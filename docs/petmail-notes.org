@@ -4,23 +4,40 @@ Unsorted design notes.
 * what does Bob=sigkeyB really mean? what do we want it to mean?
 ** "Bob" = the other person who knew the shared secret invitation code
 ** when alice pushes the "send a message to Bob" button:
-*** Bob can read the message, plus perhaps others Bob decides to allow
+*** the message can be read by Bob, or by someone he selected
 ** when alice's agent displays "From: Bob" on a message:
-*** Bob must know the contents
+*** Bob must have, at some point, known the contents
 *** Bob must have meant to send it to Alice ("the other invitation person")
+*** (this is stronger than "someone Bob selected knew the contents")
 ** each time a new key is exchanged, we must ask: does it maintain these?
 ** easier to study with simpler models (without PFS, repudiation, pseudonyms)
 *** one curve25519 pubkey per user (for both confidentiality and auth)
 *** one ed25519 verfkey per user which signs messages and rotating pubkeys
 *** verfkey per recip*sender, repudiably signs messages and rotating pubkeys
-** best bet:
-*** use SIGMA-proven signed ephemeral DH pubkey pairs. adds an extra message?
-*** http://webee.technion.ac.il/~hugo/sigma-pdf.pdf
+** if "From: Bob" is based on something signed (as opposed to a pubkey), then
+   it should be sufficient to bind the *signing* key to the invitation. 
+*** The invitation protocol can end with each side knowing the Ed25519
+    verfkey of the other side, and confidentiality-providing pubkeys can be
+    delivered later.
+*** each message is already bound to the invitation code, by the MAC. We're
+    just protecting against Bob using Carol's verfkey instead of his own
+*** To create the binding, the invitation process must include a message,
+    signed by the sender's signkey, indicating the two ...
+*** learn from SIGMA: http://webee.technion.ac.il/~hugo/sigma-pdf.pdf
+** start with:
 *** A->B: MAC(by=code, tmpA)
 *** B->A: MAC(by=code, tmpB), enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB))
 *** A->B: enc(to=B,from=A, verfA+sig(tmpA+tmpB))
-**** add MAC(by=sharedkey, A) inside the enc() part? SIGMA uses this, but I
-     think that just putting A inside the enc() is equivalent
+*** SIGMA-I adds a MAC(by=Km,B) in the second message, and (A) in the third.
+    I don't yet understand why, or rather, whether it's sufficient to include
+    verfB(A) inside the enc() (which also binds it to the shared key).
+    SIGMA-I makes it clear that enc(B+sig) isn't sufficient, and that you
+    need three independent keys (MAC key, enc key, session key). Without the
+    MAC, it may degenerate into the "Badly Authenticated DH" described in the
+    SIGMA paper.
+*** add a signed transport record to the 2nd+3rd messages. This will include
+    the long-term encryption pubkey, the current rotating pubkeys, and the
+    mailbox descriptor. Also MAC() is really symbox().
 
 
 * forward-secrecy
