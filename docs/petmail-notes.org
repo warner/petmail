@@ -12,6 +12,9 @@ Unsorted design notes.
 ** each time a new key is exchanged, we must ask: does it maintain these?
 ** easier to study with simpler models (without PFS, repudiation, pseudonyms)
 *** one curve25519 pubkey per user (for both confidentiality and auth)
+**** users must bind the shared key to the invitation code, either with
+     MAC(by=code, H(sharedkey)) or enc(to/from, H(code)), (and assuming that
+     no honest parties will reveal/use H(sharedkey) or H(code) otherwise)
 *** one ed25519 verfkey per user which signs messages and rotating pubkeys
 *** verfkey per recip*sender, repudiably signs messages and rotating pubkeys
 ** if "From: Bob" is based on something signed (as opposed to a pubkey), then
