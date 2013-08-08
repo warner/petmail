@@ -4,24 +4,12 @@ from twisted.trial import unittest
 from twisted.internet import threads # CLI tests use deferToThread
 from twisted.internet import defer
 from twisted.internet.utils import getProcessOutputAndValue
-from twisted.application import service
-from ..scripts import runner, startstop
-from ..scripts.create_node import create_node
+from ..scripts import runner
+from .common import BasedirMixin, NodeRunnerMixin
 
 class Basic(unittest.TestCase):
     def test_one(self):
         self.assert_(True, "yay!")
-
-class BasedirMixin:
-    def make_basedir(self):
-        # TestCase.mktemp() creates _trial_temp/MODULE/CLASS/TEST/RANDOM and
-        # returns join(that,"temp"). We just want the part that ends with
-        # TEST. So we rmdir the RANDOM and return .../TEST
-        basedir = self.mktemp()
-        random = os.path.dirname(basedir)
-        os.rmdir(random)
-        test = os.path.dirname(random)
-        return test
 
 # most tests will just do Node.startService and invoke CLI commands by
 # talking directly to the web handler: no network, no other processes.
@@ -79,30 +67,6 @@ class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
         d.addCallback(_check_url)
         d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
         return d
-
-class NodeRunnerMixin:
-    def setUp(self):
-        self.sparent = service.MultiService()
-        self.sparent.startService()
-
-    def tearDown(self):
-        return self.sparent.stopService()
-
-    def createNode(self, basedir):
-        so = runner.CreateNodeOptions()
-        so.parseOptions([basedir])
-        out,err = StringIO(), StringIO()
-        rc = create_node(so, out, err)
-        self.failUnlessEqual(rc, 0, (rc, out, err))
-        return rc, out ,err
-
-    def startNode(self, basedir):
-        so = runner.StartNodeOptions()
-        so.parseOptions([basedir])
-        p = startstop.MyPlugin(basedir, os.path.join(basedir, "petmail.db"))
-        n = p.makeService(so)
-        n.setServiceParent(self.sparent)
-        return n
 
 class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def test_create(self):
