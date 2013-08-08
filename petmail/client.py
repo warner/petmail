@@ -1,6 +1,7 @@
 import weakref
 import json
 from twisted.application import service
+from . import invitation
 
 class Client(service.MultiService):
     def __init__(self, db):
@@ -16,6 +17,10 @@ class Client(service.MultiService):
         c.execute("SELECT `pubkey` FROM `client_config`");
         self.vk_s = str(c.fetchone()[0])
 
+    def command_invite(self, petname, code):
+        invitation.invite(self.db, petname, code)
+
+class OFF:
     def control_relayConnected(self):
         return bool(self.connection)
 

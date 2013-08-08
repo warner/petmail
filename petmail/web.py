@@ -106,6 +106,12 @@ class Sample(BaseHandler):
         return "sample ok"
 handlers["sample"] = Sample
 
+class Invite(BaseHandler):
+    def handle(self, payload):
+        self.client.command_invite(payload["petname"], payload["code"])
+        return "ok"
+handlers["invite"] = Invite
+
 class API(resource.Resource):
     def __init__(self, access_token, db, client):
         resource.Resource.__init__(self)
