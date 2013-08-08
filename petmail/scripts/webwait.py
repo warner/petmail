@@ -122,7 +122,11 @@ def do_http(method, url, body=""):
 
     return c.getresponse()
 
+_debug_no_http = None
+
 def command(basedir, command, args, err=sys.stderr):
+    if _debug_no_http:
+        return _debug_no_http(command, args)
     url, token = get_url_and_token(basedir, err)
     body = json.dumps({"token": token,
                        "method": command,

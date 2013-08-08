@@ -1,0 +1,34 @@
+from StringIO import StringIO
+from twisted.trial import unittest
+from ..scripts import runner, webwait
+
+# Test arg parsing and construction of the JSON request body, and the right
+# webapi endpoint being specified. Do not actually do HTTP. Do not run any
+# node code. Generate a fake HTTP response, then test response parsing and
+# rc/stdout/stderr generation.
+
+class CLI(unittest.TestCase):
+    def setUp(self):
+        webwait._debug_no_http = self.called
+    def tearDown(self):
+        webwait._debug_no_http = None
+
+    def called(self, command, args):
+        self._command = command
+        self._args = args
+        return True, self._response
+
+    def call(self, response, *args):
+        self._response = response
+        out,err = StringIO(), StringIO()
+        rc = runner.run(args, out, err) # invokes self.called()
+        return self._command, self._args, rc, out.getvalue(), err.getvalue()
+
+    def test_sample(self):
+        path,body,rc,out,err = self.call({"ok": "sample ok object"}, "sample")
+        self.failUnlessEqual(path, "sample")
+        self.failUnlessEqual(body, {"data": "no data"})
+        self.failUnlessEqual(rc, 0)
+        self.failUnlessEqual(out, "sample ok object\n")
+        self.failUnlessEqual(err, "")
+
