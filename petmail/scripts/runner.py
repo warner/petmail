@@ -69,15 +69,11 @@ class SampleOptions(BasedirParameterMixin, usage.Options):
         self["data"] = data
 
 class InviteOptions(BasedirParameterMixin, usage.Options):
-    #("petname", "n", None, "Petname for the person being invited"),
-    def parseArgs(self, petname):
-        self["petname"] = petname
-
-class AcceptOptions(BasedirParameterMixin, usage.Options):
-    #("petname", "n", None, "Petname for the person making the invitation"),
-    def parseArgs(self, petname, invitation_code):
-        self["petname"] = petname
-        self["invitation_code"] = invitation_code
+    optParameters = [
+        ("petname", "n", None, "Petname for the person being invited"),
+        ]
+    def parseArgs(self, code):
+        self["code"] = code
 
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
@@ -95,8 +91,7 @@ class Options(usage.Options):
                    ("open", None, OpenOptions, "Open web control panel"),
 
                    ("sample", None, SampleOptions, "Sample Command"),
-                   ("invite", None, InviteOptions, "Create an Invitation"),
-                   ("accept", None, AcceptOptions, "Accept an Invitation"),
+                   ("invite", None, InviteOptions, "Start an Invitation"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -166,8 +161,8 @@ def sample(*args):
     return sample(*args)
 
 def invite(*args):
-    from .create_invitation import create_invitation
-    return create_invitation(*args)
+    from .invite import invite as do_invite
+    return do_invite(*args)
 
 def accept(*args):
     from .accept_invitation import accept_invitation
