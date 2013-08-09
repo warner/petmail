@@ -2,6 +2,7 @@ import weakref
 import json
 from twisted.application import service
 from . import invitation
+from .rendezvous.manager import RendezvousManager
 
 class Client(service.MultiService):
     def __init__(self, db):
@@ -17,8 +18,15 @@ class Client(service.MultiService):
         c.execute("SELECT `pubkey` FROM `client_config`");
         self.vk_s = str(c.fetchone()[0])
 
+        self.rendezvouser = RendezvousManager()
+        self.rendezvouser.setServiceParent(self)
+
+    def rendezvousMessagesReceived(self, channelID, messages):
+        invitation.rendezvousMessagesReceived(self.db, self.rendezvouser,
+                                              channelID, messages)
+
     def command_invite(self, petname, code):
-        invitation.invite(self.db, petname, code)
+        invitation.invite(self.db, self.rendezvouser, petname, code)
 
 class OFF:
     def control_relayConnected(self):

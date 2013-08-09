@@ -2,6 +2,7 @@
 import json
 from hashlib import sha256
 import hmac
+from .hkdf import HKDF
 from nacl.signing import SigningKey
 from nacl.public import PrivateKey
 from nacl.secret import SecretBox
@@ -19,21 +20,31 @@ from nacl.encoding import HexEncoder as Hex
 
 def stretch(code):
     # TODO: spend some quality time with scrypt
-    return "stretched-" + code
+    return HKDF("stretched-" + code, 32)
 
 def HMAC(key, msg):
     return hmac.new(key, msg, sha256).digest()
 
-def invite(db, petname, code):
-    print "invite", petname, code
+def invite(db, rendezvouser, petname, code):
+    print "invite", petname, code.encode("hex")
     stretched = stretch(code)
+    channelKey = SigningKey(stretched)
+    channelID = channelKey.verify_key.encode(Hex)
+
     myTempPrivkey = PrivateKey.generate()
-    pub_hex = myTempPrivkey.public_key.encode(Hex)
+    pub = myTempPrivkey.public_key.encode()
     c = db.cursor()
     c.execute("INSERT INTO `invitations` (code, stretchedKey, myTempPrivkey)"
-              " VALUES (?,?,?)", (code, stretched, myTempPrivkey.encode(Hex)))
+              " VALUES (?,?,?)", (code.encode("hex"),
+                                  stretched.encode("hex"),
+                                  myTempPrivkey.encode(Hex)))
     db.commit()
-    
-    msg1 = "invite-v1:%s:%s" % (pub_hex, HMAC(stretched, pub_hex).encode("hex"))
-    print "msg1", msg1
 
+    rendezvouser.subscribe(channelID)
+
+    msg1 = "invite-v1:%s" % channelKey.sign("m1:"+pub).encode("hex")
+    print "msg1", msg1
+    rendezvouser.send(channelID, msg1)
+
+def rendezvousMessagesReceived(db, rendezvouser, channelID, messages):
+    pass
