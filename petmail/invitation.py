@@ -14,9 +14,13 @@ from nacl.encoding import HexEncoder as Hex
 # msg = vk.verify(sm) or nacl.signing.BadSignatureError
 
 # A->B: MAC(by=code, tmpA)
-# B->A: MAC(by=code, tmpB), enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB))
-# A->B: enc(to=B,from=A, verfA+sig(tmpA+tmpB))
-# B: destroy channel
+# B->A: MAC(by=code, tmpB)
+# B->A: enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB)+sig(transportB))
+# A->B: enc(to=tmpB,from=tmpA, verfA+sig(tmpA+tmpB)+sig(transportA))
+# A->B: ACK-nonce
+# B->A: ACK-nonce
+# B->A: destroy channel-nonce (1-of-2)
+# A->B: destroy channel-nonce (2-of-2)
 
 def stretch(code):
     # TODO: spend some quality time with scrypt
