@@ -108,7 +108,7 @@ handlers["sample"] = Sample
 
 class Invite(BaseHandler):
     def handle(self, payload):
-        self.client.command_invite(payload["petname"], payload["code"])
+        self.client.command_invite(payload["petname"], str(payload["code"]))
         return "ok"
 handlers["invite"] = Invite
 

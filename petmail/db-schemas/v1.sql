@@ -36,6 +36,16 @@ CREATE TABLE `client_profile` -- contains one row
  `icon_data` STRING
 );
 
+CREATE TABLE `invitations` -- data on all pending invitations
+(
+ `code` STRING,
+ `stretchedKey` STRING,
+ `myTempPrivkey` STRING, -- Curve25519 privkey
+ `theirTempPubkey` STRING, -- Curve25519 pubkey
+ `mySigningKey` STRING -- Ed25519 privkey, long-term, for this peer
+);
+
+
 CREATE TABLE `addressbook`
 (
  `petname` STRING,
