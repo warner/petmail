@@ -40,5 +40,5 @@ class Node(service.MultiService):
 
     def init_client(self):
         from . import client
-        self.client = client.Client(self.db)
+        self.client = client.Client(self.db, self.basedir)
         self.client.setServiceParent(self)

@@ -1,11 +1,10 @@
-import weakref
-import json
+import os.path, weakref, json
 from twisted.application import service
 from . import invitation
-from .rendezvous.manager import RendezvousManager
+from .rendezvous import localdir
 
 class Client(service.MultiService):
-    def __init__(self, db):
+    def __init__(self, db, basedir):
         service.MultiService.__init__(self)
         self.db = db
         c = self.db.cursor()
@@ -18,16 +17,17 @@ class Client(service.MultiService):
         c.execute("SELECT `pubkey` FROM `client_config`");
         self.vk_s = str(c.fetchone()[0])
 
-        self.rendezvouser = RendezvousManager()
-        self.rendezvouser.setServiceParent(self)
-        invitation.readyPendingInvitations(self.db, self.rendezvouser)
-
-    def rendezvousMessagesReceived(self, channelID, messages):
-        invitation.rendezvousMessagesReceived(self.db, self.rendezvouser,
-                                              channelID, messages)
+        self.im = invitation.InvitationManager(db, self)
+        self.im.setServiceParent(self)
+        rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
+        rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
+        self.im.addRendezvousService(rs_localdir)
 
     def command_invite(self, petname, code):
-        invitation.startInvitation(self.db, self.rendezvouser, petname, code)
+        my_transport_record = {}
+        my_private_transport_record = {}
+        self.im.startInvitation(petname, code, my_transport_record,
+                                my_private_transport_record)
 
 class OFF:
     def control_relayConnected(self):

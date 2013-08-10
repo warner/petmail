@@ -2,3 +2,4 @@
 *.py[cod]
 /deps-venv/
 /support/deps/
+.rendezvous

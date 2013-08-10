@@ -46,9 +46,10 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `mySigningKey` STRING, -- Ed25519 privkey, long-term, for this peer
  `theirTempPubkey` STRING, -- Curve25519 pubkey (ephemeral)
  `myTransportRecord` STRING,
- `myM1_hex` STRING,
- `myM2_hex` STRING,
- `myM3_hex` STRING,
+ `myPrivateTransportRecord` STRING,
+ `myM1` STRING,
+ `myM2` STRING,
+ `myM3` STRING,
  `nextExpectedMessage` INTEGER
 );
 
@@ -56,11 +57,9 @@ CREATE TABLE `invitations` -- data on all pending invitations
 CREATE TABLE `addressbook`
 (
  `their_verfkey` STRING,
- `transport_record_json` STRING,
+ `their_transport_record_json` STRING,
  `petname` STRING,
+ `my_private_transport_record_json` STRING,
  `my_signkey` STRING,
- `my_longterm_privkey` STRING,
- `my_old_privkey` STRING,
- `my_new_privkey` STRING,
  `acked` INTEGER
 );
