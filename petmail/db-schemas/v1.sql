@@ -38,7 +38,7 @@ CREATE TABLE `client_profile` -- contains one row
 
 CREATE TABLE `invitations` -- data on all pending invitations
 (
- `code` STRING,
+ `code_hex` STRING,
  `petname` STRING,
  `stretchedKey` STRING, -- Ed25519 signing key
  `channelID` STRING, -- Ed25519 verifying key
@@ -47,9 +47,8 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `theirTempPubkey` STRING, -- Curve25519 pubkey (ephemeral)
  `myTransportRecord` STRING,
  `myPrivateTransportRecord` STRING,
- `myM1` STRING,
- `myM2` STRING,
- `myM3` STRING,
+ `myMessages` STRING, -- r0:hex,r0-hex of all my sent messages
+ `theirMessages` STRING, -- r0:hex,r0-hex of all processed inbound messages
  `nextExpectedMessage` INTEGER
 );
 

@@ -1,5 +1,5 @@
 
-import json, os, hmac
+import re, os, json, hmac
 from hashlib import sha256
 from twisted.application import service
 from .hkdf import HKDF
@@ -29,12 +29,23 @@ assert Box.NONCE_SIZE == 24
 # B->A: i0:destroy:nonce  # (1-of-2)
 # A->B: i0:destroy:nonce  # (2-of-2)
 
+class CorruptChannelError(Exception):
+    pass
+
+VALID_CHANNELID = re.compile(r'^[0-9a-f]+$')
+VALID_MESSAGE = re.compile(r'^r0:[0-9a-f]+$')
+
 def stretch(code):
     # TODO: spend some quality time with scrypt
     return HKDF("stretched-" + code, 32)
 
 def HMAC(key, msg):
     return hmac.new(key, msg, sha256).digest()
+
+def splitMessages(s):
+    if not s:
+        return set()
+    return set(str(s).split(","))
 
 class InvitationManager(service.MultiService):
     """I manage all invitations, as well as connections to the rendezvous
@@ -65,7 +76,8 @@ class InvitationManager(service.MultiService):
         i = Invitation(channelID, self.db, self) # might raise KeyError
         i.processMessages(messages)
 
-    def send(self, channelID, msg):
+    def sendToAll(self, channelID, msg):
+        print "sendToAll", msg
         for rs in list(self):
             rs.send(channelID, msg)
 
@@ -80,7 +92,7 @@ class InvitationManager(service.MultiService):
 
     def startInvitation(self, petname, code, transportRecord,
                         privateTransportRecord):
-        assert isinstance(transportRecord, dict)
+        assert isinstance(transportRecord, dict), transportRecord
         print "invite", petname, code.encode("hex")
         stretched = stretch(code)
         channelKey = SigningKey(stretched)
@@ -89,21 +101,21 @@ class InvitationManager(service.MultiService):
         myTempPrivkey = PrivateKey.generate()
         c = self.db.cursor()
         c.execute("INSERT INTO `invitations`"
-                  " (code, petname, stretchedKey,"
+                  " (code_hex, petname, stretchedKey,"
                   "  channelID,"
                   "  myTempPrivkey, mySigningKey,"
                   "  myTransportRecord, myPrivateTransportRecord,"
-                  "  nextExpectedMessage) VALUES (?,?,?, ?, ?,?, ?,?, ?)",
+                  "  myMessages, theirMessages, nextExpectedMessage)"
+                  " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
                   (code.encode("hex"), petname, stretched.encode("hex"),
                    channelID,
                    myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
                    json.dumps(transportRecord),
                    json.dumps(privateTransportRecord),
-                   1))
-        self.db.commit()
-
+                   "", "", 1))
         i = Invitation(channelID, self.db, self)
         i.sendFirstMessage()
+        self.db.commit()
         self.subscribe(channelID)
 
 class Invitation:
@@ -113,11 +125,15 @@ class Invitation:
         self.db = db
         self.manager = manager
         c = db.cursor()
-        c.execute("SELECT petname, stretchedKey, myTempPrivkey, mySigningKey,"
-                  " theirTempPubkey,"
-                  " myTransportRecord, myPrivateTransportRecord,"
-                  " nextExpectedMessage,"
-                  " myM1, myM2, myM3"
+        c.execute("SELECT petname, stretchedKey," # 0,1
+                  " myTempPrivkey," # 2
+                  " mySigningKey," # 3
+                  " theirTempPubkey," # 4
+                  " myTransportRecord," # 5
+                  " myPrivateTransportRecord," # 6
+                  " nextExpectedMessage," # 7
+                  " myMessages," # 8
+                  " theirMessages" # 9
                   " FROM invitations WHERE channelID = ?", (channelID,))
         res = c.fetchone()
         if not res:
@@ -132,43 +148,83 @@ class Invitation:
         self.myTransportRecord = res[5]
         self.myPrivateTransportRecord = res[6]
         self.nextExpectedMessage = int(res[7])
-        self.myMessages = set([str(m) for m in res[8:11] if m])
+        self.myMessages = splitMessages(res[8])
+        self.theirMessages = splitMessages(res[9])
 
     def sendFirstMessage(self):
         pub = self.myTempPrivkey.public_key.encode()
-        self.send(1, "i0:m1:"+pub)
+        self.send("i0:m1:"+pub)
+        c = self.db.cursor()
+        c.execute("UPDATE invitations SET  myMessages=? WHERE channelID=?",
+                  (",".join(self.myMessages), self.channelID))
+        # that will be commited by our caller
 
     def processMessages(self, messages):
+        # These messages are neither version-checked nor signature-checked.
+        # Also, we may have already processed some of them.
         print "processMessages", messages
-        assert isinstance(messages, set)
+        print " my", self.myMessages
+        print " theirs", self.theirMessages
+        assert isinstance(messages, set), typeof(messages)
+        assert None not in messages, messages
+        assert None not in self.myMessages, self.myMessages
+        assert None not in self.theirMessages, self.theirMessages
         # Send anything that didn't make it to the server. This covers the
         # case where we commit our outbound message in send() but crash
         # before finishing delivery.
         for m in self.myMessages - messages:
-            self.manager.send(self.channelID, m)
+            print "resending", m
+            self.manager.sendToAll(self.channelID, m)
 
-        theirMessages = messages - self.myMessages
+        newMessages = messages - self.myMessages - self.theirMessages
+        print " %d new messages" % len(newMessages)
+        if not newMessages:
+            print " huh, no new messages, stupid rendezvous client"
 
-        # check signatures, extract bodies, ignore invalid messages
+        # check signatures, extract bodies. invalid messages kill the channel
+        # and the invitation. MAYBE TODO: lose the one channel, keep using
+        # the others.
         bodies = set()
-        for m in theirMessages:
-            if not m.startswith("r0:"):
-                print "unrecognized rendezvous message prefix"
-                continue
-            m = m[len("r0:"):].decode("hex")
+        for m in newMessages:
+            print " new inbound message", m
             try:
+                if not m.startswith("r0:"):
+                    print "unrecognized rendezvous message prefix"
+                if not VALID_MESSAGE.search(m):
+                    raise CorruptChannelError()
+                m = m[len("r0:"):].decode("hex")
                 bodies.add(self.channelKey.verify_key.verify(m))
-            except BadSignatureError:
-                print "invalid message (bad sig) on", self.channelID
-                pass
+            except (BadSignatureError, CorruptChannelError) as e:
+                print "channel %s is corrupt" % self.channelID
+                if isinstance(e, BadSignatureError):
+                    print " (bad sig)"
+                self.unsubscribe(self.channelID)
+                # TODO: mark invitation as failed, destroy it
+                return
 
+        print " new inbound bodies:", ", ".join([repr(b[:10])+" ..."
+                                                 for b in bodies])
+
+        # these handlers will update self.myMessages with sent messages, and
+        # will increment self.nextExpectedMessage. We can handle multiple
+        # (sequential) messages in a single pass.
         if self.nextExpectedMessage == 1:
             self.findPrefixAndCall("i0:m1:", bodies, self.processM1)
-            # that may change self.nextExpectedMessage, so no elif here
+            # no elif here: self.nextExpectedMessage may have incremented
         if self.nextExpectedMessage == 2:
             self.findPrefixAndCall("i0:m2:", bodies, self.processM2)
         if self.nextExpectedMessage == 3:
             self.findPrefixAndCall("i0:m3:", bodies, self.processM3)
+
+        c = self.db.cursor()
+        c.execute("UPDATE invitations SET"
+                  "  myMessages=?, theirMessages=?, nextExpectedMessage=?"
+                  " WHERE channelID=?",
+                  (",".join(self.myMessages),
+                   ",".join(self.theirMessages | newMessages),
+                   self.nextExpectedMessage,
+                   self.channelID))
+        self.db.commit()
 
     def findPrefixAndCall(self, prefix, bodies, handler):
         for msg in bodies:
@@ -176,17 +232,16 @@ class Invitation:
                 return handler(msg[len(prefix):])
         return None
 
-    def send(self, which, msg):
-        print "send", which, repr(msg[:10]), "..."
+    def send(self, msg, persist=True):
+        print "send", repr(msg[:10]), "..."
         signed = "r0:%s" % self.channelKey.sign(msg).encode("hex")
-        if which < 4: # m4-destroy is not persistent
-            colname = {1: "myM1", 2: "myM2", 3: "myM3"}[which]
-            c = self.db.cursor()
-            # committing this to the DB means we'll send it eventually
-            c.execute("UPDATE invitations SET %s=? WHERE channelID=?" % colname,
-                      (self.channelID, signed))
-            self.db.commit()
-        self.manager.send(self.channelID, signed)
+        if persist: # m4-destroy is not persistent
+            self.myMessages.add(signed) # will be persisted by caller
+            # This will be added to the DB, and committed, by our caller, to
+            # get it into the same transaction as the update to which inbound
+            # messages we've processed.
+        assert VALID_MESSAGE.search(signed), signed
+        self.manager.sendToAll(self.channelID, signed)
 
     def processM1(self, msg):
         print "processM1"
@@ -194,6 +249,8 @@ class Invitation:
         self.theirTempPubkey = PublicKey(msg)
         c.execute("UPDATE invitations SET theirTempPubkey=? WHERE channelID=?",
                   (self.channelID, self.theirTempPubkey.encode(Hex),))
+        # theirTempPubkey will committed by our caller, in the same txn as
+        # the message send
 
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
         hex_tport = self.myTransportRecord.encode("utf-8").encode("hex")
@@ -206,14 +263,17 @@ class Invitation:
                          ])
         nonce = os.urandom(Box.NONCE_SIZE)
         ciphertext = b.encrypt(body, nonce)
+        print "ENCRYPTED", len(ciphertext), ciphertext.encode("hex")
         msg2 = "i0:m2:"+nonce+ciphertext
-        self.send(2, msg2) # this also commits theirTempPubkey
+        self.send(msg2)
+        self.nextExpectedMessage = 2
 
     def processM2(self, msg):
-        print "processM2"
+        print "processM2", repr(msg[:10]), "..."
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
         nonce = msg[:Box.NONCE_SIZE]
         ciphertext = msg[Box.NONCE_SIZE:]
+        print "DECRYPTING ct", len(ciphertext), ciphertext.encode("hex")
         body = b.decrypt(ciphertext, nonce)
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
@@ -243,7 +303,8 @@ class Invitation:
         # old+new rotating keys).
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
-        self.send(3, msg3)
+        self.send(msg3)
+        self.nextExpectedMessage = 3
 
     def processM3(self, msg):
         print "processM3"
@@ -254,9 +315,8 @@ class Invitation:
                   (self.theirVerfKey.encode(Hex),))
         c.execute("DELETE FROM invitations WHERE channelID=?",
                   (self.channelID,))
-        self.db.commit()
 
         # we no longer care about the channel
         msg4 = "i0:destroy:"+os.urandom(16)
-        self.send(4, msg4)
+        self.send(msg4, persist=False)
         self.manager.unsubscribe(self.channelID)
