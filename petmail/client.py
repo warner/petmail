@@ -20,13 +20,14 @@ class Client(service.MultiService):
 
         self.rendezvouser = RendezvousManager()
         self.rendezvouser.setServiceParent(self)
+        invitation.readyPendingInvitations(self.db, self.rendezvouser)
 
     def rendezvousMessagesReceived(self, channelID, messages):
         invitation.rendezvousMessagesReceived(self.db, self.rendezvouser,
                                               channelID, messages)
 
     def command_invite(self, petname, code):
-        invitation.invite(self.db, self.rendezvouser, petname, code)
+        invitation.startInvitation(self.db, self.rendezvouser, petname, code)
 
 class OFF:
     def control_relayConnected(self):

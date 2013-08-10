@@ -39,20 +39,28 @@ CREATE TABLE `client_profile` -- contains one row
 CREATE TABLE `invitations` -- data on all pending invitations
 (
  `code` STRING,
+ `petname` STRING,
  `stretchedKey` STRING, -- Ed25519 signing key
  `channelID` STRING, -- Ed25519 verifying key
- `myTempPrivkey` STRING, -- Curve25519 privkey
- `theirTempPubkey` STRING, -- Curve25519 pubkey
- `mySigningKey` STRING -- Ed25519 privkey, long-term, for this peer
+ `myTempPrivkey` STRING, -- Curve25519 privkey (ephemeral)
+ `mySigningKey` STRING, -- Ed25519 privkey, long-term, for this peer
+ `theirTempPubkey` STRING, -- Curve25519 pubkey (ephemeral)
+ `myTransportRecord` STRING,
+ `myM1_hex` STRING,
+ `myM2_hex` STRING,
+ `myM3_hex` STRING,
+ `nextExpectedMessage` INTEGER
 );
 
 
 CREATE TABLE `addressbook`
 (
+ `their_verfkey` STRING,
+ `transport_record_json` STRING,
  `petname` STRING,
- `selfname` STRING,
- `icon_data` STRING,
- `my_privkey` STRING,
- `my_pubkey` STRING,
- `their_pubkey` STRING
+ `my_signkey` STRING,
+ `my_longterm_privkey` STRING,
+ `my_old_privkey` STRING,
+ `my_new_privkey` STRING,
+ `acked` INTEGER
 );
