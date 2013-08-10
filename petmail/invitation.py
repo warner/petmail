@@ -17,7 +17,9 @@ assert Box.NONCE_SIZE == 24
 # privkey = PrivateKey.generate() or PrivateKey(bytes)
 # pubkey = privkey.public_key or PublicKey(bytes)
 # pubkey.encode()
-# Box(privkey, pubkey).encrypt(body, nonce) or .decrypt(ct, nonce)
+# nonce+ct = Box(privkey, pubkey).encrypt(body, nonce)
+#  or body=box.decrypt(ct, nonce)
+#  or body=box.decrypt(ct+nonce)
 
 # all messages are r0:hex(sigmsg(by-code, msg))
 # A->B: i0:m1:tmpA
@@ -253,28 +255,30 @@ class Invitation:
         # the message send
 
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
-        hex_tport = self.myTransportRecord.encode("utf-8").encode("hex")
         signedBody = b"".join([self.theirTempPubkey.encode(),
                                self.myTempPrivkey.public_key.encode(),
-                               hex_tport])
+                               self.myTransportRecord.encode("utf-8")])
         body = b"".join([b"i0:m2a:",
                          self.mySigningKey.verify_key.encode(),
                          self.mySigningKey.sign(signedBody)
                          ])
         nonce = os.urandom(Box.NONCE_SIZE)
-        ciphertext = b.encrypt(body, nonce)
-        print "ENCRYPTED", len(ciphertext), ciphertext.encode("hex")
-        msg2 = "i0:m2:"+nonce+ciphertext
+        nonce_and_ciphertext = b.encrypt(body, nonce)
+        print "ENCRYPTED n+c", len(nonce_and_ciphertext), nonce_and_ciphertext.encode("hex")
+        print " nonce", nonce.encode("hex")
+        msg2 = "i0:m2:"+nonce_and_ciphertext
         self.send(msg2)
         self.nextExpectedMessage = 2
 
     def processM2(self, msg):
         print "processM2", repr(msg[:10]), "..."
+        nonce_and_ciphertext = msg
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
-        nonce = msg[:Box.NONCE_SIZE]
-        ciphertext = msg[Box.NONCE_SIZE:]
-        print "DECRYPTING ct", len(ciphertext), ciphertext.encode("hex")
-        body = b.decrypt(ciphertext, nonce)
+        #nonce = msg[:Box.NONCE_SIZE]
+        #ciphertext = msg[Box.NONCE_SIZE:]
+        print "DECRYPTING n+ct", len(msg), msg.encode("hex")
+        #print " nonce", nonce.encode("hex")
+        body = b.decrypt(nonce_and_ciphertext)
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
         verfkey_and_signedBody = body[len("i0:m2a:"):]
@@ -284,9 +288,14 @@ class Invitation:
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
         theirTransportRecord_json = body[64:].decode("utf-8")
+        print " binding checks:"
+        print " check_myTempPubkey", check_myTempPubkey.encode("hex")
+        print " my real tempPubkey", self.myTempPrivkey.public_key.encode(Hex)
+        print " check_theirTempPubkey", check_theirTempPubkey.encode("hex")
+        print " first theirTempPubkey", self.theirTempPubkey.encode(Hex)
         if check_myTempPubkey != self.myTempPrivkey.public_key.encode():
             raise ValueError("binding failure myTempPubkey")
-        if check_theirTempPubkey != self.theirTempPubkey:
+        if check_theirTempPubkey != self.theirTempPubkey.encode():
             raise ValueError("binding failure theirTempPubkey")
 
         c = self.db.cursor()
@@ -296,7 +305,7 @@ class Invitation:
                   "  my_private_transport_record_json, acked)"
                   " VALUES (?,?, ?,?, ?,?)",
                   (theirVerfKey.encode(Hex), theirTransportRecord_json,
-                   self.petname, self.mySigningKey.encode("hex"),
+                   self.petname, self.mySigningKey.encode(Hex),
                    self.myPrivateTransportRecord, 0))
         # myPrivateTransportRecord will include our inbound privkeys for
         # everything we told them in the transport record (long-term privkey,
