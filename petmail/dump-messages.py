@@ -1,5 +1,5 @@
 
-import os, sys
+import sys
 from nacl.signing import VerifyKey
 
 for fn in sys.argv[1:]:
