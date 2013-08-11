@@ -45,6 +45,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `myTempPrivkey` STRING, -- Curve25519 privkey (ephemeral)
  `mySigningKey` STRING, -- Ed25519 privkey, long-term, for this peer
  `theirTempPubkey` STRING, -- Curve25519 pubkey (ephemeral)
+ `theirVerfkey` STRING, -- Ed25519 verfkey (long-term), after M2
  `myTransportRecord` STRING,
  `myPrivateTransportRecord` STRING,
  `myMessages` STRING, -- r0:hex,r0-hex of all my sent messages

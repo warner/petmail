@@ -43,8 +43,9 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
         code = "code"
         n1.client.command_invite(u"petname-from-1", code)
-        # at this point, node1 should have sent a single message, and should
-        # be waiting for the peer's first message
+        # messages: node1-M1
+        # at this point, node1 should have sent a single message (M1), and
+        # should be waiting for the peer's first message (M1)
         self.checkCounts(n1, code, 1, 0, 1)
 
         # polling again should ignore the previously-sent message
@@ -56,6 +57,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir2)
         n2 = self.startNode(basedir2, beforeStart=self.disable_polling)
         n2.client.command_invite(u"petname-from-2", code)
+        # messages: node1-M1, node2-M1
 
         # node2 should have sent one message. node1 should not have noticed
         # yet, because we only poll manually here.
@@ -65,6 +67,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # allow node2 to poll. It should see the node1's first message, and
         # create its own second message. node1 should not notice yet.
         list(n2.client.im)[0].poll()
+        # messages: node1-M1, node2-M1, node2-M2
         self.checkCounts(n1, code, 1, 0, 1)
         self.checkCounts(n2, code, 2, 1, 2)
 
@@ -78,6 +81,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # waiting for an ACK
         print "== first client polling to get M2"
         list(n1.client.im)[0].poll()
+        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK
         self.checkCounts(n2, code, 2, 1, 2)
         self.checkCounts(n1, code, 3, 2, 3)
 
@@ -94,8 +98,30 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.checkCounts(n2, code, 2, 1, 2)
         self.checkCounts(n1, code, 3, 2, 3)
 
-        # let node2 poll. It will do the same, and will also see the ACK and
-        # send its destroy-channel message, and delete the invitation.
+        # let node2 poll. It will see node1's M2 message, add its addressbook
+        # entry, send its ACK, will see node1's ACK, update its addressbook
+        # entry, send its destroy-channel message, and delete the invitation.
+        print " == second client polling to get M2"
         list(n2.client.im)[0].poll()
+        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
+        # node2-M3-ACK, node2-M4-destroy
         self.checkCounts(n2, code, None, None, None, exists=False)
         self.checkCounts(n1, code, 3, 2, 3)
+        a2 = self.fetchAddressBook(n2)
+        self.failUnlessEqual(len(a2), 1)
+        self.failUnlessEqual(a2[0].petname, "petname-from-2")
+        self.failUnlessEqual(a2[0].acked, True)
+
+        # finally, let node1 poll one last time. It will see the ACK and send
+        # the second destroy-channel message.
+        list(n1.client.im)[0].poll()
+        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
+        # node2-M3-ACK, node2-M4-destroy, node1-M4-destroy
+        self.checkCounts(n2, code, None, None, None, exists=False)
+        self.checkCounts(n1, code, None, None, None, exists=False)
+        a1 = self.fetchAddressBook(n1)
+        self.failUnlessEqual(len(a1), 1)
+        self.failUnlessEqual(a1[0].acked, True)
+
+        # TODO: check that the channel has been destroyed
+

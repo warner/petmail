@@ -131,11 +131,12 @@ class Invitation:
                   " myTempPrivkey," # 2
                   " mySigningKey," # 3
                   " theirTempPubkey," # 4
-                  " myTransportRecord," # 5
-                  " myPrivateTransportRecord," # 6
-                  " nextExpectedMessage," # 7
-                  " myMessages," # 8
-                  " theirMessages" # 9
+                  " theirVerfkey," # 5
+                  " myTransportRecord," # 6
+                  " myPrivateTransportRecord," # 7
+                  " nextExpectedMessage," # 8
+                  " myMessages," # 9
+                  " theirMessages" # 10
                   " FROM invitations WHERE channelID = ?", (channelID,))
         res = c.fetchone()
         if not res:
@@ -147,11 +148,14 @@ class Invitation:
         self.theirTempPubkey = None
         if res[4]:
             self.theirTempPubkey = PublicKey(res[4].decode("hex"))
-        self.myTransportRecord = res[5]
-        self.myPrivateTransportRecord = res[6]
-        self.nextExpectedMessage = int(res[7])
-        self.myMessages = splitMessages(res[8])
-        self.theirMessages = splitMessages(res[9])
+        self.theirVerfkey = None
+        if res[5]:
+            self.theirVerfkey = VerifyKey(res[5].decode("hex"))
+        self.myTransportRecord = res[6]
+        self.myPrivateTransportRecord = res[7]
+        self.nextExpectedMessage = int(res[8])
+        self.myMessages = splitMessages(res[9])
+        self.theirMessages = splitMessages(res[10])
 
     def sendFirstMessage(self):
         pub = self.myTempPrivkey.public_key.encode()
@@ -226,6 +230,7 @@ class Invitation:
                    ",".join(self.theirMessages | newMessages),
                    self.nextExpectedMessage,
                    self.channelID))
+        print " db.commit"
         self.db.commit()
 
     def findPrefixAndCall(self, prefix, bodies, handler):
@@ -246,11 +251,11 @@ class Invitation:
         self.manager.sendToAll(self.channelID, signed)
 
     def processM1(self, msg):
-        print "processM1"
+        print "processM1", self.petname
         c = self.db.cursor()
         self.theirTempPubkey = PublicKey(msg)
         c.execute("UPDATE invitations SET theirTempPubkey=? WHERE channelID=?",
-                  (self.channelID, self.theirTempPubkey.encode(Hex),))
+                  (self.theirTempPubkey.encode(Hex), self.channelID))
         # theirTempPubkey will committed by our caller, in the same txn as
         # the message send
 
@@ -271,7 +276,8 @@ class Invitation:
         self.nextExpectedMessage = 2
 
     def processM2(self, msg):
-        print "processM2", repr(msg[:10]), "..."
+        print "processM2", repr(msg[:10]), "...", self.petname
+        assert self.theirTempPubkey
         nonce_and_ciphertext = msg
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
         #nonce = msg[:Box.NONCE_SIZE]
@@ -282,9 +288,9 @@ class Invitation:
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
         verfkey_and_signedBody = body[len("i0:m2a:"):]
-        theirVerfKey = VerifyKey(verfkey_and_signedBody[:32])
+        self.theirVerfkey = VerifyKey(verfkey_and_signedBody[:32])
         signedBody = verfkey_and_signedBody[32:]
-        body = theirVerfKey.verify(signedBody)
+        body = self.theirVerfkey.verify(signedBody)
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
         theirTransportRecord_json = body[64:].decode("utf-8")
@@ -299,12 +305,14 @@ class Invitation:
             raise ValueError("binding failure theirTempPubkey")
 
         c = self.db.cursor()
+        c.execute("UPDATE invitations SET theirVerfkey=? WHERE channelID=?",
+                  (self.theirVerfkey.encode(Hex), self.channelID))
         c.execute("INSERT INTO addressbook"
                   " (their_verfkey, their_transport_record_json,"
                   "  petname, my_signkey,"
                   "  my_private_transport_record_json, acked)"
                   " VALUES (?,?, ?,?, ?,?)",
-                  (theirVerfKey.encode(Hex), theirTransportRecord_json,
+                  (self.theirVerfkey.encode(Hex), theirTransportRecord_json,
                    self.petname, self.mySigningKey.encode(Hex),
                    self.myPrivateTransportRecord, 0))
         # myPrivateTransportRecord will include our inbound privkeys for
@@ -316,12 +324,12 @@ class Invitation:
         self.nextExpectedMessage = 3
 
     def processM3(self, msg):
-        print "processM3"
-        if not msg.startswith("i0:m3:ACK"):
+        print "processM3", repr(msg[:10]), "..."
+        if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
         c = self.db.cursor()
         c.execute("UPDATE addressbook SET acked=1 WHERE their_verfkey=?",
-                  (self.theirVerfKey.encode(Hex),))
+                  (self.theirVerfkey.encode(Hex),))
         c.execute("DELETE FROM invitations WHERE channelID=?",
                   (self.channelID,))
 
