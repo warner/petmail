@@ -23,11 +23,10 @@ CREATE TABLE `webapi_access_tokens`
  `token` STRING
 );
 
-CREATE TABLE `client_config` -- contains one row
+CREATE TABLE `mailboxes` -- one per mailbox
 (
- `privkey` STRING,
- `pubkey` STRING,
- `inbox_location` STRING
+ `descriptor` STRING, -- given to peers, tells them how to send us messages
+ `private_descriptor` STRING -- kept secret, tells us how to read inbox
 );
 
 CREATE TABLE `client_profile` -- contains one row

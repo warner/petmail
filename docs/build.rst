@@ -7,7 +7,6 @@ Twisted and a few crypto libraries:
 * Twisted > ??
 * zope.interface
 * pynacl-??
-* python-ed25519-1.1
 * python-scrypt-??
 
 For developers who have these libraries already installed, there is no build

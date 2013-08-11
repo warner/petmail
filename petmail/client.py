@@ -9,21 +9,19 @@ class Client(service.MultiService):
     def __init__(self, db, basedir):
         service.MultiService.__init__(self)
         self.db = db
-        c = self.db.cursor()
-        c.execute("SELECT `inbox_location` FROM `client_config`")
-        inbox_location = str(c.fetchone()[0])
-        #print "INBOX", inbox_location
 
         self.subscribers = weakref.WeakKeyDictionary()
 
-        c.execute("SELECT `pubkey` FROM `client_config`");
-        self.vk_s = str(c.fetchone()[0])
+        c = self.db.cursor()
+        c.execute("SELECT `private_descriptor` FROM `mailboxes`")
+        for row in c.fetchall():
+            self.addMailbox(str(row[0]))
 
         self.im = invitation.InvitationManager(db, self)
-        self.im.setServiceParent(self)
         rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
         rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
         self.im.addRendezvousService(rs_localdir)
+        self.im.setServiceParent(self)
 
     def command_invite(self, petname, code):
         my_transport_record = {}
