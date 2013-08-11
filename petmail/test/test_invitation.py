@@ -84,7 +84,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # let node1 poll. It will see both of node2's messages, add its
         # addressbook entry, send it's second and third messages, and be
         # waiting for an ACK
-        print "== first client polling to get M2"
+        #print "== first client polling to get M2"
         rclient1.poll()
         # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK
         self.checkCounts(n2, code, 2, 1, 2)
@@ -106,7 +106,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # let node2 poll. It will see node1's M2 message, add its addressbook
         # entry, send its ACK, will see node1's ACK, update its addressbook
         # entry, send its destroy-channel message, and delete the invitation.
-        print " == second client polling to get M2"
+        #print " == second client polling to get M2"
         rclient2.poll()
         # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
         # node2-M3-ACK, node2-M4-destroy

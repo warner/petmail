@@ -47,7 +47,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
             del self.ts
 
     def poll(self):
-        print "entering poll"
+        #print "entering poll"
         # we may unsubscribe while in the loop, so copy self.subscriptions
         for channelID in list(self.subscriptions):
             self.pollChannel(channelID)
@@ -75,7 +75,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
             messages.add(f.read())
             f.close()
         self.subscriptions[channelID] = files
-        print "poll got new messages for", channelID
+        #print "poll got new messages for", channelID
 
         assert channelID in self.verfkeys, (self.subscriptions.keys(), self.verfkeys.keys())
         # Before giving the messages to the Invitation (which may
@@ -111,7 +111,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         f.close()
         os.rename(fn+".tmp", fn)
         self.subscriptions[channelID].add(msgID)
-        print " localdir wrote %s-%s %s" % (channelID, msgID, msg)
+        #print " localdir wrote %s-%s %s" % (channelID, msgID, msg)
 
         # was it a destroy? Alice writes the second destroy message, then
         # stops polling, so we can't rely on self.poll() to notice it. We
@@ -122,6 +122,6 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         if m.startswith("i0:destroy:"):
             self.destroyRequestsSeen[channelID].add(m)
         if len(self.destroyRequestsSeen[channelID]) >= 2:
-            print "DESTROY CHANNEL", channelID
+            #print "DESTROY CHANNEL", channelID
             shutil.rmtree(sdir)
             del self.destroyRequestsSeen[channelID]

@@ -79,7 +79,7 @@ class InvitationManager(service.MultiService):
         i.processMessages(messages)
 
     def sendToAll(self, channelID, msg):
-        print "sendToAll", msg
+        #print "sendToAll", msg
         for rs in list(self):
             rs.send(channelID, msg)
 
@@ -95,7 +95,7 @@ class InvitationManager(service.MultiService):
     def startInvitation(self, petname, code, transportRecord,
                         privateTransportRecord):
         assert isinstance(transportRecord, dict), transportRecord
-        print "invite", petname, code.encode("hex")
+        #print "invite", petname, code.encode("hex")
         stretched = stretch(code)
         channelKey = SigningKey(stretched)
         channelID = channelKey.verify_key.encode(Hex)
@@ -173,9 +173,9 @@ class Invitation:
     def processMessages(self, messages):
         # These messages are neither version-checked nor signature-checked.
         # Also, we may have already processed some of them.
-        print "processMessages", messages
-        print " my", self.myMessages
-        print " theirs", self.theirMessages
+        #print "processMessages", messages
+        #print " my", self.myMessages
+        #print " theirs", self.theirMessages
         assert isinstance(messages, set), type(messages)
         assert None not in messages, messages
         assert None not in self.myMessages, self.myMessages
@@ -184,11 +184,11 @@ class Invitation:
         # case where we commit our outbound message in send() but crash
         # before finishing delivery.
         for m in self.myMessages - messages:
-            print "resending", m
+            #print "resending", m
             self.manager.sendToAll(self.channelID, m)
 
         newMessages = messages - self.myMessages - self.theirMessages
-        print " %d new messages" % len(newMessages)
+        #print " %d new messages" % len(newMessages)
         if not newMessages:
             print " huh, no new messages, stupid rendezvous client"
 
@@ -197,7 +197,7 @@ class Invitation:
         # the others.
         bodies = set()
         for m in newMessages:
-            print " new inbound message", m
+            #print " new inbound message", m
             try:
                 if not m.startswith("r0:"):
                     print "unrecognized rendezvous message prefix"
@@ -213,8 +213,7 @@ class Invitation:
                 # TODO: mark invitation as failed, destroy it
                 return
 
-        print " new inbound bodies:", ", ".join([repr(b[:10])+" ..."
-                                                 for b in bodies])
+        #print " new inbound bodies:", ", ".join([repr(b[:10])+" ..." for b in bodies])
 
         # these handlers will update self.myMessages with sent messages, and
         # will increment self.nextExpectedMessage. We can handle multiple
@@ -235,7 +234,7 @@ class Invitation:
                    ",".join(self.theirMessages | newMessages),
                    self.nextExpectedMessage,
                    self.channelID))
-        print " db.commit"
+        #print " db.commit"
         self.db.commit()
 
     def findPrefixAndCall(self, prefix, bodies, handler):
@@ -245,7 +244,7 @@ class Invitation:
         return None
 
     def send(self, msg, persist=True):
-        print "send", repr(msg[:10]), "..."
+        #print "send", repr(msg[:10]), "..."
         signed = "r0:%s" % self.channelKey.sign(msg).encode("hex")
         if persist: # m4-destroy is not persistent
             self.myMessages.add(signed) # will be persisted by caller
@@ -256,7 +255,7 @@ class Invitation:
         self.manager.sendToAll(self.channelID, signed)
 
     def processM1(self, msg):
-        print "processM1", self.petname
+        #print "processM1", self.petname
         c = self.db.cursor()
         self.theirTempPubkey = PublicKey(msg)
         c.execute("UPDATE invitations SET theirTempPubkey=? WHERE channelID=?",
@@ -274,21 +273,20 @@ class Invitation:
                          ])
         nonce = os.urandom(Box.NONCE_SIZE)
         nonce_and_ciphertext = b.encrypt(body, nonce)
-        print "ENCRYPTED n+c", len(nonce_and_ciphertext), nonce_and_ciphertext.encode("hex")
-        print " nonce", nonce.encode("hex")
+        #print "ENCRYPTED n+c", len(nonce_and_ciphertext), nonce_and_ciphertext.encode("hex")
+        #print " nonce", nonce.encode("hex")
         msg2 = "i0:m2:"+nonce_and_ciphertext
         self.send(msg2)
         self.nextExpectedMessage = 2
 
     def processM2(self, msg):
-        print "processM2", repr(msg[:10]), "...", self.petname
+        #print "processM2", repr(msg[:10]), "...", self.petname
         assert self.theirTempPubkey
         nonce_and_ciphertext = msg
         b = Box(self.myTempPrivkey, self.theirTempPubkey)
         #nonce = msg[:Box.NONCE_SIZE]
         #ciphertext = msg[Box.NONCE_SIZE:]
-        print "DECRYPTING n+ct", len(msg), msg.encode("hex")
-        #print " nonce", nonce.encode("hex")
+        #print "DECRYPTING n+ct", len(msg), msg.encode("hex")
         body = b.decrypt(nonce_and_ciphertext)
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
@@ -299,11 +297,11 @@ class Invitation:
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
         theirTransportRecord_json = body[64:].decode("utf-8")
-        print " binding checks:"
-        print " check_myTempPubkey", check_myTempPubkey.encode("hex")
-        print " my real tempPubkey", self.myTempPrivkey.public_key.encode(Hex)
-        print " check_theirTempPubkey", check_theirTempPubkey.encode("hex")
-        print " first theirTempPubkey", self.theirTempPubkey.encode(Hex)
+        #print " binding checks:"
+        #print " check_myTempPubkey", check_myTempPubkey.encode("hex")
+        #print " my real tempPubkey", self.myTempPrivkey.public_key.encode(Hex)
+        #print " check_theirTempPubkey", check_theirTempPubkey.encode("hex")
+        #print " first theirTempPubkey", self.theirTempPubkey.encode(Hex)
         if check_myTempPubkey != self.myTempPrivkey.public_key.encode():
             raise ValueError("binding failure myTempPubkey")
         if check_theirTempPubkey != self.theirTempPubkey.encode():
@@ -329,7 +327,7 @@ class Invitation:
         self.nextExpectedMessage = 3
 
     def processM3(self, msg):
-        print "processM3", repr(msg[:10]), "..."
+        #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
         c = self.db.cursor()

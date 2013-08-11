@@ -20,7 +20,7 @@ class Node(service.MultiService):
         self.init_webport()
 
     def startService(self):
-        print "NODE STARTED"
+        #print "NODE STARTED"
         service.MultiService.startService(self)
 
     def get_node_config(self, name):

@@ -7,7 +7,7 @@ from .. import database, util
 def open_control_panel(so, out, err):
     basedir = os.path.abspath(so["basedir"])
     baseurl = webwait.wait(basedir, err) # also checks for the database
-    print "Node appears to be running, opening browser"
+    print >>out, "Node appears to be running, opening browser"
 
     dbfile = os.path.join(basedir, "petmail.db")
     sqlite, db = database.get_db(dbfile, err)

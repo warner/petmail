@@ -10,7 +10,7 @@ class Client(service.MultiService):
         c = self.db.cursor()
         c.execute("SELECT `inbox_location` FROM `client_config`")
         inbox_location = str(c.fetchone()[0])
-        print "INBOX", inbox_location
+        #print "INBOX", inbox_location
 
         self.subscribers = weakref.WeakKeyDictionary()
 
@@ -54,7 +54,7 @@ class OFF:
         self.db.commit()
 
     def control_sendMessage(self, args):
-        print "SENDMESSAGE", args
+        #print "SENDMESSAGE", args
         msg_to = str(args["to"])
         msg_body = str(args["message"])
         self.send_message_to_relay("send", msg_to, msg_body)
