@@ -86,7 +86,7 @@ class BaseHandler(resource.Resource):
         err = None
         try:
             results = self.handle(self.payload.get("args", {}))
-            if isinstance(results, str):
+            if isinstance(results, (str, unicode)):
                 results = {"ok": results}
         except CommandError, e:
             # this is the only way to signal a "known" error
@@ -95,7 +95,7 @@ class BaseHandler(resource.Resource):
             request.setResponseCode(http.BAD_REQUEST, "command error")
             request.setHeader("content-type", "text/plain; charset=utf-8")
             return err.encode("utf-8")
-        assert "ok" in results
+        assert "ok" in results, (results, type(results))
         request.setResponseCode(http.OK, "OK")
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps(results).encode("utf-8")
