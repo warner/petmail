@@ -3,6 +3,7 @@ from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from twisted.python import log
 from .util import make_nonce, equal
+from .errors import CommandError
 
 MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
 
@@ -69,10 +70,6 @@ class Events(SSEResource):
             return ("Sorry, this session token is expired,"
                     " please run 'petmail open' again\n")
         return SSEResource.render_GET(self, request)
-
-class CommandError(Exception):
-    def __init__(self, msg):
-        self.msg = msg
 
 handlers = {}
 
