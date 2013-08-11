@@ -60,15 +60,17 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         files = set([fn for fn in os.listdir(sdir)
                      if not fn.endswith(".tmp")])
         newfiles = files - self.subscriptions[channelID]
-        if not newfiles:
+        if files and not newfiles:
             return
-        # if there are any new files, we read all of them, even the old
-        # ones. This lets the Invitation detect and resend lost messages:
-        # messages which meant to send, but (probably because we crashed)
-        # never made it to the server. This only works once, on the first
-        # poll, and is mostly useful for recovering from our own crashes.
-        # TODO: this needs some more thought, it'd be nice to handle
-        # servers which lose messages while we're still up and running.
+        # If there are any new files, we read all of them, even the old ones.
+        # This lets the Invitation detect and resend lost messages: messages
+        # which meant to send, but (probably because we crashed) never made
+        # it to the server. We also tell the Invitation if there were no
+        # files at all, which lets us recover from a channel that deletes
+        # even the first message. This only works once, on the first poll,
+        # and is mostly useful for recovering from our own crashes. TODO:
+        # this needs some more thought, it'd be nice to handle servers which
+        # lose messages while we're still up and running.
         messages = set()
         for fn in files:
             f = open(os.path.join(sdir,fn), "rb")
