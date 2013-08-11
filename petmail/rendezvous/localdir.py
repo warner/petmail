@@ -20,7 +20,8 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         self.basedir = basedir
         if not os.path.isdir(basedir):
             os.mkdir(basedir)
-        self.subscriptions = {} # channelID -> processed messages
+        # subscriptions maps channelID -> filenames of processed messages
+        self.subscriptions = defaultdict(set)
         # destroyRequestsSeen maps channelID -> set(destroy messages)
         self.destroyRequestsSeen = defaultdict(set)
         self.verfkeys = {}
@@ -47,44 +48,53 @@ class LocalDirectoryRendezvousClient(service.MultiService):
 
     def poll(self):
         print "entering poll"
-        channels_with_new_messages = set()
-        for channelID in self.subscriptions:
-            sdir = os.path.join(self.basedir, channelID)
-            if not os.path.exists(sdir):
-                print "warning: polling non-existent channel", channelID
-                continue
-            files = set([fn for fn in os.listdir(sdir)
-                         if not fn.endswith(".tmp")])
-            if not (files - self.subscriptions[channelID]):
-                continue
-            messages = set()
-            for fn in files:
-                f = open(os.path.join(sdir,fn), "rb")
-                messages.add(f.read())
-                f.close()
-            self.subscriptions[channelID] = messages
-            channels_with_new_messages.add(channelID)
-            print "poll got new messages for", channelID
-        for channelID in channels_with_new_messages:
-            messages = self.subscriptions[channelID]
-            assert channelID in self.verfkeys, (self.subscriptions.keys(), self.verfkeys.keys())
-            # Before giving the messages to the Invitation (which may
-            # unsubscribe us), update our 'destroy' message counts. Since the
-            # localdir scheme doesn't have a central server, we must do this
-            # on each client. This is where Alice discovers Bob's destroy
-            # message.
-            for rawmsg in messages:
-                assert rawmsg.startswith("r0:")
-                sm = rawmsg[len("r0:"):].decode("hex")
-                m = self.verfkeys[channelID].verify(sm)
-                if m.startswith("i0:destroy:"):
-                    self.destroyRequestsSeen[channelID].add(m)
-            # The two-destroy-message condition should only occur just after
-            # Alice's localdir client writes the second one, and won't be
-            # observed by poll(). So it's sufficient to merely add the
-            # messages here, and count them in send() instead.
+        # we may unsubscribe while in the loop, so copy self.subscriptions
+        for channelID in list(self.subscriptions):
+            self.pollChannel(channelID)
 
-            self.parent.messagesReceived(channelID, messages)
+    def pollChannel(self, channelID):
+        sdir = os.path.join(self.basedir, channelID)
+        if not os.path.exists(sdir):
+            print "warning: polling non-existent channel", channelID
+            return
+        files = set([fn for fn in os.listdir(sdir)
+                     if not fn.endswith(".tmp")])
+        newfiles = files - self.subscriptions[channelID]
+        if not newfiles:
+            return
+        # if there are any new files, we read all of them, even the old
+        # ones. This lets the Invitation detect and resend lost messages:
+        # messages which meant to send, but (probably because we crashed)
+        # never made it to the server. This only works once, on the first
+        # poll, and is mostly useful for recovering from our own crashes.
+        # TODO: this needs some more thought, it'd be nice to handle
+        # servers which lose messages while we're still up and running.
+        messages = set()
+        for fn in files:
+            f = open(os.path.join(sdir,fn), "rb")
+            messages.add(f.read())
+            f.close()
+        self.subscriptions[channelID] = files
+        print "poll got new messages for", channelID
+
+        assert channelID in self.verfkeys, (self.subscriptions.keys(), self.verfkeys.keys())
+        # Before giving the messages to the Invitation (which may
+        # unsubscribe us), update our 'destroy' message counts. Since the
+        # localdir scheme doesn't have a central server, we must do this
+        # on each client. This is where Alice discovers Bob's destroy
+        # message.
+        for rawmsg in messages:
+            assert rawmsg.startswith("r0:")
+            sm = rawmsg[len("r0:"):].decode("hex")
+            m = self.verfkeys[channelID].verify(sm)
+            if m.startswith("i0:destroy:"):
+                self.destroyRequestsSeen[channelID].add(m)
+        # The two-destroy-message condition should only occur just after
+        # Alice's localdir client writes the second one, and won't be
+        # observed by poll(). So it's sufficient to merely add the
+        # messages here, and count them in send() instead.
+
+        self.parent.messagesReceived(channelID, messages)
 
     def send(self, channelID, msg):
         assert channelID in self.subscriptions
@@ -94,11 +104,13 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         if not os.path.isdir(sdir):
             os.mkdir(sdir)
         msgID = os.urandom(4).encode("hex")
+
         fn = os.path.join(sdir, msgID)
         f = open(fn+".tmp", "wb")
         f.write(msg)
         f.close()
         os.rename(fn+".tmp", fn)
+        self.subscriptions[channelID].add(msgID)
         print " localdir wrote %s-%s %s" % (channelID, msgID, msg)
 
         # was it a destroy? Alice writes the second destroy message, then
