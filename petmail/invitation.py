@@ -115,13 +115,18 @@ class InvitationManager(service.MultiService):
                    json.dumps(transportRecord),
                    json.dumps(privateTransportRecord),
                    "", "", 1))
+        self.subscribe(channelID)
         i = Invitation(channelID, self.db, self)
         i.sendFirstMessage()
         self.db.commit()
-        self.subscribe(channelID)
 
 class Invitation:
-    # This has a brief lifetime.
+    # This has a brief lifetime: one is created in response to the rendezvous
+    # client discovering new messages for us, used for one reactor tick, then
+    # dereferenced. It holds onto a few values during that tick (which may
+    # process multiple messages for a single invitation, e.g. A's second poll
+    # will receive both B-m1 and B-m2 together). But all persistent state
+    # beyond that one tick is stored in the database.
     def __init__(self, channelID, db, manager):
         self.channelID = channelID
         self.db = db
@@ -171,7 +176,7 @@ class Invitation:
         print "processMessages", messages
         print " my", self.myMessages
         print " theirs", self.theirMessages
-        assert isinstance(messages, set), typeof(messages)
+        assert isinstance(messages, set), type(messages)
         assert None not in messages, messages
         assert None not in self.myMessages, self.myMessages
         assert None not in self.theirMessages, self.theirMessages

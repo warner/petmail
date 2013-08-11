@@ -1,4 +1,5 @@
-import os.path
+import os.path, shutil
+from collections import defaultdict
 from twisted.application import service, internet
 from ..invitation import VALID_CHANNELID, VALID_MESSAGE
 from nacl.signing import VerifyKey
@@ -19,7 +20,9 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         self.basedir = basedir
         if not os.path.isdir(basedir):
             os.mkdir(basedir)
-        self.subscriptions = {}
+        self.subscriptions = {} # channelID -> processed messages
+        # destroyRequestsSeen maps channelID -> set(destroy messages)
+        self.destroyRequestsSeen = defaultdict(set)
         self.verfkeys = {}
         self.enable_polling = True # disabled by some unit tests
 
@@ -36,6 +39,8 @@ class LocalDirectoryRendezvousClient(service.MultiService):
 
     def unsubscribe(self, channelID):
         del self.subscriptions[channelID]
+        del self.verfkeys[channelID]
+        self.destroyRequestsSeen.pop(channelID, None)
         if not self.subscriptions and self.enable_polling:
             self.ts.disownServiceParent()
             del self.ts
@@ -45,6 +50,9 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         channels_with_new_messages = set()
         for channelID in self.subscriptions:
             sdir = os.path.join(self.basedir, channelID)
+            if not os.path.exists(sdir):
+                print "warning: polling non-existent channel", channelID
+                continue
             files = set([fn for fn in os.listdir(sdir)
                          if not fn.endswith(".tmp")])
             if not (files - self.subscriptions[channelID]):
@@ -59,9 +67,27 @@ class LocalDirectoryRendezvousClient(service.MultiService):
             print "poll got new messages for", channelID
         for channelID in channels_with_new_messages:
             messages = self.subscriptions[channelID]
+            assert channelID in self.verfkeys, (self.subscriptions.keys(), self.verfkeys.keys())
+            # Before giving the messages to the Invitation (which may
+            # unsubscribe us), update our 'destroy' message counts. Since the
+            # localdir scheme doesn't have a central server, we must do this
+            # on each client. This is where Alice discovers Bob's destroy
+            # message.
+            for rawmsg in messages:
+                assert rawmsg.startswith("r0:")
+                sm = rawmsg[len("r0:"):].decode("hex")
+                m = self.verfkeys[channelID].verify(sm)
+                if m.startswith("i0:destroy:"):
+                    self.destroyRequestsSeen[channelID].add(m)
+            # The two-destroy-message condition should only occur just after
+            # Alice's localdir client writes the second one, and won't be
+            # observed by poll(). So it's sufficient to merely add the
+            # messages here, and count them in send() instead.
+
             self.parent.messagesReceived(channelID, messages)
 
     def send(self, channelID, msg):
+        assert channelID in self.subscriptions
         assert VALID_CHANNELID.search(channelID), channelID
         assert VALID_MESSAGE.search(msg), msg
         sdir = os.path.join(self.basedir, channelID)
@@ -74,3 +100,16 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         f.close()
         os.rename(fn+".tmp", fn)
         print " localdir wrote %s-%s %s" % (channelID, msgID, msg)
+
+        # was it a destroy? Alice writes the second destroy message, then
+        # stops polling, so we can't rely on self.poll() to notice it. We
+        # have to act when she writes that destroy message.
+        assert msg.startswith("r0:")
+        sm = msg[len("r0:"):].decode("hex")
+        m = self.verfkeys[channelID].verify(sm)
+        if m.startswith("i0:destroy:"):
+            self.destroyRequestsSeen[channelID].add(m)
+        if len(self.destroyRequestsSeen[channelID]) >= 2:
+            print "DESTROY CHANNEL", channelID
+            shutil.rmtree(sdir)
+            del self.destroyRequestsSeen[channelID]

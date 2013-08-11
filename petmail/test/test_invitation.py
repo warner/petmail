@@ -41,15 +41,19 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
         n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
+        rclient1 = list(n1.client.im)[0]
         code = "code"
         n1.client.command_invite(u"petname-from-1", code)
+        channelID = rclient1.subscriptions.keys()[0]
+        rdir = os.path.join(rclient1.basedir, channelID)
+        self.failUnless(os.path.exists(rdir))
         # messages: node1-M1
         # at this point, node1 should have sent a single message (M1), and
         # should be waiting for the peer's first message (M1)
         self.checkCounts(n1, code, 1, 0, 1)
 
         # polling again should ignore the previously-sent message
-        list(n1.client.im)[0].poll()
+        rclient1.poll()
         self.checkCounts(n1, code, 1, 0, 1)
 
         # now we add a peer (node2) for them to talk to
@@ -57,6 +61,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir2)
         n2 = self.startNode(basedir2, beforeStart=self.disable_polling)
         n2.client.command_invite(u"petname-from-2", code)
+        rclient2 = list(n2.client.im)[0]
         # messages: node1-M1, node2-M1
 
         # node2 should have sent one message. node1 should not have noticed
@@ -66,13 +71,13 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
         # allow node2 to poll. It should see the node1's first message, and
         # create its own second message. node1 should not notice yet.
-        list(n2.client.im)[0].poll()
+        rclient2.poll()
         # messages: node1-M1, node2-M1, node2-M2
         self.checkCounts(n1, code, 1, 0, 1)
         self.checkCounts(n2, code, 2, 1, 2)
 
         # node2 polling again should not change anything
-        list(n2.client.im)[0].poll()
+        rclient2.poll()
         self.checkCounts(n1, code, 1, 0, 1)
         self.checkCounts(n2, code, 2, 1, 2)
 
@@ -80,7 +85,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # addressbook entry, send it's second and third messages, and be
         # waiting for an ACK
         print "== first client polling to get M2"
-        list(n1.client.im)[0].poll()
+        rclient1.poll()
         # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK
         self.checkCounts(n2, code, 2, 1, 2)
         self.checkCounts(n1, code, 3, 2, 3)
@@ -93,7 +98,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         #print a1[0].their_tport
 
         # re-polling should not do anything
-        list(n1.client.im)[0].poll()
+        rclient1.poll()
         # TODO: the Invitation is incorrectly given new messages here
         self.checkCounts(n2, code, 2, 1, 2)
         self.checkCounts(n1, code, 3, 2, 3)
@@ -102,7 +107,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # entry, send its ACK, will see node1's ACK, update its addressbook
         # entry, send its destroy-channel message, and delete the invitation.
         print " == second client polling to get M2"
-        list(n2.client.im)[0].poll()
+        rclient2.poll()
         # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
         # node2-M3-ACK, node2-M4-destroy
         self.checkCounts(n2, code, None, None, None, exists=False)
@@ -114,7 +119,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
         # finally, let node1 poll one last time. It will see the ACK and send
         # the second destroy-channel message.
-        list(n1.client.im)[0].poll()
+        rclient1.poll()
         # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
         # node2-M3-ACK, node2-M4-destroy, node1-M4-destroy
         self.checkCounts(n2, code, None, None, None, exists=False)
@@ -123,5 +128,5 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(len(a1), 1)
         self.failUnlessEqual(a1[0].acked, True)
 
-        # TODO: check that the channel has been destroyed
-
+        # finally check that the channel has been destroyed
+        self.failIf(os.path.exists(rdir))
