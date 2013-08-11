@@ -83,16 +83,25 @@ class BaseHandler(resource.Resource):
         self.client = client
         self.payload = payload
     def render_POST(self, request):
+        err = None
         try:
             results = self.handle(self.payload.get("args", {}))
             if isinstance(results, str):
-                data = {"ok": True, "text": results}
-            else:
-                data = results
+                results = {"ok": results}
         except CommandError, e:
+            # this is the only way to signal a "known" error
+            err = unicode(e.msg)
+        if err:
             request.setResponseCode(http.BAD_REQUEST, "command error")
-            data = {"err": e.msg}
-        return json.dumps(data)
+            request.setHeader("content-type", "text/plain; charset=utf-8")
+            return err.encode("utf-8")
+        assert "ok" in results
+        request.setResponseCode(http.OK, "OK")
+        request.setHeader("content-type", "application/json; charset=utf-8")
+        return json.dumps(results).encode("utf-8")
+
+class SampleError(Exception):
+    pass
 
 class Sample(BaseHandler):
     def handle(self, payload):
@@ -100,9 +109,9 @@ class Sample(BaseHandler):
         if payload.get("error"):
             raise CommandError("sample error text")
         if payload.get("server-error"):
-            raise ValueError("sample server error")
+            raise SampleError("sample server error")
         if payload.get("success-object"):
-            return {"ok": "sample ok object"}
+            return {"ok": "sample ok object", "otherstuff": "stuff"}
         return "sample ok"
 handlers["sample"] = Sample
 

@@ -135,13 +135,21 @@ def command(basedir, command, args, err=sys.stderr):
                        "args": args,
                        }).encode("utf-8")
     resp = do_http("POST", url+"api/v1/%s" % command, body)
-    # the web API can return three things:
-    #  200 (success) with a JSON body, including ["ok"]
-    #  400 (error) with a JSON body, including ["err"]
+    # The web API can return three things:
+    #  200 (success) with a JSON body, including ["ok"] for the CLI user
+    #  400 (error) with a string body (no trailing newline)
     #  anything else (worse error) with a string body
+    #
+    # This CLI helper always returns the same thing: (errp,json), where
+    # json["err"] is the error string (with trailing newline). Since 500s
+    # usually have messy (HTML-formatted) tracebacks, we hide the body and
+    # refer the user to the node logs instead. On 400s we present the whole
+    # thing, since it's presumably been nicely formatted by the node already.
+
+    http_status = "HTTP status: %d %s\n" % (resp.status, resp.reason)
     if resp.status == 200:
         return True, json.loads(resp.read().decode("utf-8"))
     elif resp.status == 400:
-        return False, json.loads(resp.read().decode("utf-8"))
+        return False, {"err": http_status+resp.read()+"\n"}
     else:
-        return False, {"err": resp.read()}
+        return False, {"err": http_status+"Please see node logs for details\n"}

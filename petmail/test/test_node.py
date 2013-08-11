@@ -5,6 +5,7 @@ from twisted.internet import threads # CLI tests use deferToThread
 from twisted.internet import defer
 from twisted.internet.utils import getProcessOutputAndValue
 from ..scripts import runner
+from ..web import SampleError
 from .common import BasedirMixin, NodeRunnerMixin
 
 class Basic(unittest.TestCase):
@@ -15,10 +16,11 @@ class Basic(unittest.TestCase):
 # talking directly to the web handler: no network, no other processes.
 
 # To cover the HTTP interface, we need a few tests which run the CLI command
-# with deferToThread (to handle the time.sleep and blocking IO).
+# with deferToThread (to handle the time.sleep and blocking IO). These use
+# CLIinThreadMixin.
 
 # And we need one or two tests that exercise the daemonization in 'petmail
-# start', which requires a subprocess.
+# start', which requires a subprocess. Those use CLIinProcessMixin
 
 class CLIinThreadMixin:
     def cli(self, *args, **kwargs):
@@ -78,35 +80,41 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         d.addCallback(_check)
         return d
 
-    def test_api(self):
+    def test_sample(self):
         basedir = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir)
         n = self.startNode(basedir)
         d = self.cliMustSucceed("open", "-n", "-d", basedir)
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir))
-        d.addCallback(self.failUnlessEqual, "True\n", "one")
+        d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok\n"))
         d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
                                                      "no data"))
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir,
                                                     "-o", "other data"))
-        d.addCallback(self.failUnlessEqual, "sample ok object\n", "two")
+        d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok object\n"))
         d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
                                                      "other data"))
-        d.addCallback(lambda _: self.cli("sample", "-d", basedir, "-e"))
+        d.addCallback(lambda _: self.cli("sample", "-d", basedir, "--error"))
         def _fail1((out,err,rc)):
             self.failIfEqual(rc, 0)
             self.failUnlessEqual(out, "")
-            self.failUnlessEqual(err, "sample error text\n")
+            self.failUnlessEqual(err,
+                                 "HTTP status: 400 command error\n"+
+                                 "sample error text\n")
         d.addCallback(_fail1)
-        return d
-        # Also test --server-error . This isn't ready yet.
-        d.addCallback(lambda _: self.cli("sample", "-d", basedir, "-s"))
-        # that should raise a ValueError
-        def _no_error(res):
-            self.fail("expected a failure, not %s" % (res,))
-        def _got_error(f):
-            f.check(ValueError)
-            print str(f)
-        d.addCallbacks(_no_error, _got_error)
+
+        # Also test --server-error . This raises a ValueError inside the
+        # server, which we must eat to keep the test framework from thinking
+        # an error went unhandled.
+        d.addCallback(lambda _: self.cli("sample", "-d", basedir,
+                                         "--server-error"))
+        def _fail2((out,err,rc)):
+            self.failIfEqual(rc, 0)
+            self.failUnlessEqual(out, "")
+            self.failUnlessEqual(err,
+                                 "HTTP status: 500 Internal Server Error\n"+
+                                 "Please see node logs for details\n")
+            self.flushLoggedErrors(SampleError)
+        d.addCallback(_fail2)
         return d
 

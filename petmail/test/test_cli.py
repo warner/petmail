@@ -7,7 +7,7 @@ from ..scripts import runner, webwait
 # node code. Generate a fake HTTP response, then test response parsing and
 # rc/stdout/stderr generation.
 
-OK = {"ok": True, "text": "ok"}
+OK = {"ok": "ok"}
 
 class CLI(unittest.TestCase):
     def setUp(self):
@@ -31,7 +31,8 @@ class CLI(unittest.TestCase):
     def test_sample(self):
         path,body,rc,out,err = self.call({"ok": "sample ok object"}, "sample")
         self.failUnlessEqual(path, "sample")
-        self.failUnlessEqual(body, {"data": "no data"})
+        self.failUnlessEqual(body, {"data": "no data", "error": 0,
+                                    "server-error": 0, "success-object": 0})
         self.failUnlessEqual(rc, 0)
         self.failUnlessEqual(out, "sample ok object\n")
         self.failUnlessEqual(err, "")

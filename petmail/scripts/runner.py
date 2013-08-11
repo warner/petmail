@@ -161,7 +161,7 @@ def test(so, stdout, stderr):
     sys.exit(0) # just in case
 
 def render_text(result):
-    return result["text"]
+    return result["ok"]+"\n"
 def render_all(result):
     return pprint.pformat(result)
 def render_addressbook(result):
@@ -182,16 +182,12 @@ def WebCommand(name, argnames, render=render_text):
         args = dict([(argname, so[argname]) for argname in argnames])
         ok, result = command(so["basedir"], name, args, err)
         if ok:
-            print >>out, render(result)
+            print >>out, render(result),
             return 0
         else:
-            print >>err, result["err"]
+            print >>err, result["err"],
             return 1
     return _command
-
-def sample(*args):
-    from .sample import sample
-    return sample(*args)
 
 def accept(*args):
     from .accept_invitation import accept_invitation
@@ -205,7 +201,8 @@ DISPATCH = {"create-node": create_node,
             "create-relay": create_relay,
             "test": test,
 
-            "sample": sample,
+            "sample": WebCommand("sample", ["data", "success-object",
+                                            "error", "server-error"]),
             "invite": WebCommand("invite", ["petname", "code"]),
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
