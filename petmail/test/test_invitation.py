@@ -130,3 +130,15 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
         # finally check that the channel has been destroyed
         self.failIf(os.path.exists(rdir))
+
+        # look at some client command handlers too
+        a1 = n1.client.command_list_addressbook()
+        self.failUnlessEqual(len(a1), 1)
+        a2 = n2.client.command_list_addressbook()
+        self.failUnlessEqual(len(a2), 1)
+        self.failUnlessEqual(a1[0]["my_verfkey"], a2[0]["their_verfkey"])
+        self.failUnlessEqual(a2[0]["my_verfkey"], a1[0]["their_verfkey"])
+        self.failUnlessEqual(a1[0]["acked"], True)
+        self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
+        self.failUnlessEqual(a2[0]["acked"], True)
+        self.failUnlessEqual(a2[0]["petname"], "petname-from-2")

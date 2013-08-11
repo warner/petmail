@@ -3,7 +3,7 @@
 # dependency set, or parts of petmail that require things from the dependency
 # set, until runtime, inside a command that specifically needs it.
 
-import os, sys
+import os, sys, pprint
 
 try:
     # do not import anything from Twisted that requires the reactor, to allow
@@ -75,6 +75,9 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, code):
         self["code"] = code
 
+class AddressbookOptions(BasedirParameterMixin, usage.Options):
+    pass
+
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
         if not test_args:
@@ -92,6 +95,7 @@ class Options(usage.Options):
 
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
+                   ("addressbook", None, AddressbookOptions, "List Addressbook"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -156,7 +160,21 @@ def test(so, stdout, stderr):
     twisted_trial.run() # this does not return
     sys.exit(0) # just in case
 
-def WebCommand(name, *argnames):
+def render_text(result):
+    return result["text"]
+def render_all(result):
+    return pprint.pformat(result)
+def render_addressbook(result):
+    lines = []
+    for entry in sorted(result["addressbook"], key=lambda e: e["petname"]):
+        lines.append('"%s":' % entry["petname"])
+        lines.append(" %s" % {False: "not acknowledged",
+                              True: "acknowledged"}[entry["acked"]])
+        lines.append(" their verfkey: %s" % entry["their_verfkey"])
+        lines.append(" (our verfkey): %s" % entry["my_verfkey"])
+    return "\n".join(lines)+"\n"
+
+def WebCommand(name, argnames, render=render_text):
     # Build a dispatch function for simple commands that deliver some string
     # arguments to a web API, then display a result.
     def _command(so, out, err):
@@ -164,7 +182,7 @@ def WebCommand(name, *argnames):
         args = dict([(argname, so[argname]) for argname in argnames])
         ok, result = command(so["basedir"], name, args, err)
         if ok:
-            print >>out, result["text"]
+            print >>out, render(result)
             return 0
         else:
             print >>err, result["err"]
@@ -188,7 +206,9 @@ DISPATCH = {"create-node": create_node,
             "test": test,
 
             "sample": sample,
-            "invite": WebCommand("invite", "petname", "code"),
+            "invite": WebCommand("invite", ["petname", "code"]),
+            "addressbook": WebCommand("list-addressbook", [],
+                                      render=render_addressbook),
             "accept": accept,
             }
 

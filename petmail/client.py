@@ -2,6 +2,8 @@ import os.path, weakref, json
 from twisted.application import service
 from . import invitation
 from .rendezvous import localdir
+from nacl.signing import SigningKey
+from nacl.encoding import HexEncoder as Hex
 
 class Client(service.MultiService):
     def __init__(self, db, basedir):
@@ -28,6 +30,25 @@ class Client(service.MultiService):
         my_private_transport_record = {}
         self.im.startInvitation(petname, code, my_transport_record,
                                 my_private_transport_record)
+
+    def command_list_addressbook(self):
+        resp = []
+        c = self.db.cursor()
+        c.execute("SELECT * FROM addressbook")
+        for row in c.fetchall():
+            entry = {}
+            entry["their_verfkey"] = str(row[0])
+            their_tport = json.loads(row[1])
+            entry["their_transport"] = their_tport
+            entry["petname"] = row[2]
+            my_tport = json.loads(row[3])
+            # TODO: filter out the long-term stuff
+            entry["my_transport"] = my_tport
+            sk = SigningKey(row[4].decode("hex"))
+            entry["my_verfkey"] = sk.verify_key.encode(Hex)
+            entry["acked"] = bool(row[5])
+            resp.append(entry)
+        return resp
 
 class OFF:
     def control_relayConnected(self):

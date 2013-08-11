@@ -108,9 +108,17 @@ handlers["sample"] = Sample
 
 class Invite(BaseHandler):
     def handle(self, payload):
-        self.client.command_invite(payload["petname"], str(payload["code"]))
-        return "ok"
+        petname = unicode(payload["petname"])
+        code = str(payload["code"])
+        self.client.command_invite(petname, code)
+        return "invitation for %s started" % payload["petname"]
 handlers["invite"] = Invite
+
+class ListAddressbook(BaseHandler):
+    def handle(self, payload):
+        return {"ok": "ok",
+                "addressbook": self.client.command_list_addressbook()}
+handlers["list-addressbook"] = ListAddressbook
 
 class API(resource.Resource):
     def __init__(self, access_token, db, client):
