@@ -3,6 +3,7 @@ import re, os, json, hmac
 from hashlib import sha256
 from twisted.application import service
 from .hkdf import HKDF
+from .errors import CommandError
 from nacl.signing import SigningKey, VerifyKey, BadSignatureError
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.encoding import HexEncoder as Hex
@@ -102,6 +103,9 @@ class InvitationManager(service.MultiService):
         mySigningKey = SigningKey.generate()
         myTempPrivkey = PrivateKey.generate()
         c = self.db.cursor()
+        c.execute("SELECT channelID FROM invitations")
+        if channelID in [str(row[0]) for row in c.fetchall()]:
+            raise CommandError("invitation code already in use")
         c.execute("INSERT INTO `invitations`"
                   " (code_hex, petname, stretchedKey,"
                   "  channelID,"

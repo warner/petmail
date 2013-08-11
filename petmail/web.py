@@ -116,8 +116,7 @@ class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
         code = str(payload["code"])
-        self.client.command_invite(petname, code)
-        return "invitation for %s started" % payload["petname"]
+        return self.client.command_invite(petname, code)
 handlers["invite"] = Invite
 
 class ListAddressbook(BaseHandler):

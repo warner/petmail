@@ -1,6 +1,7 @@
 import os, collections, json
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin
+from ..errors import CommandError
 from ..invitation import splitMessages
 
 MROW = collections.namedtuple("Row", ["my", "theirs", "next"])
@@ -142,3 +143,13 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
         self.failUnlessEqual(a2[0]["acked"], True)
         self.failUnlessEqual(a2[0]["petname"], "petname-from-2")
+
+    def test_duplicate_code(self):
+        basedir1 = os.path.join(self.make_basedir(), "node1")
+        self.createNode(basedir1)
+        n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
+        code = "code"
+        n1.client.command_invite(u"petname-from-1", code)
+        self.failUnlessRaises(CommandError,
+                              n1.client.command_invite, u"new-petname", code)
+

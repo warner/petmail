@@ -30,6 +30,7 @@ class Client(service.MultiService):
         my_private_transport_record = {}
         self.im.startInvitation(petname, code, my_transport_record,
                                 my_private_transport_record)
+        return "invitation for %s started" % petname
 
     def command_list_addressbook(self):
         resp = []
