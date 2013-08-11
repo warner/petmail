@@ -156,13 +156,24 @@ def test(so, stdout, stderr):
     twisted_trial.run() # this does not return
     sys.exit(0) # just in case
 
+def WebCommand(name, *argnames):
+    # Build a dispatch function for simple commands that deliver some string
+    # arguments to a web API, then display a result.
+    def _command(so, out, err):
+        from .webwait import command
+        args = dict([(argname, so[argname]) for argname in argnames])
+        ok, result = command(so["basedir"], name, args, err)
+        if ok:
+            print >>out, result["text"]
+            return 0
+        else:
+            print >>err, result["err"]
+            return 1
+    return _command
+
 def sample(*args):
     from .sample import sample
     return sample(*args)
-
-def invite(*args):
-    from .invite import invite as do_invite
-    return do_invite(*args)
 
 def accept(*args):
     from .accept_invitation import accept_invitation
@@ -177,7 +188,7 @@ DISPATCH = {"create-node": create_node,
             "test": test,
 
             "sample": sample,
-            "invite": invite,
+            "invite": WebCommand("invite", "petname", "code"),
             "accept": accept,
             }
 
