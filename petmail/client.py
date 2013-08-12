@@ -15,13 +15,28 @@ class Client(service.MultiService):
         c = self.db.cursor()
         c.execute("SELECT `private_descriptor` FROM `mailboxes`")
         for row in c.fetchall():
-            self.addMailbox(str(row[0]))
+            self.subscribeToMailbox(str(row[0]))
 
         self.im = invitation.InvitationManager(db, self)
         rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
         rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
+
+    def subscribeToMailbox(self, private_descriptor):
+        # parse descriptor
+        # import correct module, find right subclass/constructor
+        # mc = MailboxClientSubclass(private_descriptor, self, self.db)
+        # self.mailboxClients.add(mc)
+        # mc.setServiceParent(self) # it makes network connections, etc
+        pass
+
+    def command_add_mailbox(self, private_descriptor):
+        c = self.db.cursor()
+        c.execute("INSERT INTO mailboxes (private_descriptor) VALUES (?)",
+                  (private_descriptor,))
+        self.db.commit()
+        self.subscribeToMailbox(private_descriptor)
 
     def command_invite(self, petname, code):
         my_transport_record = {}
