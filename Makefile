@@ -43,3 +43,29 @@ dump-ren:
 	deps-venv/bin/python petmail/dump-messages.py .rendezvous
 pyflakes:
 	pyflakes petmail
+
+# 1st: in libsodium-0.4.2: ./configure --prefix=/usr/local/stow/libsodium-0.4.2
+#      make, make check, make install
+WLS1=CFLAGS=-I/usr/local/stow/libsodium-0.4.2/include LDFLAGS=-L/usr/local/stow/libsodium-0.4.2/lib
+#WLS2=LD_LIBRARY_PATH=/usr/local/stow/libsodium-0.4.2/lib
+install-pynacl:
+	$(WLS1) deps-venv/bin/pip install PyNaCl
+PYTHON=deps-venv/bin/python
+test-pynacl:
+	$(WLS1) $(PYTHON) -c "from nacl.public import PrivateKey; print PrivateKey.generate().encode().encode('hex');"
+test:
+	$(WLS1) ./bin/petmail test
+
+# TODO: use virtualenv.create_bootstrap_script(extra_text) to create a new
+# modified virtualenv.py . Define an after_install(options,home_dir) function
+# to edit home_dir/bin/activate to append lines to set and export CFLAGS and
+# LDFLAGS. Bonus points for editing bin/activate to unset them in
+# deactivate().
+
+# patch-activate is a quick hack to patch activate, without unset/deactivate
+patch-activate:
+	echo >> deps-venv/bin/activate
+	echo "CFLAGS=-I/usr/local/stow/libsodium-0.4.2/include" >>deps-venv/bin/activate
+	echo "export CFLAGS" >>deps-venv/bin/activate
+	echo "LDFLAGS=-L/usr/local/stow/libsodium-0.4.2/lib" >>deps-venv/bin/activate
+	echo "export LDFLAGS" >>deps-venv/bin/activate
