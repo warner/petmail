@@ -6,16 +6,12 @@ import sys, os
 # directory
 me = os.path.abspath(sys.argv[0])
 root = os.path.dirname(os.path.dirname(me))
-
-# if present, we include the deps-venv site-packages directory. TODO:
-# consider using activate_this.py (which handles eggs) instead:
-#  activate_this = os.path.join(vent_root, "bin", "activate_this.py")
-#  execfile(activate_this, dict(__file__=activate_this))
 venv_root = os.path.join(root, "deps-venv")
+
+# if present, we include the deps-venv site-packages directory
 if os.path.isdir(venv_root):
-    pyver = "python"+sys.version[0:3]
-    venv_sitedir = os.path.join(venv_root, "lib", pyver, "site-packages")
-    sys.path.insert(0, venv_sitedir)
+    activate_this = os.path.join(venv_root, "bin", "activate_this.py")
+    execfile(activate_this, dict(__file__=activate_this))
 
 # Then we want to add $ROOT to sys.path, so we can import $ROOT/petmail
 sys.path.insert(0, root)
