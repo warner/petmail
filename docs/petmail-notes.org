@@ -238,3 +238,79 @@ Unsorted design notes.
 *** msgC provides confidentiality
 
 
+* mailbox setup
+** users who rent a mailbox get a short(ish) setup code, like invitations.
+   Client configuration should consist of pasting in the invitation code.
+** That code bootstraps a relationship between the user's client and mailbox
+   service. Once established:
+*** clients can get their "private transport record", which gives it enough
+    information and credentials to use the mailbox (protocol, hostname/port).
+    This record also provides enough information to generate the transport
+    record that the client will share with other clients. This may require
+    the client to send some pubkeys/verfkey to the mailbox server first.
+*** clients can fetch a machine-readable account status
+*** the user can send messages to a customer support mailbox
+*** the user can get an account-portal web URL to perform additional account
+    actions (single-use secure URL)
+*** the service can send account-action-needed messages to the user
+    (announcements, billing notification). Some markup in these messages will
+    be rendered as a link or button to get to the account portal.
+*** (maybe) the service can send a machine-readable message to the node,
+    without user involvement. Sample use-cases:
+**** service will be changing its public hostname or IP address, or rotating
+     some keys, and clients need to update their transport records.
+**** automatic payment
+**** this could be provided by a full verfkey+pubkeys channel (like the
+     user-to-user channels get), or maybe just a sideband on the normal
+     mailbox protocol that says "please check in" and causes the client to
+     poll the Setup Protocol port
+** mailbox providers can either accept payment and then create setup code, or
+   provide a setup code and defer activating the account until payment is
+   received
+*** part of the "account status" is a boolean "can accept messages from the
+    world" flag. Until set, the mailbox will only receive messages from the
+    mailbox provider (both admin messages and "pay up" user messages). While
+    in this frozen state, the private transport record will lack the fields
+    necessary to create a public transport record.
+*** payment-first means the account is active from the beginning. payment
+    arragements were made on the provider's web page, before it displayed the
+    setup code. The server must remember the association between the setup
+    code and the payment details, especially if they are recurring.
+*** pay-later means the account is frozen until payment is verified. The user
+    will get a "pay up" message with a link to the account portal, and
+    payment arrangements will be made from that page.
+** the node is unaware of payment, but does know about account status
+*** maybe extend this later: if the client can control a small bitcoin stash,
+    it could automatically deliver payment on a periodic basis. An
+    account-status field which indicated the receiving address would help.
+** setup code goes into the invitation protocol, but gets different records
+*** client gets a mailbox-service pubkey setup-protocol and a URL to use it
+    (maybe unique to each user). Maybe allow the URL to be updated by later
+    admin messages. Maybe make it a list of URLs.
+*** service gets setup-protocol pubkey
+*** we need, but can't deliver, a verfKey+sig(tport_record) from each for the
+    customer-service/action-needed channel. The client doesn't have a
+    transport record yet, so it cannot create its half of the necessary
+    messages. Instead, we'll do that through the Setup Protocol
+** the Setup Protocol is simple synchronous RPC
+*** messages are boxed with the two non-rotating setup keys
+*** nonce is counter, with different number space for each direction
+*** APIs:
+**** getPrivateTransportRecord(recip-stable) -> transport-pubkey,
+     protocol-type, host+port/URL. Maybe client-identifier too.
+**** getAccountStatus() -> account status record, including enabled/frozen
+     state
+**** getAccountPortalURL() -> create a one-time limited-duration web URL that
+     gives control over account state (but doesn't handle keys)
+**** (??) establish customer-service/action-needed channel. Maybe
+***** setupCustomerServiceChannel(verfKey+sig(setuppubkeys+transport)) ->
+      verfKey+sig(setuppubkeys+transport)
+***** need to study the binding between the setup-protocol channel and the
+      new channel. My hunch is that including the setup pubkeys in the signed
+      message is right, but it may need more.
+**** (maybe) establish admin channel, just like customer-service channel.
+**** or maybe instead establish a verfKey that will sign side-band messages
+** (maybe) side-band channel, to push admin messages down:
+*** if normal node-to-node messages are "m1:"+msgB, then admin messages could
+    be "a1:"+verfkey+sign(adminmsg). Both kinds must be transport-encrypted
+    as they are fetched from the mailbox, of course.
