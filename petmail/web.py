@@ -125,6 +125,12 @@ class ListAddressbook(BaseHandler):
                 "addressbook": self.client.command_list_addressbook()}
 handlers["list-addressbook"] = ListAddressbook
 
+class AddMailbox(BaseHandler):
+    def handle(self, payload):
+        self.client.command_add_mailbox(str(payload["descriptor"]))
+        return {"ok": "ok"}
+handlers["add-mailbox"] = AddMailbox
+
 class API(resource.Resource):
     def __init__(self, access_token, db, client):
         resource.Resource.__init__(self)

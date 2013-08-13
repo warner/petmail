@@ -1,9 +1,10 @@
 import os.path, weakref, json
 from twisted.application import service
-from . import invitation
-from .rendezvous import localdir
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
+from . import invitation
+from .rendezvous import localdir
+from .errors import CommandError
 
 class Client(service.MultiService):
     def __init__(self, db, basedir):
@@ -12,10 +13,12 @@ class Client(service.MultiService):
 
         self.subscribers = weakref.WeakKeyDictionary()
 
+        self.mailboxClients = set()
         c = self.db.cursor()
         c.execute("SELECT `private_descriptor` FROM `mailboxes`")
         for row in c.fetchall():
-            self.subscribeToMailbox(str(row[0]))
+            rc = self.buildRetrievalClient(str(row[0]))
+            self.subscribeToMailbox(rc)
 
         self.im = invitation.InvitationManager(db, self)
         rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
@@ -23,20 +26,34 @@ class Client(service.MultiService):
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
 
-    def subscribeToMailbox(self, private_descriptor):
-        # parse descriptor
-        # import correct module, find right subclass/constructor
-        # mc = MailboxClientSubclass(private_descriptor, self, self.db)
-        # self.mailboxClients.add(mc)
-        # mc.setServiceParent(self) # it makes network connections, etc
-        pass
+    def buildRetrievalClient(self, private_descriptor):
+        # parse descriptor, import correct module and constructor
+        bits = private_descriptor.split(":")
+        retrieval_type = bits[0]
+        if retrieval_type == "direct-http":
+            from .mailbox.retrieval import direct_http
+            retrieval_class = direct_http.DirectHTTPMailboxRetrievalClient
+        else:
+            raise CommandError("unrecognized mailbox-retrieval protocol '%s'"
+                               % retrieval_type)
+        rc = retrieval_class(private_descriptor, self, self.db)
+        return rc
+
+    def subscribeToMailbox(self, rc):
+        self.mailboxClients.add(rc)
+        # the retrieval client gets to make network connections, etc, as soon
+        # as it starts. If we are "running" when we add it as a service
+        # child, that happens here.
+        rc.setServiceParent(self)
 
     def command_add_mailbox(self, private_descriptor):
+        # make sure we can build it, before committing it to the DB
+        rc = self.buildRetrievalClient(private_descriptor)
         c = self.db.cursor()
         c.execute("INSERT INTO mailboxes (private_descriptor) VALUES (?)",
                   (private_descriptor,))
         self.db.commit()
-        self.subscribeToMailbox(private_descriptor)
+        self.subscribeToMailbox(rc)
 
     def command_invite(self, petname, code):
         my_transport_record = {}

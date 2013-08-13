@@ -78,6 +78,10 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
 class AddressbookOptions(BasedirParameterMixin, usage.Options):
     pass
 
+class AddMailboxOptions(BasedirParameterMixin, usage.Options):
+    def parseArgs(self, descriptor):
+        self["descriptor"] = descriptor
+
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
         if not test_args:
@@ -96,6 +100,7 @@ class Options(usage.Options):
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
                    ("addressbook", None, AddressbookOptions, "List Addressbook"),
+                   ("add-mailbox", None, AddMailboxOptions, "Add a new nailbox"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -206,6 +211,7 @@ DISPATCH = {"create-node": create_node,
             "invite": WebCommand("invite", ["petname", "code"]),
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
+            "add-mailbox": WebCommand("add-mailbox", ["descriptor"]),
             "accept": accept,
             }
 
