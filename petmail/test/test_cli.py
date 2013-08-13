@@ -1,3 +1,4 @@
+import textwrap
 from StringIO import StringIO
 from twisted.trial import unittest
 from ..scripts import runner, webwait
@@ -30,18 +31,36 @@ class CLI(unittest.TestCase):
 
     def test_sample(self):
         path,body,rc,out,err = self.call({"ok": "sample ok object"}, "sample")
+        self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "sample")
         self.failUnlessEqual(body, {"data": "no data", "error": 0,
                                     "server-error": 0, "success-object": 0})
-        self.failUnlessEqual(rc, 0)
         self.failUnlessEqual(out, "sample ok object\n")
-        self.failUnlessEqual(err, "")
 
     def test_invite(self):
         path,body,rc,out,err = self.call(OK, "invite", "code")
-        self.failUnlessEqual(rc, 0, str((rc,err)))
-        self.failUnlessEqual(err, "")
-        self.failUnlessEqual(out, "ok\n")
+        self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "invite")
         self.failUnlessEqual(body, {"code": "code", "petname": None})
+        self.failUnlessEqual(out, "ok\n")
 
+    def test_addressbook(self):
+        r = {"ok": "ok",
+             "addressbook": [{"their_verfkey": "key1",
+                              "their_transport": "tport1",
+                              "petname": u"pet",
+                              "my_transport": "tport2",
+                              "my_verfkey": "key2",
+                              "acked": True}],
+             }
+        path,body,rc,out,err = self.call(r, "addressbook")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "list-addressbook")
+        self.failUnlessEqual(body, {})
+        expected = textwrap.dedent(u'''\
+        "pet":
+         acknowledged
+         their verfkey: key1
+         (our verfkey): key2
+        ''')
+        self.failUnlessEqual(out, expected)
