@@ -159,28 +159,29 @@ Unsorted design notes.
 ** desired unlinkability properties
 *** A future version of this protocol should provide the following
     unlinkability properties:
-    1. The mailbox cannot distinguish which sender provided a message (from
-       the contents of the message.. they still might discern source IP
-       address, etc). The mailbox can compute a recipient identifier, to know
-       how to route the message, which will the the same no matter which
-       sender created it. Two successive messages from the same sender cannot
-       be identified as such.
-    2. Two senders cannot distinguish whether their transport descriptors
-       refer to the same recipient or not, except for the shared mailbox
-       addressing information. If Alice and Bob are senders, Carol and Dave
-       are two recipients who rent mailboxes from the same host, then Alice
-       gets two descriptors AC and AD, and Bob gets BC and BD. When Alice and
-       Bob compare their descriptors, they should not be able to distinguish
-       whether AC+BC go to the same person, or AC+BD. Alice herself cannot
-       tell if AC+AD go to different people or the same person.
-    3. The recipient is not required to communicate with the mailbox to add
-       each new sender, but can create new descriptors herself.
-    4. The sender can produce any number of messages without needing to
-       acquire new tokens or information from the recipient.
-    5. The mailbox can determine the recipient of a message in constant time,
-       rather than iterating through the full list of registered recipients
-       looking for a match.
-*** I don't yet know of a protocol that can satisfy these conditions. Tthere
+**** 1. The mailbox cannot distinguish which sender provided a message (from
+        the contents of the message.. they still might discern source IP
+        address, etc). The mailbox can compute a recipient identifier, to
+        know how to route the message, which will the the same no matter
+        which sender created it. Two successive messages from the same sender
+        cannot be identified as such.
+**** 2. Two senders cannot distinguish whether their transport descriptors
+        refer to the same recipient or not, except for the shared mailbox
+        addressing information. If Alice and Bob are senders, Carol and Dave
+        are two recipients who rent mailboxes from the same host, then Alice
+        gets two descriptors AC and AD, and Bob gets BC and BD. When Alice
+        and Bob compare their descriptors, they should not be able to
+        distinguish whether AC+BC go to the same person, or AC+BD. Alice
+        herself cannot tell if AC+AD go to different people or the same
+        person.
+**** 3. The recipient need not talk to the mailbox to add each new sender,
+        but can create new descriptors herself.
+**** 4. The sender can produce unlimited messages without asking recipient
+        for information or new tokens
+**** 5. The mailbox can determine a message's recipient in constant time,
+        rather than iterating through the full list of registered recipients
+        looking for a match.
+*** I don't yet know of a protocol that can satisfy these conditions. There
     are a number of simpler protocols that provide a subset:
 **** Give each sender the (same) client identifier, each sender includes the
      identifier in their message. This provides 1/3/4/5, but not 2. This is
@@ -194,6 +195,20 @@ Unsorted design notes.
     differently-blinded copies of the client identifier, then blinding these
     tokens themselves for each message they send. It may be necessary to
     give up on #5 (mailbox efficiency) to achieve the other four.
+*** in summary: we want to give sender Alice SAC and SAD, and sender Bob SBC
+    and SBD, then Alice can create SAC1 and SAC2. Mailbox server should be
+    able to group SAC1/SAC2/SBC1/SBC2 as "for C", and SAD1/SAD2/SBD1/SBD2 as
+    "for D", but not be able to distinguish values within either group.
+*** from Abhi: use rerandomized El Gamal encryption
+**** SK=x, PK=g^x, Enc(m)=(c1,c2)=(g^r,g^rx*m), Dec(SK,c1,c2)=c2/(c1^x)=m,
+     Rerand(c1,c2)=(g^r2*c1, g^xr2*c2) =(g^r1r2,g^xr2*g^xr1*m)
+     =(g^(r1+r2),g^x(r1+r2)*m)
+**** additive notation: SK=x, PK=Bx, Enc(m)=(Br,Bxr+M), Dec()=C2-xC1,
+     Rerand()=(Br2+C1,Bxr2+C2)=(B(r2+r1),Bxr2+Bxr1+M)=..,B(r2+r1)x+M
+**** not seeing how to do it with just curve25519_scalarmult. Might be able
+     to use ed25519 internal functions. Pure-python boring-coordinates
+     ed25519.py takes: 2.3ms add, 900ms scalarmult. With smarter coordinates
+     (XYZT): 4.3ms scalarmult. None are constant-time.
 ** protocol3
 *** msgA = enc(to=transport,from=key1,msgB)
 *** msgB = recipient-id + enc(to=recip-stable, from=key2, msgC)
@@ -226,16 +241,30 @@ Unsorted design notes.
     secrecy against recipient compromise (rotating recip-current).
 *** msgC (sig) provides deniable authentication of sender
 ** protocol6
+*** rrid=randomized recipient identifier: ElGamal encrypted rid.
+**** rid=recipient-id = random string
+**** for v1, rrid=rid. Later, rrid will be rerandomized properly.
 *** msgA = pubkey1+enc(to=transport,from=key1,msgB)
-*** msgB = recip-stable + pubkey2 + enc(to=recip-stable, from=key2, msgC)
+*** msgB = rrid/rid + pubkey2 + enc(to=recip-stable, from=key2, msgC)
 *** msgC = sender-stable + sign(by=sender-stable,key3) + pubkey3 + recip-current + enc(to=recip-current, from=key3, msgD)
 **** recipient looks up sender-stable in a table, finds two entries
      (previous+new), finds which one matches recip-current, decrypts, maybe
      rotates. No trial decryptions.
 *** msgD = body
-*** so msgA hides recipient form eavesdroppers
+*** so msgA hides recipient from Eve, also denies spam from non-senders
 *** msgB hides sender from server
-*** msgC provides confidentiality
+*** msgC provides confidentiality and forward-secrecy
+** actual goals:
+*** hide sender from mailbox. This also requires Tor or similar.
+*** if mailbox servers are shared, it'd be nice to hide recipient from Eve.
+    But if they aren't shared, there's no point. Requires transport
+    encryption.
+*** if mailbox servers are shared, it'd be nice to hide recipient from
+    sender, specifically prevent two senders from recognizing they're talking
+    to the same recipient.
+*** deny DoS/spam to non-senders (at least never-senders). Server should be
+    able to verify a message somehow, either as the to= of a box or signed by
+    a recognized key. Box seems more general.
 
 
 * mailbox setup

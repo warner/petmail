@@ -5,7 +5,8 @@ To receive messages, each client must contract with at least one `mailbox`
 service. This is a publically-reachable server with good uptime, that is
 willing to store incoming messages later retrieval by the client. Mailboxes
 allow clients to receive messages despite not being online all the time, and
-living behind a NAT box.
+living behind a NAT box. Some mailboxes can also improve privacy by making it
+difficult to link sender and receiver.
 
 Each mailbox has a `transport descriptor` string that describes how other
 nodes should deliver messages to it. This is shaped like a URL, with a type
@@ -22,22 +23,39 @@ of delivery, while others are high-latency send-and-hope. Senders may elect
 to deliver multiple copies of their message in parallel, and receivers must
 tolerate (ignore) duplicates.
 
+Delivery and Retrieval
+----------------------
+
+Transports have two sides. Senders interact with the "delivery" side, to add
+a message to the mailbox. The recipient then uses the "retrieval" side to
+fetch their stored messages. The two sides have significant differences.
+Recipients may maintain a long-term connection retrieval connection to their
+mailbox, to be notified about new messages quickly. Senders, on the other
+hand, tend to deliver their message to the mailbox and then go away.
+
+Some mailboxes will offer a choice of retrieval protocols. However, for many,
+the delivery and retrieval protocols are closely related.
 
 Transport Types
 ---------------
 
 The following transports are defined or planned:
 
-* tcp: a special wire protocol (defined below) is used on a simple TCP
-  connection.
-* http: this defines a set of POST and GET messages which enqueue, retrieve,
-  and delete messages
-* file: [for local development] this transport uses a local subdirectory, and
-  stores one message per file
-* smtp: messages are delivered as normal SMTP messages, consumed by a
-  receiving node rather than by a human
+* http: Delivery uses an HTTP POST message to a server. Retrieval can either
+  poll with a GET (and delete processed messages with a POST), or use
+  Server-Sent Events to wait for new messages. Although the Petmail agent is
+  not a web browser, these protocols are reasonably well-understood, and
+  enable servers to run on many convenient hosting services.
 
-Each transport descriptor needs to convey three pieces of information:
+* file: (for local development) this transport uses a local subdirectory, and
+  stores one message per file. Delivery simply adds a file to the directory.
+  Retrieval polls for new files and deletes them after processing.
+
+* smtp: messages are delivered as normal SMTP messages, consumed by a
+  receiving node rather than by a human. Retrieval uses POP or IMAP to find
+  fetch and delete messages.
+
+Each transport descriptor needs to convey the following information:
 
 * Reachability data for the mailbox. This is frequently a hostname/IP-address
   and a port number. Some transports have other forms of indirection, so this
@@ -67,7 +85,6 @@ messages would be distinguished by the mailbox pubkey.
 
 Clients can use multiple mailbox services. All three components of the
 transport descriptor will be different, including the client identifier.
-
 
 Renting an Inbox
 ----------------
