@@ -23,6 +23,27 @@ of delivery, while others are high-latency send-and-hope. Senders may elect
 to deliver multiple copies of their message in parallel, and receivers must
 tolerate (ignore) duplicates.
 
+Terminology
+-----------
+
+The Players: Alice and Bob are senders. Carol and David are recipients. Both
+senders have channels to both recipients (four channels in total). Each
+player has a user-agent Node, which maintains an addressbook.
+
+Channel: A unidirectional pathway for messages from one sender to one
+receiver. Two nodes which have established contact will maintain two
+Channels, one in each direction. Each addressbook entry contains information
+on the sending side of one channel, and the receiving side of the reverse
+channel. Each Channel uses a signing/verifying keypair, a stable box/unbox
+keypair, and a (current, old) pair of box/unbox keypairs. The sender's entry
+holds the signing key and the three pubkeys. The receiver's entry holds the
+verifying key and the three privkeys.
+
+Transport: A queue inside a Mailbox server, dedicated to a single receiving
+Node, but shared between all Channels for that recipient. The Transport ID is
+known to the mailbox server, established when the recipient configures the
+mailbox.
+
 Delivery and Retrieval
 ----------------------
 
@@ -52,8 +73,8 @@ The following transports are defined or planned:
   Retrieval polls for new files and deletes them after processing.
 
 * smtp: messages are delivered as normal SMTP messages, consumed by a
-  receiving node rather than by a human. Retrieval uses POP or IMAP to find
-  fetch and delete messages.
+  receiving node rather than by a human. Retrieval uses POP or IMAP to find,
+  fetch, and delete messages.
 
 Each transport descriptor needs to convey the following information:
 
@@ -66,25 +87,32 @@ Each transport descriptor needs to convey the following information:
   encrypt the outer message, which will be decrypted by the mailbox. The
   intention is to conceal the ultimate recipient of each inner message from
   an eavesdropper watching the mailbox's inlet.
-* Client Identifier. This is a 32-byte string, unique to each client.
-  Messages will contain this identifier inside the outer-encrypted payload,
-  so it will be visible to the mailbox service itself, but not to an
-  eavesdropper. Mailboxes will maintain a table mapping client-identifier to
-  the client, allowing each client to fetch only its own messages.
+* Sender-Specific Transport ID (STID). This is a re-randomizable encrypted
+  token, unique to each channel (e.g. sender+receiver, independent for the
+  two directions). The sender will use this to create a per-message MSTID,
+  placed inside the outer-encrypted payload, so it will be visible to the
+  mailbox service itself, but not to an eavesdropper. Mailboxes will decrypt
+  this to obtain the (non-sender-specific) Transport ID (TID), which lets
+  them determine which recipient should receive the message.
+* Channel ID (CID): another re-randomizable token, also unique to the
+  sender+receiver pair. This is delivered next to the MSTID, but not
+  decrypted by the mailbox server. Instead, it is decrypted by the final
+  recipient to determine which channel the message is associated with.
 
-Recipients will also supply a Recipient Pubkey to the sender. This is
-independent of the mailbox descriptors. This pubkey will be used to encrypt
-the inner message, to be decrypted by the recipient, not the mailbox.
+Recipients will also supply two box/unbox public keys to the sender,
+independent of the mailbox descriptors, named "stable", and "current". The
+"current" pubkey may be updated by subsequent messages later. These pubkeys
+will be used to encrypt the inner messages, to provide forward-secrecy.
 
-Multiple recipient nodes will share a mailbox service. Each will have a
-distinct client identifier, but their transport reachability data and mailbox
-pubkey will be the same.
+Multiple recipient nodes will share a mailbox service. Senders will get
+distinct STID and CIDs for each one, but their transport reachability data
+and mailbox pubkey will be the same.
 
 Multiple mailbox services could share the same reachability address. Their
 messages would be distinguished by the mailbox pubkey.
 
-Clients can use multiple mailbox services. All three components of the
-transport descriptor will be different, including the client identifier.
+Clients can use multiple mailbox services. All four components of the
+transport descriptor will be different.
 
 Renting an Inbox
 ----------------
@@ -134,8 +162,8 @@ could offer the same properties, but only when used in a forward-secret mode,
 and only if the client verifies the certificate properly, neither of which
 are particularly convenient, so we use the mailbox key here too.
 
-Anonymity
----------
+Anonymity / Unlinkability
+-------------------------
 
 The current protocol provides only very limited unlinkability of messages.
 Eavesdroppers do not learn anything from the contents of the inbound mailbox
