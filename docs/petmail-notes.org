@@ -281,6 +281,10 @@ Unsorted design notes.
 *** so msgA hides recipient from Eve, also denies server spam from non-senders
 *** msgC hides sender from server, and goes into the receiver's queue
 *** msgD provides confidentiality and forward-secrecy. msgE goes to dispatcher
+*** concerns: unbound mstid/mcid/msgD, malleable mstid/mcid. Mailbox can
+    mix/match them, re-deliver to recip, if recip provides match oracle then
+    mailbox can partition msgDs into classes by sender. Sort of.. rotating
+    keys probably breaks that up a bit.
 
 * mailbox setup
 ** users who rent a mailbox get a short(ish) setup code, like invitations.
