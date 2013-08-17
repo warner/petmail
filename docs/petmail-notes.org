@@ -209,6 +209,18 @@ Unsorted design notes.
      to use ed25519 internal functions. Pure-python boring-coordinates
      ed25519.py takes: 2.3ms add, 900ms scalarmult. With smarter coordinates
      (XYZT): 4.3ms scalarmult. None are constant-time.
+** actual goals:
+*** hide sender from mailbox. This also requires Tor or similar.
+*** if mailbox servers are shared, it'd be nice to hide recipient from Eve.
+    But if they aren't shared, there's no point. Requires transport
+    encryption.
+*** if mailbox servers are shared, it'd be nice to hide recipient from
+    sender, specifically prevent two senders from recognizing they're talking
+    to the same recipient.
+*** deny DoS/spam to non-senders (at least never-senders). Server should be
+    able to verify a message somehow, either as the to= of a box or signed by
+    a recognized key. Box seems more general.
+
 ** protocol3
 *** msgA = enc(to=transport,from=key1,msgB)
 *** msgB = recipient-id + enc(to=recip-stable, from=key2, msgC)
@@ -241,31 +253,34 @@ Unsorted design notes.
     secrecy against recipient compromise (rotating recip-current).
 *** msgC (sig) provides deniable authentication of sender
 ** protocol6
-*** rrid=randomized recipient identifier: ElGamal encrypted rid.
-**** rid=recipient-id = random string
-**** for v1, rrid=rid. Later, rrid will be rerandomized properly.
-*** msgA = pubkey1+enc(to=transport,from=key1,msgB)
-*** msgB = rrid/rid + pubkey2 + enc(to=recip-stable, from=key2, msgC)
-*** msgC = sender-stable + sign(by=sender-stable,key3) + pubkey3 + recip-current + enc(to=recip-current, from=key3, msgD)
-**** recipient looks up sender-stable in a table, finds two entries
-     (previous+new), finds which one matches recip-current, decrypts, maybe
-     rotates. No trial decryptions.
-*** msgD = body
-*** so msgA hides recipient from Eve, also denies spam from non-senders
-*** msgB hides sender from server
-*** msgC provides confidentiality and forward-secrecy
-** actual goals:
-*** hide sender from mailbox. This also requires Tor or similar.
-*** if mailbox servers are shared, it'd be nice to hide recipient from Eve.
-    But if they aren't shared, there's no point. Requires transport
-    encryption.
-*** if mailbox servers are shared, it'd be nice to hide recipient from
-    sender, specifically prevent two senders from recognizing they're talking
-    to the same recipient.
-*** deny DoS/spam to non-senders (at least never-senders). Server should be
-    able to verify a message somehow, either as the to= of a box or signed by
-    a recognized key. Box seems more general.
-
+*** tid/stid/mstid/cid/mcid:
+**** tid=TransportID, the recipient identifier exposed to the mailbox, hidden
+     from sender. Carol uses the same one for both Alice and Bob.
+**** stid: sender-specific tid (ElGamal encrypted tid). Alice gets this.
+**** mstid: per-message rerandomized stid. Mailbox sees this.
+**** cid: ChannelID, the receiver end of each sender/receiver pair. Known to
+     both the sender and the recipient, hidden from mailbox. Used by the
+     recipient to look up sender verfkey, channel-stable-privkey,
+     current/prev rotating-channel-privkey. "cid" must be outside the per-cid
+     encrypted box (needed to figure out how to decrypt that box).
+**** mcid: per-message (randomized) cid
+**** sender is given stid, it creates mstid, mailbox decrypts to tid
+**** sender gets cid, creates mcid, gives securely to mailbox, mailbox
+     conveys to recipient. recipient decrypts it to get cid, looks up keys
+*** msgA = transportkey + pubkey1 + enc(to=transportkey,from=key1,msgB)
+*** msgB = mstid + msgC
+**** mailbox decrypts mstid to get tid, points to a mailbox, queues msgC
+*** msgC = mcid + pubkey2 + enc(to=channel-stable, from=key2, msgD)
+**** receiver decrypts mcid to get cid, then looks up channel-stable privkey
+     and sender-verfkey for that sender
+**** msgC must not reveal the to= pubkey to the server
+*** msgD = sign(by=sender-signkey,key3) + pubkey3 + channel-current + enc(to=channel-current, from=key3, msgE)
+**** recipient uses channel-current to see which of the two pubkeys are being
+     used, decrypts, maybe rotates. No trial decryptions.
+*** msgE = body
+*** so msgA hides recipient from Eve, also denies server spam from non-senders
+*** msgC hides sender from server, and goes into the receiver's queue
+*** msgD provides confidentiality and forward-secrecy. msgE goes to dispatcher
 
 * mailbox setup
 ** users who rent a mailbox get a short(ish) setup code, like invitations.
