@@ -270,17 +270,19 @@ Unsorted design notes.
 *** msgA = transportkey + pubkey1 + enc(to=transportkey,from=key1,msgB)
 *** msgB = mstid + msgC
 **** mailbox decrypts mstid to get tid, points to a mailbox, queues msgC
-*** msgC = mcid + pubkey2 + enc(to=channel-stable, from=key2, msgD)
-**** receiver decrypts mcid to get cid, then looks up channel-stable privkey
-     and sender-verfkey for that sender
+*** msgC = mcid + pubkey2 + enc(to=channel-current, from=key2, msgD)
+**** receiver decrypts mcid to get cid, then looks up channel-new and
+     channel-old privkeys, and sender-verfkey for that sender
 **** msgC must not reveal the to= pubkey to the server
-*** msgD = sign(by=sender-signkey,key3) + pubkey3 + channel-current + enc(to=channel-current, from=key3, msgE)
-**** recipient uses channel-current to see which of the two pubkeys are being
-     used, decrypts, maybe rotates. No trial decryptions.
-*** msgE = body
+**** recipient tries both channel-new and channel-old to decrypt msgD. If
+     channel-new worked, recip rotates keys (if old=A/new=B, generate C, set
+     old=B, set new=C, send C to sender). If channel-old worked, don't rotate
+     keys. If neither worked, log error and ignore.
+*** msgD = sign(by=sender-signkey,key2) + body
 *** so msgA hides recipient from Eve, also denies server spam from non-senders
 *** msgC hides sender from server, and goes into the receiver's queue
-*** msgD provides confidentiality and forward-secrecy. msgE goes to dispatcher
+*** msgC also provides confidentiality and forward-secrecy. body goes to
+    dispatcher
 *** concerns: unbound mstid/mcid/msgD, malleable mstid/mcid. Mailbox can
     mix/match them, re-deliver to recip, if recip provides match oracle then
     mailbox can partition msgDs into classes by sender. Sort of.. rotating

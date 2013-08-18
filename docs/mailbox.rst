@@ -34,10 +34,10 @@ Channel: A unidirectional pathway for messages from one sender to one
 receiver. Two nodes which have established contact will maintain two
 Channels, one in each direction. Each addressbook entry contains information
 on the sending side of one channel, and the receiving side of the reverse
-channel. Each Channel uses a signing/verifying keypair, a stable box/unbox
-keypair, and a (current, old) pair of box/unbox keypairs. The sender's entry
-holds the signing key and the three pubkeys. The receiver's entry holds the
-verifying key and the three privkeys.
+channel. Each Channel uses a signing/verifying keypair, and a (current, old)
+pair of box/unbox keypairs. The sender's entry holds the signing key and the
+two pubkeys. The receiver's entry holds the verifying key and the two
+privkeys.
 
 Transport: A queue inside a Mailbox server, dedicated to a single receiving
 Node, but shared between all Channels for that recipient. The Transport ID is
@@ -99,10 +99,10 @@ Each transport descriptor needs to convey the following information:
   decrypted by the mailbox server. Instead, it is decrypted by the final
   recipient to determine which channel the message is associated with.
 
-Recipients will also supply two box/unbox public keys to the sender,
-independent of the mailbox descriptors, named "stable", and "current". The
-"current" pubkey may be updated by subsequent messages later. These pubkeys
-will be used to encrypt the inner messages, to provide forward-secrecy.
+Recipients will also supply one box/unbox public key to the sender,
+independent of the mailbox descriptors, named "current". The "current" pubkey
+may be updated by subsequent messages later. This pubkey will be used to
+encrypt the inner messages, and provide forward-secrecy.
 
 Multiple recipient nodes will share a mailbox service. Senders will get
 distinct STID and CIDs for each one, but their transport reachability data
@@ -165,25 +165,27 @@ are particularly convenient, so we use the mailbox key here too.
 Anonymity / Unlinkability
 -------------------------
 
-The current protocol provides only very limited unlinkability of messages.
+The current protocol provides limited unlinkability of messages.
 Eavesdroppers do not learn anything from the contents of the inbound mailbox
-messages, leaving them with only timing and source-address information.
-However the mailbox itself can observe the target key for each message
-delivered to the same recipient. These keys change periodically, to achieve
-forward secrecy (described below), however a single sender is likely to
-create multiple messages with the same destination key, allowing the mailbox
-to link those messages as belonging to the same sender.
+messages. The mailbox observes randomized Transport-ID and Channel-ID values,
+which do not provide information about the sender of each message (but
+necessarily reveal the recipient of each message, so they can queue the
+message in the right place).
 
-The mailbox can also use timing and source-address information to correlate
-senders and their messages. It may be possible to mitigate this by using Tor
-hidden services, carefully (and expensively) creating a new connection for
-each message, and delivering messages on a random schedule.
+Both the mailbox and eavesdroppers can also use timing and source-address
+information to correlate senders and their messages. It may be possible to
+mitigate this by using Tor hidden services, carefully (perhaps expensively)
+creating a new connection for each message, and delivering messages on a
+constant-rate random schedule.
 
-A more complex protocol exists (see `petmail-notes.org
-<petmail-notes.org>`_), with an additional encryption layer, that hides the
-rotating target keys from the mailbox. A future version of the client, which
-uses a transport (randomized Tor) that hides the other correlations, may
-switch to this larger protocol.
+Senders can compare the mailbox reachability data and public key of their
+peers, to determine if two peers might be the same. They cannot, however,
+usefully compare their STID and CID values (as these are different for each
+sender). Two distinct recipients who both use the same mailbox host will be
+indistinguishable by their correspondents. Alice and Bob have no way to prove
+that Alice's peer named "Carol" is the same as Bob's peer named "Carol", or
+peven that "Carol" and "Dave" are different people. This only helps if many
+recipients use the same mailbox service.
 
 Forward Secrecy
 ---------------
