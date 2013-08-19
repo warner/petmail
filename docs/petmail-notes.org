@@ -253,25 +253,26 @@ Unsorted design notes.
     secrecy against recipient compromise (rotating recip-current).
 *** msgC (sig) provides deniable authentication of sender
 ** protocol6
-*** tid/stid/mstid/cid/mcid:
-**** tid=TransportID, the recipient identifier exposed to the mailbox, hidden
-     from sender. Carol uses the same one for both Alice and Bob.
-**** stid: sender-specific tid (ElGamal encrypted tid). Alice gets this.
-**** mstid: per-message rerandomized stid. Mailbox sees this.
-**** cid: ChannelID, the receiver end of each sender/receiver pair. Known to
+*** TID/STID/MSTID/CID/MCID:
+**** TID=TransportID, the recipient identifier exposed to the mailbox, hidden
+     from sender. Carol uses the same one for both Alice and Bob. All TID for
+     the same mailbox uses the same keypair, so the mailbox can decrypt it.
+**** STID: sender-specific TID (ElGamal encrypted TID). Alice gets this.
+**** MSTID: per-message rerandomized STID. Mailbox sees this.
+**** CID: ChannelID, the receiver end of each sender/receiver pair. Known to
      both the sender and the recipient, hidden from mailbox. Used by the
      recipient to look up sender verfkey, channel-stable-privkey,
-     current/prev rotating-channel-privkey. "cid" must be outside the per-cid
+     current/prev rotating-channel-privkey. "CID" must be outside the per-CID
      encrypted box (needed to figure out how to decrypt that box).
-**** mcid: per-message (randomized) cid
-**** sender is given stid, it creates mstid, mailbox decrypts to tid
-**** sender gets cid, creates mcid, gives securely to mailbox, mailbox
-     conveys to recipient. recipient decrypts it to get cid, looks up keys
+**** MCID: per-message (randomized) CID
+**** sender is given STID, it creates MSTID, mailbox decrypts to TID
+**** sender gets CID, creates MCID, gives securely to mailbox, mailbox
+     conveys to recipient. recipient decrypts it to get CID, looks up keys
 *** msgA = transportkey + pubkey1 + enc(to=transportkey,from=key1,msgB)
 *** msgB = mstid + msgC
-**** mailbox decrypts mstid to get tid, points to a mailbox, queues msgC
+**** mailbox decrypts mstid to get TID, points to a mailbox, queues msgC
 *** msgC = mcid + pubkey2 + enc(to=channel-current, from=key2, msgD)
-**** receiver decrypts mcid to get cid, then looks up channel-new and
+**** receiver decrypts MCID to get CID, then looks up channel-new and
      channel-old privkeys, and sender-verfkey for that sender
 **** msgC must not reveal the to= pubkey to the server
 **** recipient tries both channel-new and channel-old to decrypt msgD. If
@@ -283,7 +284,7 @@ Unsorted design notes.
 *** msgC hides sender from server, and goes into the receiver's queue
 *** msgC also provides confidentiality and forward-secrecy. body goes to
     dispatcher
-*** concerns: unbound mstid/mcid/msgD, malleable mstid/mcid. Mailbox can
+*** concerns: unbound MSTID/MCID/msgD, malleable MSTID/MCID. Mailbox can
     mix/match them, re-deliver to recip, if recip provides match oracle then
     mailbox can partition msgDs into classes by sender. Sort of.. rotating
     keys probably breaks that up a bit.
