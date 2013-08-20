@@ -296,30 +296,30 @@ JSON). The `encoded payload` is the two-byte version identifier "p1" (0x70
 
 The sender then uses the addressbook entry to determine:
 
-* the recipient's current (rotating) public key, "current-recip"
-* the recipient's client-identifier string
-* the sender's stable signing key (for just this recipient) "stable-sender"
-* the mailbox's stable public key, "mailbox"
+* the channel's sender-specific transport ID (STID)
+* the channel's Channel ID (CID)
+* the mailbox's stable public key (mailbox-pubkey)
+* the channel's current rotating public key (channel-pubkey)
+* the sender's stable signing key, for just this recipient (sender-signkey)
 
 and creates two ephemeral keypairs pubkey1/pubkey2 (with corresponding
-privkey1/privkey2).
+privkey1/privkey2). It re-randomizes STID to get MSTID, and CID to get MCID.
+Each message gets a different re-randomization of the two values.
 
 The sender then builds the layered message as follows:
 
-* msgD = sign(by=stable-sender, pubkey2) + encoded-payload
-* msgC = encrypt(to=current-recip, from=privkey2, msgD)
-* msgB = client-id + msgC
-* msgA = encrypt(to=mailbox, from=privkey1, msgB)
+* msgD = sign(by=sender-signkey, pubkey2) + encoded-payload
+* msgC = MCID + pubkey2 + encrypt(to=channel-pubkey, from=privkey2, msgD)
+* msgB = MSTID + msgC
+* msgA = pubkey1 + encrypt(to=mailbox, from=privkey1, msgB)
 
 Some notes on terminology:
 
-* sign(by=X,msg=Y) returns the concatenation of the 32-byte verifying key
-  pubX, the msg Y, and the 64-byte Ed25519 signature (R and S concatenated
-  together)
-* encrypt(to=X, from=Y, Z) produces the concatenation of the 32-byte pubX,
-  the 32-byte pubY, a 24-byte random nonce, the encrypted message Z, and the
-  32-byte Poly1305 MAC. This is built by concatenating the two pubkeys, the
-  nonce, and the output of crypto_box().
+* sign(by=X,msg=Y) returns the concatenation of the msg Y and the 64-byte
+  Ed25519 signature (R and S concatenated together)
+* encrypt(to=X, from=Y, Z) produces the concatenation of a 24-byte random
+  nonce, the encrypted message Z, and the 32-byte Poly1305 MAC. This is built
+  by concatenating the nonce and the output of crypto_box().
 
 Wire Protocol
 -------------
@@ -346,9 +346,10 @@ allow multiple mailboxes to share the same transport channel or TCP port). It
 then uses the mailbox privkey and pubkey1 to decrypt the message and obtain
 msgB.
 
-It then splits msgB into the 32-byte client-id and the inner msgC, and
-enqueues msgC to the matching recipient. If the client-id is unrecognized, it
-returns an error.
+It then splits msgB into MSTID the inner msgC. It decrypts MSTID to obtain
+the non-sender-specific non-message-specific yes-recipient-specific TID,
+looks up the matching message queue, and enqueues msgC to that queue. If the
+TID is unrecognized, it returns an error.
 
 When the message has been safely queued, connection-oriented transports (TCP,
 Tor) indicate success by writing "ok:" (0x6f 0x6b 0x3a) followed by the
@@ -365,23 +366,25 @@ The recipient contacts the mailbox and retrieves any queued messages intended
 for its client identifier, using a protocol that depends on the mailbox type.
 It gets the full contents of "msgC" as described above. The client then
 instructs the mailbox to delete the queued messages. If the client maintains
-multiple client identifiers with the same mailbox service, it must retrieve
-each set of messages separately. Each retrieved message is associated with
-exactly one client identifier.
+multiple queues with the same mailbox service (e.g. multiple TIDs), it must
+retrieve each set of messages separately.
 
-The recipient must maintain a table that maps from (mailbox+CI) to a keypair
-(or set of keypairs). The "to" pubkey of the outer msgC (which comes from the
-sender's mailbox descriptor) must be in this list: if not, the message should
-be ignored (to prevent a confirmation attack, where a sender uses the pubkey
-from one descriptor with the mailbox data from a different one, to confirm
-that they two recipients are in fact the same person). The corresponding
-private key, and the message "from" key (pubkey2), are used to decrypt the
-msgC body to obtain msgD.
+The recipient extracts MCID from the message and decrypts it to obtain the
+sender-specific receiver-specific non-message-specific Channel ID (CID)
+value. The CID maps to a specific address-book entry, from which inbound
+channel information is extracted (the old and current channel privkeys, and
+the sender-verifykey). The client uses trial decryption (with both private
+keys), along with the included pubkey2, to decrypt msgD. It then uses
+sender-verifykey to check the internal signature of pubkey2, and asserts that
+the internal key2 matches the one used to encrypt msgD. (This protective
+binding may be redundant: a later version of this protocol might remove the
+signature).
 
-The recipient then splits the signed message out of msgD and verifies the
-signature. If the signature is invalid, or the signed message's "by" key does
-not match the pubkey2 used as a "from" key for msgC, the message is discarded
-and an error is logged.
+If the "current" channel privkey was able to decrypt the message, the channel
+keys should be rotated: the old key forgotten, the current key renamed to
+"old", and a new key created and named "current". The next time a message is
+sent, the new key should be included in the payload. Key rotation alone
+should not trigger a new message, otherwise the process would never converge.
 
 The encoded payload is then checked for the leading "p1" version string, and
 logged+discarded (with a "unrecognized payload version" message) if it is not
