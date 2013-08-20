@@ -302,6 +302,8 @@ The sender then builds the layered message as follows:
 * msgB = MSTID + msgC
 * msgA = pubkey1 + encrypt(to=mailbox, from=privkey1, msgB)
 
+![01-messages](./images/01-messages.png)
+
 Some notes on terminology:
 
 * sign(by=X,msg=Y) returns the concatenation of the msg Y and the 64-byte
@@ -339,6 +341,8 @@ the non-sender-specific non-message-specific yes-recipient-specific TID,
 looks up the matching message queue, and enqueues msgC to that queue. If the
 TID is unrecognized, it returns an error.
 
+![02-mailbox](./images/02-mailbox.png)
+
 When the message has been safely queued, connection-oriented transports (TCP,
 Tor) indicate success by writing "ok:" (0x6f 0x6b 0x3a) followed by the
 32-byte SHA256 hash of the encapsulated transport message (everything from
@@ -348,6 +352,8 @@ contain a period. Non-connection oriented transports can log successes and
 errors but do not (and cannot) inform the sender.
 
 ## Client Flow
+
+![03-recipient](./images/03-recipient.png)
 
 The recipient contacts the mailbox and retrieves any queued messages intended
 for its client identifier, using a protocol that depends on the mailbox type.
