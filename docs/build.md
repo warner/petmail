@@ -1,5 +1,4 @@
-Build Instructions
-==================
+# Build Instructions
 
 Petmail is written in Python. In addition to the python stdlib, it uses
 Twisted and a few crypto libraries:
@@ -27,8 +26,7 @@ Petmail should run with just the stdlib and the contents of deps-venv. To
 test this, run `./deps-venv/bin/python bin/petmail`, as the venv python will
 ignore the system site-packages directory entirely.
 
-Packaged Application
---------------------
+## Packaged Application
 
 For OS-X, Petmail is delivered as a standard application (a .dmg disk-image
 which contains the app bundle, with visual instructions to drag it into the
@@ -44,8 +42,7 @@ source has been installed. The `bin/petmail` in the app is configured to put
 this directory in `sys.path` first. It uses the system-supplied Python
 executable.
 
-Dependency Verification
------------------------
+## Dependency Verification
 
 To keep the source tree small, Petmail's dependencies are not included.
 `python setup.py build-deps` fetches these tarballs from PyPI. However the

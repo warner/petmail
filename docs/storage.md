@@ -1,5 +1,4 @@
-Storage
-=======
+# Storage
 
 To store and share files, each client must contract with one or more `storage
 servers`. This is optional, however clients will be unable to use file
@@ -15,8 +14,7 @@ Storage servers are a lot like Mailboxes, except:
   it, or their contract expires). Mailboxes are allowed to delete items after
   a few days or weeks.
 
-Sharing and Publishing
-----------------------
+## Sharing and Publishing
 
 Some storage servers offer the ability to share files with other users,
 and/or publish them to the entire world. Not all servers provide this
@@ -29,8 +27,7 @@ server types may enable pre-set cost limits or active monitoring of
 downloads, so the client node can unpublish the file after a cost threshold
 has been reached, rather than allow unlimited costs.
 
-Renting a Storage Server
-------------------------
+## Renting a Storage Server
 
 Clients arrange to rent storage space. As with Mailboxes, the process is
 determined by the storage provider, but results in a `storage offer string`

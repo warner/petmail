@@ -1,5 +1,4 @@
-Mailboxes
-=========
+# Mailboxes
 
 To receive messages, each client must contract with at least one `mailbox`
 service. This is a publically-reachable server with good uptime, that is
@@ -23,8 +22,7 @@ of delivery, while others are high-latency send-and-hope. Senders may elect
 to deliver multiple copies of their message in parallel, and receivers must
 tolerate (ignore) duplicates.
 
-Terminology
------------
+## Terminology
 
 The Players: Alice and Bob are senders. Carol and David are recipients. Both
 senders have channels to both recipients (four channels in total). Each
@@ -44,8 +42,7 @@ Node, but shared between all Channels for that recipient. The Transport ID is
 known to the mailbox server, established when the recipient configures the
 mailbox.
 
-Delivery and Retrieval
-----------------------
+## Delivery and Retrieval
 
 Transports have two sides. Senders interact with the "delivery" side, to add
 a message to the mailbox. The recipient then uses the "retrieval" side to
@@ -57,8 +54,7 @@ hand, tend to deliver their message to the mailbox and then go away.
 Some mailboxes will offer a choice of retrieval protocols. However, for many,
 the delivery and retrieval protocols are closely related.
 
-Transport Types
----------------
+## Transport Types
 
 The following transports are defined or planned:
 
@@ -114,8 +110,7 @@ messages would be distinguished by the mailbox pubkey.
 Clients can use multiple mailbox services. All four components of the
 transport descriptor will be different.
 
-Renting an Inbox
-----------------
+## Renting an Inbox
 
 Clients must generally arrange to rent inbox space. The process for making
 these arrangements is up to the individual service provider. Regardless of
@@ -133,8 +128,7 @@ The inbox provider may find it necessary to change the transport coordinates
 of the user's inbox. An additional channel, managed internally by the client
 node, will receive and process these messages without user involvement.
 
-Retention Periods
------------------
+## Retention Periods
 
 Mailboxes are for temporary storage of inbound messages. Client nodes are
 expected to retrieve their messages every few days, after which the mailbox
@@ -143,8 +137,7 @@ messages after a while: the exact duration should be specified as part of the
 contract (and displayed in the client UI), but is expected to be a few days
 or weeks.
 
-Transport Security
-------------------
+## Transport Security
 
 All Petmail messages are encrypted by sender-to-recipient Curve25519
 keypairs. Messages sent to a transport are additionally encrypted by a
@@ -162,8 +155,7 @@ could offer the same properties, but only when used in a forward-secret mode,
 and only if the client verifies the certificate properly, neither of which
 are particularly convenient, so we use the mailbox key here too.
 
-Anonymity / Unlinkability
--------------------------
+## Anonymity / Unlinkability
 
 The current protocol provides limited unlinkability of messages.
 Eavesdroppers do not learn anything from the contents of the inbound mailbox
@@ -187,8 +179,7 @@ that Alice's peer named "Carol" is the same as Bob's peer named "Carol", or
 peven that "Carol" and "Dave" are different people. This only helps if many
 recipients use the same mailbox service.
 
-Forward Secrecy
----------------
+## Forward Secrecy
 
 The mailbox protocol should provide `forward secrecy`, which means that old
 messages cannot be decrypted by an attacker even if they learn both node's
@@ -230,8 +221,7 @@ recipient privkey enables the mailbox to distinguish different senders, but
 does not compromise any message contents. The current Petmail protocol does
 not use this wrapping, but a future version might.
 
-Sender Deniability
-------------------
+## Sender Deniability
 
 Senders should not have to treat their private communications as irrevocable
 public statements (unless they specifically ask for that). When Alice sends a
@@ -281,8 +271,7 @@ sender cannot safely publish their ephemeral private key, as that is also
 what protects the confidentiality of the message.
 
 
-Sender Flow
------------
+## Sender Flow
 
 Each sender creates a `transport message`, then submits it to a
 transport-specific handler which is responsible for getting the message to
@@ -321,8 +310,7 @@ Some notes on terminology:
   nonce, the encrypted message Z, and the 32-byte Poly1305 MAC. This is built
   by concatenating the nonce and the output of crypto_box().
 
-Wire Protocol
--------------
+## Wire Protocol
 
 To deliver transport messages ("msgA" above) via the raw TCP transport, a TCP
 connection is established to the mailbox's address and port. This connection
@@ -359,8 +347,7 @@ it writes "error: MSG." instead, where "MSG" is any string that does not
 contain a period. Non-connection oriented transports can log successes and
 errors but do not (and cannot) inform the sender.
 
-Client Flow
------------
+## Client Flow
 
 The recipient contacts the mailbox and retrieves any queued messages intended
 for its client identifier, using a protocol that depends on the mailbox type.

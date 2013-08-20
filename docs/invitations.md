@@ -1,5 +1,4 @@
-Invitations
-===========
+# Invitations
 
 
 Petmail nodes learn about each other through `Invitations`. Each invitation
@@ -24,8 +23,7 @@ separate the words with spaces. Literary phrases, famous quotes, and
 well-known names should be avoided.
 
 
-Stretching
-----------
+## Stretching
 
 To improve the security of Petmail's relatively-short invitation codes, the
 system first applies "key-stretching" to the code. It uses a fairly intense
@@ -48,8 +46,7 @@ to spend $270 million each day to build a complete table of stretched
 invitation codes. (see http://keywrapping.appspot.com/ for key-stretching
 cost calculations)
 
-Rendezvous Server
------------------
+## Rendezvous Server
 
 All Petmail clients use the same (Firebase-hosted?) rendezvous server. The
 access coordinates are hard-wired into the client.
@@ -66,8 +63,7 @@ which is simply a subdirectory of the source tree named ".rendezvous".
 Channels correspond to files in this directory. Files older than 15 minutes
 are deleted at node startup.
 
-Details
--------
+## Details
 
 The stretched invitation code is used to derive an Ed25519 signing key. From
 the signing key, we derive a verifying key. The verifying key is used as a
