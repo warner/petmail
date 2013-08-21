@@ -78,22 +78,30 @@ channel ID, and the message is not already in the channel. If there are two
 messages whose signed bodies are the string "delete-channel", or if the
 channel is more than 24 hours old, the channel is destroyed.
 
+![invitation-1](./images/invitation-1.png)
+
 The first client to contact the server posts a message that contains a
 signed ephemeral Curve25519 pubkey. It then polls or subscribes to the
 channel, waiting for changes.
 
 The second client reads that message and prepares a similar one of its own.
 It also uses the two ephemeral pubkeys to create a boxed record containing
-its long-term verifying key, a signed copy of the two ephemeral pubkeys, and
-a signed copy of its transport record (listing the mailboxes it uses for
-inbound messages). Both messages are added to the channel. Note that the
-long-term verifying key is different for each sender (so each pair of users
-will involve two verifying keys).
+its long-term verifying key, and a signed copy of the two ephemeral pubkeys
+and its transport record (listing the mailboxes it uses for inbound
+messages). Both messages are added to the channel. Note that the long-term
+verifying key is different for each sender (so each pair of users will
+involve two verifying keys).
 
-The transport record will include: the long-term Curve25519 pubkey (used to
-hide messages from the mailbox server), the current rotating pubkey (used to
-provide forward-secrecy), and the mailbox descriptor string (which will
-include a pubkey for the mailbox server).
+The transport record will include: the mailbox descriptor string (including
+URL and mailbox pubkey), the sender-specific STID and CID identifiers (see
+[mailbox.md](./mailbox.md)), and the current rotating pubkey (used to provide
+forward-secrecy).
+
+When generating the transport record, each client will remember several
+secret values for themselves. This includes the CID for their correspondent,
+the signing key they will use for outbound messages, and the private key
+they'll use to decrypt inbound messages. These secrets will be stored in the
+addressbook entry.
 
 The first client then retrieves those messages and appends its own boxed
 record. It adds the address-book entry for the peer, marking it as
@@ -106,6 +114,8 @@ marks the address-book entry as "acknowledged", and adds a "delete-channel"
 message to the channel (with a nonce). At this point, it unsubscribes from
 the channel (stops polling, etc).
 
+![invitation-2](./images/invitation-2.png)
+
 The first client sees the "ACK" message, marks its address-book entry as
 "acknowledged", and adds its own "delete-channel" message to the channel. The
 first client now stops polling too.
@@ -116,8 +126,8 @@ The complete protocol looks like this:
 
 * A->B: MAC(by=code, tmpA)
 * B->A: MAC(by=code, tmpB)
-* B->A: enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB)+sig(transportB))
-* A->B: enc(to=tmpB,from=tmpA, verfA+sig(tmpA+tmpB)+sig(transportA))
+* B->A: enc(to=tmpA,from=tmpB, verfB+sig(tmpA+tmpB+transportB))
+* A->B: enc(to=tmpB,from=tmpA, verfA+sig(tmpB+tmpA+transportA))
 * A->B: ACK-nonce
 * B->A: ACK-nonce
 * B->A: destroy channel-nonce (1-of-2)

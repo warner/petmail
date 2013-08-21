@@ -262,12 +262,13 @@ Unsorted design notes.
 **** CID: ChannelID, the receiver end of each sender/receiver pair. Known to
      both the sender and the recipient, hidden from mailbox. Used by the
      recipient to look up sender verfkey, channel-stable-privkey,
-     current/prev rotating-channel-privkey. "CID" must be outside the per-CID
-     encrypted box (needed to figure out how to decrypt that box).
-**** MCID: per-message (randomized) CID
+     current/prev rotating-channel-privkey. "MCID" must be outside the
+     per-CID encrypted box (needed to figure out how to decrypt that box).
+**** MCID: per-message (randomized) CID, revealed to mailbox.
 **** sender is given STID, it creates MSTID, mailbox decrypts to TID
-**** sender gets CID, creates MCID, gives securely to mailbox, mailbox
-     conveys to recipient. recipient decrypts it to get CID, looks up keys
+**** sender gets CID, creates MCID, gives to mailbox (while hiding from
+     eavesdroppers), mailbox conveys to recipient. recipient decrypts it to
+     get CID, looks up channel and keys
 *** msgA = transportkey + pubkey1 + enc(to=transportkey,from=key1,msgB)
 *** msgB = mstid + msgC
 **** mailbox decrypts mstid to get TID, points to a mailbox, queues msgC
