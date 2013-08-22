@@ -2,7 +2,7 @@ import os.path, weakref, json
 from twisted.application import service
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
-from . import invitation
+from . import invitation, rrid
 from .rendezvous import localdir
 from .errors import CommandError
 
@@ -56,10 +56,10 @@ class Client(service.MultiService):
         self.subscribeToMailbox(rc)
 
     def command_invite(self, petname, code):
-        my_transport_record = {}
-        my_private_transport_record = {}
-        self.im.startInvitation(petname, code, my_transport_record,
-                                my_private_transport_record)
+        private_TID, TID = rrid.create()
+        # the mailbox will hold private_TID, and will tell us TID
+        mailbox = {"descriptor": "", "TID": TID}
+        self.im.startInvitation(petname, code, mailbox)
         return "invitation for %s started" % petname
 
     def command_list_addressbook(self):
@@ -68,16 +68,13 @@ class Client(service.MultiService):
         c.execute("SELECT * FROM addressbook")
         for row in c.fetchall():
             entry = {}
-            entry["their_verfkey"] = str(row[0])
-            their_tport = json.loads(row[1])
-            entry["their_transport"] = their_tport
-            entry["petname"] = row[2]
-            my_tport = json.loads(row[3])
+            entry["their_verfkey"] = str(row["their_verfkey"])
+            entry["their_mailbox_descriptor"] = str(row["their_mailbox_descriptor"])
+            entry["petname"] = row["petname"]
             # TODO: filter out the long-term stuff
-            entry["my_transport"] = my_tport
-            sk = SigningKey(row[4].decode("hex"))
+            sk = SigningKey(row["my_signkey"].decode("hex"))
             entry["my_verfkey"] = sk.verify_key.encode(Hex)
-            entry["acked"] = bool(row[5])
+            entry["acked"] = bool(row["acked"])
             resp.append(entry)
         return resp
 

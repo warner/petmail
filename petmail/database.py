@@ -21,6 +21,7 @@ def get_db(dbfile, stderr=sys.stderr):
         db = sqlite.connect(dbfile)
     except (EnvironmentError, sqlite.OperationalError), e:
         raise DBError("Unable to create/open db file %s: %s" % (dbfile, e))
+    db.row_factory = sqlite.Row
 
     VERSION = 1
     c = db.cursor()

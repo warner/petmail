@@ -1,7 +1,7 @@
 import os.path, shutil
 from collections import defaultdict
 from twisted.application import service, internet
-from ..invitation import VALID_CHANNELID, VALID_MESSAGE
+from ..invitation import VALID_INVITEID, VALID_MESSAGE
 from nacl.signing import VerifyKey
 
 # this is allowed to do seen-message-stripping as an optimization, but is not
@@ -28,7 +28,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         self.enable_polling = True # disabled by some unit tests
 
     def subscribe(self, channelID):
-        assert VALID_CHANNELID.search(channelID), channelID
+        assert VALID_INVITEID.search(channelID), channelID
         self.verfkeys[channelID] = VerifyKey(channelID.decode("hex"))
         sdir = os.path.join(self.basedir, channelID)
         if not os.path.isdir(sdir):
@@ -100,7 +100,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
 
     def send(self, channelID, msg):
         assert channelID in self.subscriptions
-        assert VALID_CHANNELID.search(channelID), channelID
+        assert VALID_INVITEID.search(channelID), channelID
         assert VALID_MESSAGE.search(msg), msg
         sdir = os.path.join(self.basedir, channelID)
         if not os.path.isdir(sdir):

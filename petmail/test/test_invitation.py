@@ -1,4 +1,4 @@
-import os, collections, json
+import os, collections
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin
 from ..errors import CommandError
@@ -6,8 +6,7 @@ from ..invitation import splitMessages
 
 MROW = collections.namedtuple("Row", ["my", "theirs", "next"])
 AddressbookRow = collections.namedtuple("AddressbookEntry",
-                                        ["petname", "their_verfkey",
-                                         "their_tport", "acked"])
+                                        ["petname", "their_verfkey", "acked"])
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def disable_polling(self, n):
@@ -30,11 +29,9 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
     def fetchAddressBook(self, node):
         c = node.db.cursor()
-        c.execute("SELECT petname, their_verfkey, their_transport_record_json,"
-                  " acked"
+        c.execute("SELECT petname, their_verfkey, acked"
                   " FROM addressbook")
-        rows = [ AddressbookRow(row[0], row[1], json.loads(row[2]),
-                                bool(row[3]))
+        rows = [ AddressbookRow(row[0], row[1], bool(row[2]))
                  for row in c.fetchall() ]
         return rows
 
@@ -45,8 +42,8 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         rclient1 = list(n1.client.im)[0]
         code = "code"
         n1.client.command_invite(u"petname-from-1", code)
-        channelID = rclient1.subscriptions.keys()[0]
-        rdir = os.path.join(rclient1.basedir, channelID)
+        inviteID = rclient1.subscriptions.keys()[0]
+        rdir = os.path.join(rclient1.basedir, inviteID)
         self.failUnless(os.path.exists(rdir))
         # messages: node1-M1
         # at this point, node1 should have sent a single message (M1), and
@@ -96,7 +93,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(a1[0].petname, "petname-from-1")
         self.failUnlessEqual(a1[0].acked, False)
         #print a1[0].their_verfkey
-        #print a1[0].their_tport
+        ##print a1[0].their_tport
 
         # re-polling should not do anything
         rclient1.poll()
