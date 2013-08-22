@@ -61,6 +61,10 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `myPrivateTransportRecord` STRING
 );
 
+CREATE TABLE `channel_data` -- contains one row
+(
+ `CID_privkey` STRING
+);
 
 CREATE TABLE `addressbook`
 (
@@ -82,5 +86,6 @@ CREATE TABLE `addressbook`
  `my_private_CID` STRING,
  `my_old_channel_privkey` STRING,
  `my_new_channel_privkey` STRING,
+ `they_used_new_channel_key` INTEGER,
  `their_verfkey` STRING -- from their invitation message
 );

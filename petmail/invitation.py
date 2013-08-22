@@ -358,20 +358,20 @@ class Invitation:
                   "  their_CID, their_STID, their_mailbox_descriptor,"
                   "  my_private_CID,"
                   "  my_old_channel_privkey, my_new_channel_privkey,"
-                  "  their_verfkey)"
+                  "  they_used_new_channel_key, their_verfkey)"
                   " VALUES (?,?, "
                   "         ?,?,"
                   "         ?,?,?,"
                   "         ?,"
                   "         ?,?,"
-                  "         ?)",
+                  "         ?,?)",
                   (self.petname, 0,
                    me["my_signkey"],
                    them["channel_pubkey"], them["CID"], them["STID"],
                    them["mailbox_descriptor"],
                    me["my_private_CID"],
                    me["my_old_channel_privkey"], me["my_new_channel_privkey"],
-                   self.theirVerfkey.encode(Hex) ) )
+                   0, self.theirVerfkey.encode(Hex) ) )
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)
