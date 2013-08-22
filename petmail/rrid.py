@@ -24,9 +24,9 @@
 # other senders get pubkey+enctoken (to prevent senders from comparing tokens)
 
 import os
+from .util import equal, split_into
 
-def split(s):
-    return [s[i:i+32] for i in range(0, len(s), 32)]
+TOKEN_LENGTH = 32+32+32
 
 def create():
     # actual crypto is stubbed out for now
@@ -40,13 +40,21 @@ def create():
     nullencrypted_token = pubkey + IDENTITY + token_id
     return private_token, nullencrypted_token
 
+def get_token_id(private_token):
+    privkey, token_id = split_into(private_token, [32,32])
+    return token_id
+
+def decrypt(token):
+    pubkey, C1, C2 = split_into(token, [32,32,32])
+    return C2
+
 def randomize(token):
-    pubkey, C1, C2 = split(token)
+    pubkey, C1, C2 = split_into(token, [32,32,32])
     return pubkey+os.urandom(32)+C2
 
 def compare(private_token, token):
-    privkey, token_id = split(private_token)
-    pubkey, C1, C2 = split(token)
-    if token_id == C2:
+    privkey, token_id = split_into(private_token, [32,32])
+    pubkey, C1, C2 = split_into(token, [32,32,32])
+    if equal(token_id, C2):
         return True
     return False

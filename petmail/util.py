@@ -59,3 +59,18 @@ def make_nonce():
 def equal(a, b):
     # not vulnerable to timing attack
     return hashlib.sha256(a).digest() == hashlib.sha256(b).digest()
+
+def split_into(s, piece_sizes, plus_trailer=False):
+    assert type(s) == type(b"")
+    pieces = []
+    piece_start = 0
+    for size in piece_sizes:
+        piece_end = piece_start+size
+        pieces.append(s[piece_start:piece_end])
+        piece_start = piece_end
+    if plus_trailer:
+        pieces.append(s[piece_start:])
+    else:
+        if piece_start != len(s):
+            raise ValueError("split did not consume entire string")
+    return pieces
