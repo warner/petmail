@@ -56,9 +56,11 @@ class Client(service.MultiService):
         self.subscribeToMailbox(rc)
 
     def command_invite(self, petname, code):
-        private_TID, TID = rrid.create()
-        # the mailbox will hold private_TID, and will tell us TID
-        mailbox = {"descriptor": "", "TID": TID}
+        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        # the mailbox will hold TID_tokenid and TID_privkey, and will tell us
+        # TID_token0. TID_privkey will be the same for all customers of the
+        # mailbox.
+        mailbox = {"descriptor": "", "TID": TID_token0}
         self.im.startInvitation(petname, code, mailbox)
         return "invitation for %s started" % petname
 

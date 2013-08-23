@@ -3,7 +3,9 @@
 # tokens can be given to someone else, then re-encrypted (multiple times)
 # without letting them know the actual token value. The holder of the private
 # key can decrypt these to recover the original token. We only use this to
-# compare the decrypted token against the original.
+# compare the decrypted token against the original, so we define "tokenid" to
+# be the hash of the encrypted random message, and return tokenid from both
+# creation and decryption functions.
 
 # in multiplicative notation:
 #  privkey "SK" = x
@@ -19,42 +21,40 @@
 #  rerand(C1,C2)= (newC1,newC2); pick s; newC1 = Bs+C1; newC2 = Bxs+C2
 #  decrypt(C1,C2)= C2-xC1 = M
 
-# the final recipient remembers privkey+token
-# some senders are given pubkey+token (when each sender gets a unique token)
-# other senders get pubkey+enctoken (to prevent senders from comparing tokens)
+# M = random
+# tokenid = hash(M)
+# the final recipient remembers privkey and tokenid
+# token0: pubkey+M (rerandomizable, safe when each sender gets a unique token)
+# token[N]: pubkey+enc(M) (to prevent senders from comparing tokens)
 
 import os
-from .util import equal, split_into
+from hashlib import sha256
+from .util import split_into
 
 TOKEN_LENGTH = 32+32+32
 
+# actual crypto is stubbed out for now
+
 def create():
-    # actual crypto is stubbed out for now
-    IDENTITY = "\x00"*32
-    # encrypting with r=0 gives (IDENTITY,m), which is suitable for the first
-    # token (which is not encrypted), and can also be fed into rerandomize().
+    IDENTITY_ELEMENT = "\x00"*32
+    # encrypting with r=0 gives (IDENTITY_ELEMENT,m), which is suitable for
+    # the first token (which is not encrypted), and can also be fed into
+    # rerandomize().
+    message = os.urandom(32)
+    tokenid = sha256(message).digest()
     privkey = "\x11"*32
     pubkey = "\x22"*32
-    token_id = os.urandom(32)
-    private_token = privkey + token_id
-    nullencrypted_token = pubkey + IDENTITY + token_id
-    return private_token, nullencrypted_token
+    nullencrypted_token = pubkey + IDENTITY_ELEMENT + message
+    return tokenid, privkey, nullencrypted_token
 
-def get_token_id(private_token):
-    privkey, token_id = split_into(private_token, [32,32])
-    return token_id
-
-def decrypt(token):
+def decrypt(privkey, token):
+    assert len(privkey) == 32
+    assert privkey == "\x11"*32
     pubkey, C1, C2 = split_into(token, [32,32,32])
-    return C2
+    message = C2
+    tokenid = sha256(message).digest()
+    return tokenid
 
 def randomize(token):
     pubkey, C1, C2 = split_into(token, [32,32,32])
     return pubkey+os.urandom(32)+C2
-
-def compare(private_token, token):
-    privkey, token_id = split_into(private_token, [32,32])
-    pubkey, C1, C2 = split_into(token, [32,32,32])
-    if equal(token_id, C2):
-        return True
-    return False

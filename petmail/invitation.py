@@ -103,14 +103,16 @@ class InvitationManager(service.MultiService):
         myTempPrivkey = PrivateKey.generate()
         # create my transport record
         channel_key = PrivateKey.generate()
-        private_CID, sender_CID = rrid.create()
+        CID_tokenid, CID_privkey, CID_token0 = rrid.create()
+        # actually CID_privkey must be the same for all channels on the same
+        # transport, probably for all channels everywhere. Hrm.
         pub_tport = { "channel_pubkey": channel_key.public_key.encode(Hex),
-                      "CID": sender_CID.encode("hex"),
+                      "CID": CID_token0.encode("hex"),
                       "STID": rrid.randomize(mailbox["TID"]).encode("hex"),
                       "mailbox_descriptor": mailbox["descriptor"],
                       }
         priv_tport = { "my_signkey": mySigningKey.encode(Hex),
-                       "my_private_CID": private_CID.encode("hex"),
+                       "my_CID_tokenid": CID_tokenid.encode("hex"),
                        "my_old_channel_privkey": channel_key.encode(Hex),
                        "my_new_channel_privkey": channel_key.encode(Hex),
                        }
@@ -356,7 +358,7 @@ class Invitation:
                   " (petname, acked,"
                   "  my_signkey, their_channel_pubkey,"
                   "  their_CID, their_STID, their_mailbox_descriptor,"
-                  "  my_private_CID,"
+                  "  my_CID_tokenid,"
                   "  my_old_channel_privkey, my_new_channel_privkey,"
                   "  they_used_new_channel_key, their_verfkey)"
                   " VALUES (?,?, "
@@ -369,7 +371,7 @@ class Invitation:
                    me["my_signkey"],
                    them["channel_pubkey"], them["CID"], them["STID"],
                    them["mailbox_descriptor"],
-                   me["my_private_CID"],
+                   me["my_CID_tokenid"],
                    me["my_old_channel_privkey"], me["my_new_channel_privkey"],
                    0, self.theirVerfkey.encode(Hex) ) )
 

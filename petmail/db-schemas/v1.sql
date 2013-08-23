@@ -83,7 +83,7 @@ CREATE TABLE `addressbook`
  `their_mailbox_descriptor` STRING, -- from their transport record
 
  -- things used to handle inbound messages
- `my_private_CID` STRING,
+ `my_CID_tokenid` STRING,
  `my_old_channel_privkey` STRING,
  `my_new_channel_privkey` STRING,
  `they_used_new_channel_key` INTEGER,
