@@ -43,6 +43,15 @@ Unsorted design notes.
     mailbox descriptor. Also MAC() is really symbox().
 
 
+* invitation
+** other ideas:
+*** add a "verify connection" panel, which helps compare all data:
+**** use visual-hash comparison, or SAS
+**** channel verfkeys should line up
+**** current channel pubkey should match. Handle the case where they are one
+     key out of date, but make it visible and self-correcting.
+**** channel-id-key should match
+
 * forward-secrecy
 ** basically we need to change the encryption key after each message. The
    recipient gives the sender a new key, the sender uses it until they
@@ -209,6 +218,77 @@ Unsorted design notes.
      to use ed25519 internal functions. Pure-python boring-coordinates
      ed25519.py takes: 2.3ms add, 900ms scalarmult. With smarter coordinates
      (XYZT): 4.3ms scalarmult. None are constant-time.
+*** rerandomized encryption doesn't help receiver figure out which channel to
+    decrypt with. The sender must provide the mailbox with a token. The
+    sender must produce a new randomized token for each message (to avoid
+    linking messages). But they must know the pubkey to rerandomize (the
+    recipient knows the privkey, to decrypt), and two channels which lead to
+    the same recipient will have the same pubkey, linking them.
+*** Need trial decryption to unlink. Make it as cheap as possible.
+**** "channel identification key": symmetric key.
+**** recipient *could* trial-decrypt the boxed message with all known channel
+     pubkeys (two per sender, one old, one new). Each message should be
+     standalone in this fashion. Put a counter inside the message,
+     replay-suppression can happen after decryption.
+**** encrypt the counter and the hash of the box inside a symbox, encrypted
+     with a stable per-channel key. The recipient will trial-decrypt with all
+     of these keys (one per channel) to find out which box key it should use.
+     Use a random nonce to achieve randomized encryption. Unlinkability
+     depends upon the indistinguishability of nonce+ciphertext for different
+     senders. replay-suppression happens after symbox decryption.
+**** Also, HKDF(channel-key + counter) to produce a token. Include this token
+     in front of the symbox. The recipient can pre-compute these tokens for
+     the next expected message for all channels, to reduce the lookup time to
+     O(1). After receiving a message, the next token is computed. We must
+     still check the symbox and the full box to make sure they match.
+**** If a message is dropped, the token lookup will fail, and we fall back to
+     O(len(channels)) trial (symmetric) decryption.
+**** six things we might put inside the symbox:
+***** nothing: (unbound) gives mailbox the ability to be annoying
+***** just counter: also unbound, but enables dup-suppression if the mailbox
+      is cooperative
+***** counter + H(msg), box has just payload: good, but if channel-id-key is
+      revealed, recipient can no longer trust authorship of messages.
+***** counter + sig(H(msg)): loses non-repudiability (recipient can prove
+      authorship of message). If channel-id-key is revealed, world learns
+      authorship.
+***** counter + H(msg) + sig(key2): sender doesn't necessarily know key2
+***** counter + H(msg), box includes sig(key2): probably the best
+*** what needs to be long-term?
+**** to tolerate dropped messages, we need some long-term keys. The spectrum
+     is: no-tolerance, tolerate-dropped-messages, tolerate-rollback.
+**** we don't want long-term confidentiality keys, for forward-secrecy. That
+     leaves MAC or sign/verify keys.
+**** if we're fully pairwise (and can detect or tolerate reflections), we can
+     afford symmetric keys (MAC-key-per-channel).
+***** useful questions: if a client state is compromised, what is lost?
+      Distinguish between one-time copy and ongoing observation. Also between
+      a passive attacker and an active one.
+***** imagine a channel-reset "panic button", pressed when you think your
+      account was compromised. It rotates all keys, including the long-term
+      ones. If you hit the button before an active attacker seizes control,
+      you win. Channel may not be able to tolerate rollback across a reset.
+***** for MAC-per-channel, when Alice's state is lost:
+****** outbound: attacker can forge from=Alice messages until reset (they
+       know the MAC key, they know the next rotating pubkey)
+****** inbound: attacker can forge the next few to=Alice messages (they know
+       the MAC key, they know the old rotating pubkey). A one-shot attacker
+       won't be able to learn the subsequent pubkey, so once a real message
+       arrives and triggers a rotation or two, they won't be able to encrypt
+       to the right pubkey anymore.
+***** for verfkey-per-channel:
+****** outbound: same as above
+****** inbound: attacker knows inbound pubkeys but can't fake sender's
+       signature, cannot forge to=Alice messages.
+**** 4-state symmetric ratchet (symbox) lacks forward secrecy: each message
+     includes the next keys, so leaking any key reveals the later ones to
+     someone with the message stream
+**** a basic 4-state DH ratchet (box/unbox only) can't tolerate any drops.
+     Once you lose a message containing the next key, you can't resync.
+**** 2-state DH ratchet (plus authentication) can tolerate drops. It also
+     tolerates rewinds/rollbacks (think a node being restored from a backup).
+*** conclusion: use 2-state DH ratchet with sig(key2) inside box. Add
+    symmetric channel-id-key, delivered next to the channel-verfkey.
 ** actual goals:
 *** hide sender from mailbox. This also requires Tor or similar.
 *** if mailbox servers are shared, it'd be nice to hide recipient from Eve.
@@ -289,6 +369,9 @@ Unsorted design notes.
     mix/match them, re-deliver to recip, if recip provides match oracle then
     mailbox can partition msgDs into classes by sender. Sort of.. rotating
     keys probably breaks that up a bit.
+** protocol7:
+*** like protocol6, but replace CID/MCID with channel-id-token
+
 
 * mailbox setup
 ** users who rent a mailbox get a short(ish) setup code, like invitations.
