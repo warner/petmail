@@ -276,10 +276,12 @@ Unsorted design notes.
        won't be able to learn the subsequent pubkey, so once a real message
        arrives and triggers a rotation or two, they won't be able to encrypt
        to the right pubkey anymore.
+****** attacker can immediately reset both sides, quick MitM
 ***** for verfkey-per-channel:
 ****** outbound: same as above
 ****** inbound: attacker knows inbound pubkeys but can't fake sender's
        signature, cannot forge to=Alice messages.
+****** attacker can MitM other side, but not Alice
 **** 4-state symmetric ratchet (symbox) lacks forward secrecy: each message
      includes the next keys, so leaking any key reveals the later ones to
      someone with the message stream
