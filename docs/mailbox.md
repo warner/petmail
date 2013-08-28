@@ -7,9 +7,12 @@ allow clients to receive messages despite not being online all the time, and
 living behind a NAT box. Some mailboxes can also improve privacy by making it
 difficult to link sender and receiver.
 
-Each mailbox has a `transport descriptor` string that describes how other
-nodes should deliver messages to it. This is shaped like a URL, with a type
-identifier string, followed by a colon, followed by the transport details.
+Recipients construct `transport descriptor` and `channel descriptor` strings
+to instruct other nodes on how they should deliver their messages. These are
+JSON-serializable data structures that always have a `type` field, and have
+other fields depending upon the type. Each addressbook entry contains exactly
+one channel descriptor, and one or more transport descriptors (one per
+mailbox in use).
 
 Client nodes can provide their own mailbox. This is most useful for
 development, however it can be used for production when the transport
@@ -35,12 +38,14 @@ on the sending side of one channel, and the receiving side of the reverse
 channel. Each Channel uses a signing/verifying keypair, and a (current, old)
 pair of box/unbox keypairs. The sender's entry holds the signing key and the
 two pubkeys. The receiver's entry holds the verifying key and the two
-privkeys.
+privkeys. The two ends of a channel also share a CIDKey (described below),
+and a duplicate-suppressing message sequence number (the sender increments a
+counter, and the receiver remembers the highest seqnum they've ever seen).
 
 Transport: A queue inside a Mailbox server, dedicated to a single receiving
-Node, but shared between all Channels for that recipient. The Transport ID is
-known to the mailbox server, established when the recipient configures the
-mailbox.
+Node, but shared between all Channels delivering to recipient. The Transport
+ID (TID) is established when the recipient configures the mailbox, and is
+known to the mailbox server
 
 ## Delivery and Retrieval
 
@@ -74,41 +79,54 @@ The following transports are defined or planned:
 
 Each transport descriptor needs to convey the following information:
 
-* Reachability data for the mailbox. This is frequently a hostname/IP-address
-  and a port number. Some transports have other forms of indirection, so this
-  could instead be a Tor hidden-service (.onion) address, or a SMTP mailbox
-  name (username@host), or a local directory name.
+* Reachability data for the mailbox. This is frequently a URL, or
+  hostname/IP-address and port number. Some transports have other forms of
+  indirection, so this could instead be a Tor hidden-service (.onion)
+  address, or a SMTP mailbox name (username@host), or a local directory name.
 * Encryption pubkey for the mailbox. This is a 32-byte Curve25519 pubkey. All
   clients who share a mailbox will use the same pubkey. This is used to
   encrypt the outer message, which will be decrypted by the mailbox. The
   intention is to conceal the ultimate recipient of each inner message from
-  an eavesdropper watching the mailbox's inlet.
+  an eavesdropper watching the mailbox's network inlet.
 * Sender-Specific Transport ID (STID). This is a re-randomizable encrypted
-  token, unique to each channel (e.g. sender+receiver, independent for the
-  two directions). The sender will use this to create a per-message MSTID,
-  placed inside the outer-encrypted payload, so it will be visible to the
-  mailbox service itself, but not to an eavesdropper. Mailboxes will decrypt
-  this to obtain the (non-sender-specific) Transport ID (TID), which lets
-  them determine which recipient should receive the message.
-* Channel ID (CID): another re-randomizable token, also unique to the
-  sender+receiver pair. This is delivered next to the MSTID, but not
-  decrypted by the mailbox server. Instead, it is decrypted by the final
-  recipient to determine which channel the message is associated with.
+  token, unique to each channel. The sender will use this to create a
+  per-message "MSTID", placed inside the outer-encrypted payload, so it will
+  be visible to the mailbox service itself, but not to an eavesdropper.
+  Mailboxes will decrypt this to obtain the (non-sender-specific) Transport
+  ID (TID), which lets them determine which recipient should receive the
+  message.
 
-Recipients will also supply one box/unbox public key to the sender,
-independent of the mailbox descriptors, named "current". The "current" pubkey
-may be updated by subsequent messages later. This pubkey will be used to
-encrypt the inner messages, and provide forward-secrecy.
+The channel descriptor contains the following data:
+
+* Channel Identification Key (CIDKey): a symmetric encryption key, also
+  unique to the sender+receiver pair. This is used, with a random nonce, to
+  create a "CID Box": an encrypted box containing (seqnum+hash(msg)). The
+  encrypted box is delivered next to the MSTID, but not decrypted by the
+  mailbox server. Instead, the final recipient can perform trial decryptions
+  with all CIDKeys to determine which channel the message is associated with
+  (this is faster than using trial decryption of the real
+  Curve25519-encrypted box). The CIDKey is also used to construct a
+  "CIDToken", by hashing together the key and the message sequence number.
+  This token is delivered with the CIDBox, and (as long as no messages have
+  been dropped), enables the recipient to perform O(1) lookups of the
+  intended channel.
+* "channel-verfkey": an Ed25519 verifying key, used to authenticate messages
+* "channel-pubkey-current": a Curve25519 box/unbox public key, used to
+  encrypt the inner messages. This will be updated by subsequent messages, to
+  provide forward-secrecy.
 
 Multiple recipient nodes will share a mailbox service. Senders will get
-distinct STID and CIDs for each one, but their transport reachability data
+distinct STID and CIDKeys for each one, but their transport reachability data
 and mailbox pubkey will be the same.
 
-Multiple mailbox services could share the same reachability address. Their
-messages would be distinguished by the mailbox pubkey.
+Each mailbox service has a distinct pubkey. There should be a one-to-one
+relationship between reachability data and mailbox pubkey.
 
-Clients can use multiple mailbox services. All four components of the
-transport descriptor will be different.
+Clients can use multiple mailbox services, or even use multiple transports
+within a single mailbox. The STID will be different for each. These clients
+will provide multiple transport descriptors to their correspondents. However
+they will only provide a single channel descriptor to each correspondent,
+regardless of how many mailboxes they use.
 
 ## Renting an Inbox
 
@@ -159,10 +177,10 @@ are particularly convenient, so we use the mailbox key here too.
 
 The current protocol provides limited unlinkability of messages.
 Eavesdroppers do not learn anything from the contents of the inbound mailbox
-messages. The mailbox observes randomized Transport-ID and Channel-ID values,
-which do not provide information about the sender of each message (but
-necessarily reveal the recipient of each message, so they can queue the
-message in the right place).
+messages. The mailbox observes randomized or encrypted Transport-ID and
+Channel-ID values, which do not provide information about the sender of each
+message (but necessarily reveal the recipient of each message, so they can
+queue the message in the right place).
 
 Both the mailbox and eavesdroppers can also use timing and source-address
 information to correlate senders and their messages. It may be possible to
@@ -172,12 +190,12 @@ constant-rate random schedule.
 
 Senders can compare the mailbox reachability data and public key of their
 peers, to determine if two peers might be the same. They cannot, however,
-usefully compare their STID and CID values (as these are different for each
-sender). Two distinct recipients who both use the same mailbox host will be
-indistinguishable by their correspondents. Alice and Bob have no way to prove
-that Alice's peer named "Carol" is the same as Bob's peer named "Carol", or
-peven that "Carol" and "Dave" are different people. This only helps if many
-recipients use the same mailbox service.
+usefully compare their STID and CIDKey values (as these are different for
+each sender). Two distinct recipients who both use the same mailbox host will
+be indistinguishable by their correspondents. Alice and Bob have no way to
+prove that Alice's peer named "Carol" is the same as Bob's peer named
+"Carol", or even that "Carol" and "Dave" are different people. This only
+helps if many recipients use the same mailbox service.
 
 ## Forward Secrecy
 
@@ -204,24 +222,17 @@ two private keys is discarded immediately after encryption. The recipient
 must retain the corresponding private key until the last message encrypted to
 it is deleted.
 
-While this portion of the system is not yet defined, the intention is to have
-recipients update their senders with new rotating public keys. The sender
-periodically gets a signed list of numbered pubkeys. It sends one message for
-each pubkey until it runs out, then it re-uses the last pubkey until a new
-batch arrives. Each message includes the sequence number and the pubkey that
-was used. Upon receipt of each message, the recipient can safely delete the
-corresponding private keys with earlier sequence numbers (knowing the sender
-has forgotten the matching pubkeys).
+Recipients will periodically (but not always immediately) update their
+senders with a new key.
 
-To obtain sender-indistinguishability at the mailbox, these pubkeys should
-not be exposed to the mailbox (as any repeated usage would indicate two
-messages were from the same sender). So these keys must be wrapped in another
-encrypted box, using a stable recipient pubkey. Compromise of the stable
-recipient privkey enables the mailbox to distinguish different senders, but
-does not compromise any message contents. The current Petmail protocol does
-not use this wrapping, but a future version might.
+To enable recovery from client rollback (where a client is restored from a
+backup, losing the rotating keypairs but retaining the other data), Petmail
+only offers forward-security for confidentiality, not authentication. If a
+node's private state is revealed, the attacker may be able to retroactively
+identify the sender and/or recipient of old messages. However they should not
+be able to determine the contents of those messages.
 
-## Sender Deniability
+## Sender Deniability / Repudiation
 
 Senders should not have to treat their private communications as irrevocable
 public statements (unless they specifically ask for that). When Alice sends a
@@ -236,31 +247,36 @@ and nobody else knows it), then MAC each message instead of signing it. The
 recipient can forge her own messages, since she knows the MAC key too, making
 the author set (sender, recipient). Some systems, like OTR, go further and
 publish the MAC key after confirming receipt of the message, to increase the
-potential author set to be (sender, recipient, eavesdroppers). And attempting
-to prove authenticity to a third party, by revealing the MAC key, inevitably
-adds the third party to the author set as well.
+potential author set to be (sender, recipient, eavesdroppers). In addition,
+should Bob attempt to prove a message's authenticity to a third party by
+revealing the MAC key, he inevitably adds the third party to the author set
+as well.
 
-Another technique is to have the sender sign a single-use encryption key.
-
-Petmail uses a variant of this technique that uses one of the ephemeral
-public keys as a verifier. The innermost message is encrypted by the
-Curve25519 box() function. The "to" public key is the recipient's current
-(rotating) pubkey. The "from" private key is ephemeral, created by the sender
-for this one message.
+Petmail uses a technique in which the sender signs a single-use encryption
+key, hidden inside the encrypted message. The innermost message is encrypted
+by the Curve25519 box() function. The "to" public key is the recipient's
+current (rotating) pubkey. The "from" private key is ephemeral, created by
+the sender for this one message.
 
 The inner message contains both the real payload and a signed message. The
 signed body is the ephemeral pubkey used for this one message, and is made
-with the sender's long-term signing key, for which the recipient knows the
-corresponding verifying key.
+with the sender's long-term per-channel signing key, for which the recipient
+knows the corresponding verifying key (the channel-verfkey).
 
-When Bob receives this message, he can show the signed ephemeral key to a
-third party, who will be convinced that Alice did indeed intend to send
-(somebody) a message encrypted with the corresponding privkey. Bob can also
-show the boxed message, and reveal his (rotating) private key, to show that
-Alice might have written the message. But the message could be written by
-anyone who knows either of the private keys, and since Bob knows his own
-private key, Bob could have written that message (or indeed any message)
-himself.
+When Bob receives this message, he knows that Alice would only sign such a
+key when she uses it to encrypt a message intended for Bob. By checking that
+the inner message was encrypted with the same key as is included in the
+signed message, he can be sure that the message is from Alice. An
+eavesdropper (including the mailbox server) cannot see the signed message, so
+they do not learn the sender's identity.
+
+Bob could show the signed ephemeral key to a third party, who could be
+convinced that Alice did indeed intend to send (somebody) a message encrypted
+with the corresponding privkey. Bob can also show the boxed message, and
+reveal his (rotating) private key, to show that Alice might have written the
+message. But the message could be written by anyone who knows either of the
+private keys, and since Bob knows his own private key, Bob could have written
+that message (or indeed any message) himself.
 
 This does not provide the large authorship set OTR gets by publishing the MAC
 key, but still includes at least the recipient in the set, which is enough to
@@ -286,19 +302,24 @@ JSON). The `encoded payload` is the two-byte version identifier "p1" (0x70
 The sender then uses the addressbook entry to determine:
 
 * the channel's sender-specific transport ID (STID)
-* the channel's Channel ID (CID)
+* the channel's Channel ID Key (CIDKey)
 * the mailbox's stable public key (mailbox-pubkey)
 * the channel's current rotating public key (channel-pubkey)
 * the sender's stable signing key, for just this recipient (sender-signkey)
 
 and creates two ephemeral keypairs pubkey1/pubkey2 (with corresponding
-privkey1/privkey2). It re-randomizes STID to get MSTID, and CID to get MCID.
-Each message gets a different re-randomization of the two values.
+privkey1/privkey2). It re-randomizes STID to get MSTID, and uses CIDKey to
+create the CIDBox and CIDToken. Each message gets a different MSTID, CIDBox,
+and CIDToken.
 
 The sender then builds the layered message as follows:
 
-* msgD = sign(by=sender-signkey, pubkey2) + encoded-payload
-* msgC = MCID + pubkey2 + encrypt(to=channel-pubkey, from=privkey2, msgD)
+* msgE = seqnum + sign(by=sender-signkey, pubkey2) + encoded-payload
+* msgD = pubkey2 + encrypt(to=channel-pubkey, from=privkey2, msgE)
+* HmsgD = hash(msgD)
+* CIDToken = HKDF(key=CIDKey+seqnum, context="petmail.org/v1/CIDToken")
+* CIDBox = symbox(key=CIDKey, seqnum+HmsgD+channel-pubkey)
+* msgC = CIDToken + CIDBox + msgD
 * msgB = MSTID + msgC
 * msgA = pubkey1 + encrypt(to=mailbox, from=privkey1, msgB)
 
@@ -308,33 +329,29 @@ Some notes on terminology:
 
 * sign(by=X,msg=Y) returns the concatenation of the msg Y and the 64-byte
   Ed25519 signature (R and S concatenated together)
+* symbox(key=X, Z) produces the concatenation of a 24-byte random nonce, the
+  encrypted message Z, and the 32-byte Poly1305 MAC. This is built by
+  concatenating the nonce and the output of crypto_secretbox().
 * encrypt(to=X, from=Y, Z) produces the concatenation of a 24-byte random
   nonce, the encrypted message Z, and the 32-byte Poly1305 MAC. This is built
   by concatenating the nonce and the output of crypto_box().
 
 ## Wire Protocol
 
-To deliver transport messages ("msgA" above) via the raw TCP transport, a TCP
-connection is established to the mailbox's address and port. This connection
-can be used for multiple messages, concatenated together (i.e. the connection
-can be nailed up and messages delivered later). Each message is encapsulated
-as follows:
+To deliver transport messages ("msgA" above) via the HTTP transport, an HTTP
+POST is performed to the mailbox's URL. The payload of the request contains
+the following:
 
 * A two-byte version indicator, "v1" (0x76 0x31)
-* A netstring with the transport message (decimal length, ":", msgA, ".").
-  msgA contains:
+* msgA, which contains:
 
-  * 32-byte mailbox pubkey
   * 32-byte sender ephemeral pubkey (pubkey1)
   * 24-byte nonce
   * encrypted msgB
   * 32-byte MAC
 
-The mailbox checks the mailbox pubkey to make sure it matches that of the
-mailbox, and discards the message otherwise. (This pubkey could be used to
-allow multiple mailboxes to share the same transport channel or TCP port). It
-then uses the mailbox privkey and pubkey1 to decrypt the message and obtain
-msgB.
+Once the POST is complete, the server uses the mailbox privkey and pubkey1 to
+decrypt the message and obtain msgB.
 
 It then splits msgB into MSTID the inner msgC. It decrypts MSTID to obtain
 the non-sender-specific non-message-specific yes-recipient-specific TID,
@@ -343,13 +360,11 @@ TID is unrecognized, it returns an error.
 
 ![02-mailbox](./images/02-mailbox.png)
 
-When the message has been safely queued, connection-oriented transports (TCP,
-Tor) indicate success by writing "ok:" (0x6f 0x6b 0x3a) followed by the
-32-byte SHA256 hash of the encapsulated transport message (everything from
-"v1" to the netstring's trailing ".") to the connection. If an error occurs,
-it writes "error: MSG." instead, where "MSG" is any string that does not
-contain a period. Non-connection oriented transports can log successes and
-errors but do not (and cannot) inform the sender.
+When the message has been safely queued, the HTTP response of "200 OK" is
+returned. If an error occurs (bad MAC, unrecognized MSTID, disk full), a "400
+BAD_REQUEST" is returned, and the sender should try again later or through a
+different mailbox. Other transports (non-connection oriented) can log
+successes and errors but do not (and cannot) inform the sender.
 
 ## Client Flow
 
@@ -362,16 +377,27 @@ instructs the mailbox to delete the queued messages. If the client maintains
 multiple queues with the same mailbox service (e.g. multiple TIDs), it must
 retrieve each set of messages separately.
 
-The recipient extracts MCID from the message and decrypts it to obtain the
-sender-specific receiver-specific non-message-specific Channel ID (CID)
-value. The CID maps to a specific address-book entry, from which inbound
-channel information is extracted (the old and current channel privkeys, and
-the sender-verifykey). The client uses trial decryption (with both private
-keys), along with the included pubkey2, to decrypt msgD. It then uses
-sender-verifykey to check the internal signature of pubkey2, and asserts that
-the internal key2 matches the one used to encrypt msgD. (This protective
-binding may be redundant: a later version of this protocol might remove the
-signature).
+The recipient extracts CIDToken from the message and compares it against a
+table of pre-computed tokens for all channels that use this mailbox. It then
+trial-decrypts the CIDBox with the CIDKey for all channels, or just the one
+channel if the CIDToken found a match. Finally it trial-decrypts msgD with
+both channel pubkeys (old and new) for all channels (or just the one channel
+for which CIDToken matched). If a decrypted CIDToken reveals a seqnum that is
+not greater than the highest seqnum seen on this channel, or the seqnum in
+msgE does not meet this criteria, or if the two seqnums are different, the
+message is logged and discarded (as a duplicate, or a malformed message).
+
+Any valid message can be handled by trial decryption, at the cost of
+2*len(channels) `crypto_box_open()` operations. In (probably) all cases, this
+can be reduced to len(channels) `crypto_secretbox_open()` operations, which
+is significantly faster. And in nearly all cases (excepting when messages are
+dropped), it can be reduced to a single table lookup (of the CIDToken).
+
+Once the right channel is found, and msgD decrypted to obtain msgE, the
+recipient uses the channel's sender-verifykey to check the internal signature
+of pubkey2, and asserts that the internal key2 matches the one used to
+encrypt msgD. (This protective binding may be redundant: a later version of
+this protocol might remove the signature).
 
 If the "current" channel privkey was able to decrypt the message, the channel
 keys should be rotated: the old key forgotten, the current key renamed to
