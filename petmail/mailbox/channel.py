@@ -20,6 +20,17 @@ from nacl.exceptions import CryptoError
 #  encoded-payload
 
 class ChannelManager:
+    """I receive inbound messages from transports, figure out which channel
+    they're directed to, then I will create a Channel instance and pass it
+    the message for decryption and delivery.
+
+    I am associated with a specific transport, and will only use channels
+    that are connected to that transport. This protects against correlation
+    attacks that combine a transport descriptor from one peer with a channel
+    descriptor from a different one, in the hopes of proving that the two
+    peers are actually the same.
+    """
+
     def __init__(self, db):
         self.db = db
         self.CID_privkey = "??"
@@ -47,6 +58,9 @@ class ChannelManager:
         return InboundChannel(self.db, their_verfkey_hex)
 
 class InboundChannel:
+    """I am given a msgC. I will decrypt it, update the channel database
+    records as necessary, and finally dispatch the payload to a handler.
+    """
     def __init__(self, db, their_verfkey_hex):
         self.db = db
         self.their_verfkey_hex = their_verfkey_hex
