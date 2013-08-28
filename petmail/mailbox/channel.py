@@ -8,9 +8,16 @@ from nacl.exceptions import CryptoError
 
 # msgC:
 #  c0:
-#  MCID(sender+recipient) [fixed length]
+#  CIDToken =HKDF(CIDKey+seqnum) [fixed length]
+#  netstring(CIDBox) =secretbox(key=CIDKey, seqnum+H(msgD)+channel-current)
+#  msgD
+# msgD:
 #  pubkey2 [fixed length]
-#  enc(to=channel-current, from=key2, msgD)
+#  enc(to=channel-current, from=key2, msgE)
+# msgE:
+#  seqnum [fixed length]
+#  netstring(sign(by=sender-signkey, pubkey2))
+#  encoded-payload
 
 class ChannelManager:
     def __init__(self, db):
