@@ -16,7 +16,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def checkCounts(self, node, code, my, theirs, next, exists=True):
         c = node.db.cursor()
         c.execute("SELECT myMessages, theirMessages, nextExpectedMessage"
-                  " FROM invitations WHERE code_hex=?", (code.encode("hex"),))
+                  " FROM invitations WHERE code=?", (code.encode("hex"),))
         rows = [ MROW(splitMessages(row[0]), splitMessages(row[1]), row[2])
                  for row in c.fetchall() ]
         if not exists:

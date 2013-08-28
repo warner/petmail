@@ -47,7 +47,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `petname` STRING,
 
  -- these are only used during the invitation process, then discarded
- `code_hex` STRING,
+ `code` STRING,
  `inviteKey` STRING, -- Ed25519 signing key
  `inviteID` STRING, -- Ed25519 verifying key
  `myTempPrivkey` STRING, -- Curve25519 privkey (ephemeral)

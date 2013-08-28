@@ -127,7 +127,7 @@ class InvitationManager(service.MultiService):
         if inviteID in [str(row[0]) for row in c.fetchall()]:
             raise CommandError("invitation code already in use")
         c.execute("INSERT INTO `invitations`"
-                  " (code_hex, petname, inviteKey,"
+                  " (code, petname, inviteKey,"
                   "  inviteID,"
                   "  myTempPrivkey, mySigningKey,"
                   "  myTransportRecord, myPrivateTransportRecord,"
