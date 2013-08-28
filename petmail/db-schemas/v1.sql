@@ -1,3 +1,7 @@
+
+-- note: anything which isn't an boolean, integer, or human-readable unicode
+-- string, (i.e. binary strings) will be stored as hex
+
 CREATE TABLE `version`
 (
  `version` INTEGER -- contains one row, set to 1
@@ -57,15 +61,10 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `mySigningKey` STRING, -- Ed25519 privkey (long-term), for this peer
  `addressbook_id` INTEGER, -- to correlate with an addressbook entry
 
- -- my (public) record: .channel_pubkey, .CID, .STID, .mailbox_descriptor
+ -- my (public) record: .channel_pubkey, .CID_key, .STID, .mailbox_descriptor
  `myTransportRecord` STRING,
- -- my private record: .my_signkey, .my_CID, .my_{old,new}_channel_privkey
+ -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey
  `myPrivateTransportRecord` STRING
-);
-
-CREATE TABLE `channel_data` -- contains one row
-(
- `CID_privkey` STRING
 );
 
 CREATE TABLE `addressbook`
@@ -79,15 +78,18 @@ CREATE TABLE `addressbook`
 
  -- things used to send outbound messages
     -- these three are shared among all of the recipient's mailboxes
+ `next_outbound_seqnum` INTEGER,
  `my_signkey` STRING,
  `their_channel_pubkey` STRING, -- from their transport record
- `their_CID` STRING, -- from their transport record
+ `their_CID_key` STRING, -- from their transport record
     -- these two will get a separate copy for each mailbox
  `their_STID` STRING, -- from their transport record
  `their_mailbox_descriptor` STRING, -- from their transport record
 
  -- things used to handle inbound messages
- `my_CID_tokenid` STRING,
+ `my_CID_key` STRING,
+ `next_CID_token` STRING,
+ `highest_inbound_seqnum` INTEGER,
  `my_old_channel_privkey` STRING,
  `my_new_channel_privkey` STRING,
  `they_used_new_channel_key` INTEGER,

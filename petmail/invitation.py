@@ -107,19 +107,17 @@ class InvitationManager(service.MultiService):
         inviteKey = SigningKey(stretched)
         inviteID = inviteKey.verify_key.encode(Hex)
         mySigningKey = SigningKey.generate()
+        myCIDkey = os.urandom(32)
         myTempPrivkey = PrivateKey.generate()
         # create my transport record
         channel_key = PrivateKey.generate()
-        CID_tokenid, CID_privkey, CID_token0 = rrid.create()
-        # actually CID_privkey must be the same for all channels on the same
-        # transport, probably for all channels everywhere. Hrm.
         pub_tport = { "channel_pubkey": channel_key.public_key.encode(Hex),
-                      "CID": CID_token0.encode("hex"),
+                      "CID_key": myCIDkey.encode("hex"),
                       "STID": rrid.randomize(mailbox["TID"]).encode("hex"),
                       "mailbox_descriptor": mailbox["descriptor"],
                       }
         priv_tport = { "my_signkey": mySigningKey.encode(Hex),
-                       "my_CID_tokenid": CID_tokenid.encode("hex"),
+                       "my_CID_key": myCIDkey.encode("hex"),
                        "my_old_channel_privkey": channel_key.encode(Hex),
                        "my_new_channel_privkey": channel_key.encode(Hex),
                        }
@@ -362,22 +360,24 @@ class Invitation:
         c = self.db.cursor()
         c.execute("INSERT INTO addressbook"
                   " (petname, acked,"
-                  "  my_signkey, their_channel_pubkey,"
-                  "  their_CID, their_STID, their_mailbox_descriptor,"
-                  "  my_CID_tokenid,"
+                  "  next_outbound_seqnum, my_signkey, their_channel_pubkey,"
+                  "  their_CID_key, their_STID, their_mailbox_descriptor,"
+                  "  my_CID_key, next_CID_token,"
+                  "  highest_inbound_seqnum,"
                   "  my_old_channel_privkey, my_new_channel_privkey,"
                   "  they_used_new_channel_key, their_verfkey)"
                   " VALUES (?,?, "
-                  "         ?,?,"
                   "         ?,?,?,"
-                  "         ?,"
+                  "         ?,?,?,"
+                  "         ?,?," # my_CID_key, next_CID_token
+                  "         ?,"   # highest_inbound_seqnum
                   "         ?,?,"
                   "         ?,?)",
                   (self.petname, 0,
-                   me["my_signkey"],
-                   them["channel_pubkey"], them["CID"], them["STID"],
-                   them["mailbox_descriptor"],
-                   me["my_CID_tokenid"],
+                   1, me["my_signkey"], them["channel_pubkey"],
+                   them["CID_key"], them["STID"], them["mailbox_descriptor"],
+                   me["my_CID_key"], None,
+                   0,
                    me["my_old_channel_privkey"], me["my_new_channel_privkey"],
                    0, theirVerfkey.encode(Hex) ) )
         addressbook_id = c.lastrowid

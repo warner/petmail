@@ -6,7 +6,8 @@ from ..invitation import splitMessages
 
 MROW = collections.namedtuple("Row", ["my", "theirs", "next"])
 AddressbookRow = collections.namedtuple("AddressbookEntry",
-                                        ["petname", "their_verfkey", "acked"])
+                                        ["petname", "their_verfkey", "acked",
+                                         "their_CID_key", "my_CID_key"])
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def disable_polling(self, n):
@@ -29,9 +30,11 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
     def fetchAddressBook(self, node):
         c = node.db.cursor()
-        c.execute("SELECT petname, their_verfkey, acked"
+        c.execute("SELECT petname, their_verfkey, acked, "
+                  "       their_CID_key, my_CID_key"
                   " FROM addressbook")
-        rows = [ AddressbookRow(row[0], row[1], bool(row[2]))
+        rows = [ AddressbookRow(row[0], str(row[1]), bool(row[2]),
+                                str(row[3]), str(row[4]))
                  for row in c.fetchall() ]
         return rows
 
@@ -125,6 +128,9 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         a1 = self.fetchAddressBook(n1)
         self.failUnlessEqual(len(a1), 1)
         self.failUnlessEqual(a1[0].acked, True)
+
+        self.failUnlessEqual(a1[0].their_CID_key, a2[0].my_CID_key)
+        self.failUnlessEqual(a1[0].my_CID_key, a2[0].their_CID_key)
 
         # finally check that the channel has been destroyed
         self.failIf(os.path.exists(rdir))
