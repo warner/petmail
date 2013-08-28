@@ -38,6 +38,8 @@ CREATE TABLE `client_profile` -- contains one row
 
 CREATE TABLE `invitations` -- data on all pending invitations
 (
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+
  `petname` STRING,
 
  -- these are only used during the invitation process, then discarded
@@ -53,7 +55,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
 
  -- these two are retained long-term, in the addressbook entry
  `mySigningKey` STRING, -- Ed25519 privkey (long-term), for this peer
- `theirVerfkey` STRING, -- Ed25519 verfkey (long-term), after M2
+ `addressbook_id` INTEGER, -- to correlate with an addressbook entry
 
  -- my (public) record: .channel_pubkey, .CID, .STID, .mailbox_descriptor
  `myTransportRecord` STRING,
@@ -68,6 +70,8 @@ CREATE TABLE `channel_data` -- contains one row
 
 CREATE TABLE `addressbook`
 (
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+
  -- our private notes and decisions about them
  `petname` STRING,
  `acked` INTEGER,

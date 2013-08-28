@@ -77,7 +77,14 @@ class InvitationManager(service.MultiService):
             rs.unsubscribe(inviteID)
 
     def messagesReceived(self, inviteID, messages):
-        i = Invitation(inviteID, self.db, self) # might raise KeyError
+        c = self.db.cursor()
+        c.execute("SELECT id FROM invitations WHERE inviteID=? LIMIT 1",
+                  (inviteID,))
+        rows = c.fetchall()
+        if not rows:
+            raise KeyError(inviteID)
+        iid = rows[0][0]
+        i = Invitation(iid, self.db, self)
         i.processMessages(messages)
 
     def sendToAll(self, inviteID, msg):
@@ -133,8 +140,9 @@ class InvitationManager(service.MultiService):
                    myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
                    json.dumps(pub_tport), json.dumps(priv_tport),
                    "", "", 1))
+        iid = c.lastrowid
         self.subscribe(inviteID)
-        i = Invitation(inviteID, self.db, self)
+        i = Invitation(iid, self.db, self)
         i.sendFirstMessage()
         self.db.commit()
 
@@ -145,58 +153,58 @@ class Invitation:
     # process multiple messages for a single invitation, e.g. A's second poll
     # will receive both B-m1 and B-m2 together). But all persistent state
     # beyond that one tick is stored in the database.
-    def __init__(self, inviteID, db, manager):
-        self.inviteID = inviteID
+    def __init__(self, iid, db, manager):
+        self.iid = iid
         self.db = db
         self.manager = manager
         c = db.cursor()
-        c.execute("SELECT petname, inviteKey," # 0,1
-                  " theirTempPubkey," # 2
-                  " theirVerfkey," # 3
+        c.execute("SELECT petname, inviteID, inviteKey," # 0,1,2
+                  " theirTempPubkey," # 3
                   " nextExpectedMessage," # 4
                   " myMessages," # 5
                   " theirMessages" # 6
-                  " FROM invitations WHERE inviteID = ?", (inviteID,))
+                  " FROM invitations WHERE id = ?", (iid,))
         res = c.fetchone()
         if not res:
-            raise KeyError("no pending Invitation for '%s'" % inviteID)
+            raise KeyError("no pending Invitation for '%d'" % iid)
         self.petname = res[0]
-        self.inviteKey = SigningKey(res[1].decode("hex"))
+        self.inviteID = res[1]
+        self.inviteKey = SigningKey(res[2].decode("hex"))
         self.theirTempPubkey = None
-        if res[2]:
-            self.theirTempPubkey = PublicKey(res[2].decode("hex"))
-        # we stash theirVerfkey in the invitation just to correlate it with
-        # the addressbook entry when the ACK arrives. We could easily stash
-        # an addressbook-entry-id instead.
-        self.theirVerfkey = None
         if res[3]:
-            self.theirVerfkey = VerifyKey(res[3].decode("hex"))
+            self.theirTempPubkey = PublicKey(res[3].decode("hex"))
         self.nextExpectedMessage = int(res[4])
         self.myMessages = splitMessages(res[5])
         self.theirMessages = splitMessages(res[6])
 
+    def getAddressbookID(self):
+        c = self.db.cursor()
+        c.execute("SELECT addressbook_id FROM invitations WHERE id = ?",
+                  (self.iid,))
+        return c.fetchone()[0]
+
     def getMyTempPrivkey(self):
         c = self.db.cursor()
-        c.execute("SELECT myTempPrivkey FROM invitations WHERE inviteID = ?",
-                  (self.inviteID,))
+        c.execute("SELECT myTempPrivkey FROM invitations WHERE id = ?",
+                  (self.iid,))
         return PrivateKey(c.fetchone()[0].decode("hex"))
 
     def getMySigningKey(self):
         c = self.db.cursor()
-        c.execute("SELECT mySigningKey FROM invitations WHERE inviteID = ?",
-                  (self.inviteID,))
+        c.execute("SELECT mySigningKey FROM invitations WHERE id = ?",
+                  (self.iid,))
         return SigningKey(c.fetchone()[0].decode("hex"))
 
     def getMyTransportRecord(self):
         c = self.db.cursor()
-        c.execute("SELECT myTransportRecord FROM invitations WHERE inviteID = ?",
-                  (self.inviteID,))
+        c.execute("SELECT myTransportRecord FROM invitations WHERE id = ?",
+                  (self.iid,))
         return c.fetchone()[0]
 
     def getMyPrivateTransportRecord(self):
         c = self.db.cursor()
-        c.execute("SELECT myPrivateTransportRecord FROM invitations WHERE inviteID = ?",
-                  (self.inviteID,))
+        c.execute("SELECT myPrivateTransportRecord FROM invitations WHERE id = ?",
+                  (self.iid,))
         return json.loads(c.fetchone()[0])
 
 
@@ -204,8 +212,8 @@ class Invitation:
         pub = self.getMyTempPrivkey().public_key.encode()
         self.send("i0:m1:"+pub)
         c = self.db.cursor()
-        c.execute("UPDATE invitations SET  myMessages=? WHERE inviteID=?",
-                  (",".join(self.myMessages), self.inviteID))
+        c.execute("UPDATE invitations SET myMessages=? WHERE id=?",
+                  (",".join(self.myMessages), self.iid))
         # that will be commited by our caller
 
     def processMessages(self, messages):
@@ -267,11 +275,11 @@ class Invitation:
         c = self.db.cursor()
         c.execute("UPDATE invitations SET"
                   "  myMessages=?, theirMessages=?, nextExpectedMessage=?"
-                  " WHERE inviteID=?",
+                  " WHERE id=?",
                   (",".join(self.myMessages),
                    ",".join(self.theirMessages | newMessages),
                    self.nextExpectedMessage,
-                   self.inviteID))
+                   self.iid))
         #print " db.commit"
         self.db.commit()
 
@@ -296,8 +304,8 @@ class Invitation:
         #print "processM1", self.petname
         c = self.db.cursor()
         self.theirTempPubkey = PublicKey(msg)
-        c.execute("UPDATE invitations SET theirTempPubkey=? WHERE inviteID=?",
-                  (self.theirTempPubkey.encode(Hex), self.inviteID))
+        c.execute("UPDATE invitations SET theirTempPubkey=? WHERE id=?",
+                  (self.theirTempPubkey.encode(Hex), self.iid))
         # theirTempPubkey will committed by our caller, in the same txn as
         # the message send
 
@@ -333,9 +341,9 @@ class Invitation:
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
         verfkey_and_signedBody = body[len("i0:m2a:"):]
-        self.theirVerfkey = VerifyKey(verfkey_and_signedBody[:32])
+        theirVerfkey = VerifyKey(verfkey_and_signedBody[:32])
         signedBody = verfkey_and_signedBody[32:]
-        body = self.theirVerfkey.verify(signedBody)
+        body = theirVerfkey.verify(signedBody)
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
         theirTransportRecord_json = body[64:].decode("utf-8")
@@ -352,8 +360,6 @@ class Invitation:
         them = json.loads(theirTransportRecord_json)
         me = self.getMyPrivateTransportRecord()
         c = self.db.cursor()
-        c.execute("UPDATE invitations SET theirVerfkey=? WHERE inviteID=?",
-                  (self.theirVerfkey.encode(Hex), self.inviteID))
         c.execute("INSERT INTO addressbook"
                   " (petname, acked,"
                   "  my_signkey, their_channel_pubkey,"
@@ -373,7 +379,10 @@ class Invitation:
                    them["mailbox_descriptor"],
                    me["my_CID_tokenid"],
                    me["my_old_channel_privkey"], me["my_new_channel_privkey"],
-                   0, self.theirVerfkey.encode(Hex) ) )
+                   0, theirVerfkey.encode(Hex) ) )
+        addressbook_id = c.lastrowid
+        c.execute("UPDATE invitations SET addressbook_id=? WHERE id=?",
+                  (addressbook_id, self.iid))
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)
@@ -384,10 +393,9 @@ class Invitation:
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
         c = self.db.cursor()
-        c.execute("UPDATE addressbook SET acked=1 WHERE their_verfkey=?",
-                  (self.theirVerfkey.encode(Hex),))
-        c.execute("DELETE FROM invitations WHERE inviteID=?",
-                  (self.inviteID,))
+        c.execute("UPDATE addressbook SET acked=1 WHERE id=?",
+                  (self.getAddressbookID(),))
+        c.execute("DELETE FROM invitations WHERE id=?", (self.iid,))
 
         # we no longer care about the channel
         msg4 = "i0:destroy:"+os.urandom(16)
