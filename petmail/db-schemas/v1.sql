@@ -69,7 +69,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
 
 CREATE TABLE `addressbook`
 (
- `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT, -- the channelID
 
  -- our private notes and decisions about them
  `petname` STRING,
