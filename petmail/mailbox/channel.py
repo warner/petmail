@@ -4,6 +4,7 @@ from .. import rrid
 from ..errors import SilentError
 from ..util import split_into, equal, netstring
 from ..hkdf import HKDF
+from delivery.transport import make_transport
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.signing import SigningKey, VerifyKey
 from nacl.secret import SecretBox
@@ -135,6 +136,14 @@ class OutboundChannel:
         self.cid = cid
 
     def send(self, payload):
+        # returns a Deferred that fires when the delivery is complete, so
+        # tests can synchronize
+        msgC = self.createMsgC(payload)
+        t = self.createTransport()
+        # now wrap msgC into a msgA for each transport they're using
+        return t.send(msgC)
+
+    def createMsgC(self, payload):
         c = self.db.cursor()
         c.execute("SELECT next_outbound_seqnum, my_signkey,"
                   " their_channel_pubkey, their_CID_key"
@@ -172,31 +181,16 @@ class OutboundChannel:
                         CIDToken,
                         netstring(CIDBox),
                         msgD])
+        return msgC
 
-        # now wrap msgC into a msgA for each transport they're using
-        self.sendMsgC(msgC)
-
-    def sendMsgC(self, msgC):
+    def createTransport(self):
         c = self.db.cursor()
         c.execute("SELECT their_STID, their_mailbox_descriptor,"
                   " FROM addressbook WHERE id=?", (self.cid,))
         res = c.fetchone()
         assert res, "missing cid"
         STID = bytes(res[0])
-        mbox = json.loads(res[1])
-        MSTID = rrid.rerandomize(STID)
-        msgB = MSTID + msgC
+        desc = json.loads(res[1])
+        desc["STID"] = STID # TODO: STID should live in the descriptor
 
-        privkey1 = PrivateKey.generate()
-        pubkey1 = privkey1.public_key.encode()
-        assert len(pubkey1) == 32
-        transport_pubkey = mbox["transport_pubkey"].decode("hex")
-        transport_box = Box(privkey1, PublicKey(transport_pubkey))
-
-        msgA = pubkey1 + transport_box.encrypt(msgB, os.urandom(Box.NONCE_SIZE))
-
-        self.sendMsgA(msgA)
-
-    def sendMsgA(self, msgA):
-        # TODO: send msgA over the network
-        pass
+        return make_transport(self.db, desc)
