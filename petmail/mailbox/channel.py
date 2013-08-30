@@ -127,7 +127,7 @@ class InboundChannel:
     def bodyReceived(self, body):
         pass
 
-assert struct.calcsize(">Q") == 64
+assert struct.calcsize(">Q")*8 == 64
 
 class OutboundChannel:
     # I am created to send messages.

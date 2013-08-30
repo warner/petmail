@@ -6,9 +6,22 @@ from twisted.trial import unittest
 
 class Import(unittest.TestCase):
     def test_import_all(self):
-        from .. import base32, client, database, errors, hkdf
-        del base32, client, database, errors, hkdf
+        from .. import _version, base32, client, database, errors, hkdf
+        del _version, base32, client, database, errors, hkdf
         from .. import invitation, node, rrid, util, web
         del invitation, node, rrid, util, web
-        from ..mailbox import delivery, retrieval
-        del delivery, retrieval
+
+        from ..rendezvous import localdir
+        del localdir
+
+        from ..scripts import create_node, open, runner, startstop, webwait
+        del create_node, open, runner, startstop, webwait
+
+        from ..mailbox import channel, server
+        del channel, server
+
+        from ..mailbox.delivery import http, transport
+        del http, transport
+
+        from ..mailbox.retrieval import direct, direct_http, from_http_server
+        del direct, direct_http, from_http_server

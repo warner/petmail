@@ -1,4 +1,6 @@
 
+from twisted.internet import protocol
+
 # sending side
 
 def create_message(to_pubkey, from_signkey, payload):
