@@ -56,13 +56,28 @@ class Client(service.MultiService):
         self.subscribeToMailbox(rc)
 
     def command_invite(self, petname, code):
-        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        transports = self.build_transports()
+        self.im.startInvitation(petname, code, transports)
+        return "invitation for %s started" % petname
+
+    def build_transports(self):
+        # returns dict of tid->pubrecord . The pubrecords will be given to
+        # the peer. We'll remember the list of tids privately.
+
+        # TODO: build this by scanning the DB
+
         # the mailbox will hold TID_tokenid and TID_privkey, and will tell us
         # TID_token0. TID_privkey will be the same for all customers of the
         # mailbox.
-        mailbox = {"descriptor": json.dumps({}), "TID": TID_token0}
-        self.im.startInvitation(petname, code, mailbox)
-        return "invitation for %s started" % petname
+        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        STID = rrid.randomize(TID_token0)
+
+        priv="fbf86cb264701a5a6ffa3a031475a1d20a80415202ce8e385cef1776c602a242"
+        pub="5d6d224811d1aed51fb3e6816719ee3f91fc32efe9545a3d67be2a7caddeeb23"
+
+        t1 = { "type": "http", "url": "http://localhost:8009/mailbox",
+               "transport_pubkey": pub, "STID": STID.encode("hex") }
+        return {0: t1}
 
     def command_list_addressbook(self):
         resp = []
@@ -71,7 +86,7 @@ class Client(service.MultiService):
         for row in c.fetchall():
             entry = {}
             entry["their_verfkey"] = str(row["their_verfkey"])
-            entry["their_mailbox_descriptor"] = str(row["their_mailbox_descriptor"])
+            entry["their_channel_record"] = json.loads(row["their_channel_record_json"])
             entry["petname"] = row["petname"]
             # TODO: filter out the long-term stuff
             sk = SigningKey(row["my_signkey"].decode("hex"))

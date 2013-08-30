@@ -1,4 +1,4 @@
-import os, collections
+import os, collections, json
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin
 from ..errors import CommandError
@@ -7,7 +7,9 @@ from ..invitation import splitMessages
 MROW = collections.namedtuple("Row", ["my", "theirs", "next"])
 AddressbookRow = collections.namedtuple("AddressbookEntry",
                                         ["petname", "their_verfkey", "acked",
-                                         "their_CID_key", "my_CID_key"])
+                                         "my_CID_key",
+                                         "their_channel_record",
+                                         ])
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def disable_polling(self, n):
@@ -30,11 +32,11 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
     def fetchAddressBook(self, node):
         c = node.db.cursor()
-        c.execute("SELECT petname, their_verfkey, acked, "
-                  "       their_CID_key, my_CID_key"
+        c.execute("SELECT petname, their_verfkey, acked,"
+                  "       my_CID_key, their_channel_record_json"
                   " FROM addressbook")
         rows = [ AddressbookRow(row[0], str(row[1]), bool(row[2]),
-                                str(row[3]), str(row[4]))
+                                str(row[3]), json.loads(row[4]))
                  for row in c.fetchall() ]
         return rows
 
@@ -96,7 +98,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(a1[0].petname, "petname-from-1")
         self.failUnlessEqual(a1[0].acked, False)
         #print a1[0].their_verfkey
-        ##print a1[0].their_tport
+        #print a1[0].their_channel_record
 
         # re-polling should not do anything
         rclient1.poll()
@@ -129,8 +131,10 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(len(a1), 1)
         self.failUnlessEqual(a1[0].acked, True)
 
-        self.failUnlessEqual(a1[0].their_CID_key, a2[0].my_CID_key)
-        self.failUnlessEqual(a1[0].my_CID_key, a2[0].their_CID_key)
+        self.failUnlessEqual(a1[0].their_channel_record["CID_key"],
+                             a2[0].my_CID_key)
+        self.failUnlessEqual(a1[0].my_CID_key,
+                             a2[0].their_channel_record["CID_key"])
 
         # finally check that the channel has been destroyed
         self.failIf(os.path.exists(rdir))

@@ -61,10 +61,12 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `mySigningKey` STRING, -- Ed25519 privkey (long-term), for this peer
  `addressbook_id` INTEGER, -- to correlate with an addressbook entry
 
- -- my (public) record: .channel_pubkey, .CID_key, .STID, .mailbox_descriptor
- `myTransportRecord` STRING,
- -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey
- `myPrivateTransportRecord` STRING
+ -- my (public) record: .channel_pubkey, .CID_key,
+ --  .transports[]: .STID, .transport_pubkey, .type, .url
+ `my_channel_record` STRING,
+ -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey,
+ --  .transport_ids (points to 'transports' table)
+ `my_private_channel_data` STRING
 );
 
 CREATE TABLE `addressbook`
@@ -80,11 +82,7 @@ CREATE TABLE `addressbook`
     -- these three are shared among all of the recipient's mailboxes
  `next_outbound_seqnum` INTEGER,
  `my_signkey` STRING,
- `their_channel_pubkey` STRING, -- from their transport record
- `their_CID_key` STRING, -- from their transport record
-    -- these two will get a separate copy for each mailbox
- `their_STID` STRING, -- from their transport record
- `their_mailbox_descriptor` STRING, -- from their transport record
+ `their_channel_record_json` STRING, -- .channel_pubkey, .CID_key, .transports
 
  -- things used to handle inbound messages
  `my_CID_key` STRING,

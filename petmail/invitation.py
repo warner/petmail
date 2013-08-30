@@ -2,7 +2,6 @@
 import re, os, json, hmac
 from hashlib import sha256
 from twisted.application import service
-from . import rrid
 from .hkdf import HKDF
 from .errors import CommandError
 from nacl.signing import SigningKey, VerifyKey, BadSignatureError
@@ -101,7 +100,7 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def startInvitation(self, petname, code, mailbox):
+    def startInvitation(self, petname, code, transports):
         #print "invite", petname, code.encode("hex")
         stretched = stretch(code)
         inviteKey = SigningKey(stretched)
@@ -109,18 +108,20 @@ class InvitationManager(service.MultiService):
         mySigningKey = SigningKey.generate()
         myCIDkey = os.urandom(32)
         myTempPrivkey = PrivateKey.generate()
-        # create my transport record
+
+        # create my channel record
+        tids = ",".join([str(tid) for tid in sorted(transports.keys())])
         channel_key = PrivateKey.generate()
-        pub_tport = { "channel_pubkey": channel_key.public_key.encode(Hex),
-                      "CID_key": myCIDkey.encode("hex"),
-                      "STID": rrid.randomize(mailbox["TID"]).encode("hex"),
-                      "mailbox_descriptor": mailbox["descriptor"],
+        pub_crec = { "channel_pubkey": channel_key.public_key.encode(Hex),
+                     "CID_key": myCIDkey.encode("hex"),
+                     "transports": transports.values(),
+                     }
+        priv_data = { "my_signkey": mySigningKey.encode(Hex),
+                      "my_CID_key": myCIDkey.encode("hex"),
+                      "my_old_channel_privkey": channel_key.encode(Hex),
+                      "my_new_channel_privkey": channel_key.encode(Hex),
+                      "transport_ids": tids,
                       }
-        priv_tport = { "my_signkey": mySigningKey.encode(Hex),
-                       "my_CID_key": myCIDkey.encode("hex"),
-                       "my_old_channel_privkey": channel_key.encode(Hex),
-                       "my_new_channel_privkey": channel_key.encode(Hex),
-                       }
 
         c = self.db.cursor()
         c.execute("SELECT inviteID FROM invitations")
@@ -130,13 +131,13 @@ class InvitationManager(service.MultiService):
                   " (code, petname, inviteKey,"
                   "  inviteID,"
                   "  myTempPrivkey, mySigningKey,"
-                  "  myTransportRecord, myPrivateTransportRecord,"
+                  "  my_channel_record, my_private_channel_data,"
                   "  myMessages, theirMessages, nextExpectedMessage)"
                   " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
                   (code.encode("hex"), petname, stretched.encode("hex"),
                    inviteID,
                    myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
-                   json.dumps(pub_tport), json.dumps(priv_tport),
+                   json.dumps(pub_crec), json.dumps(priv_data),
                    "", "", 1))
         iid = c.lastrowid
         self.subscribe(inviteID)
@@ -193,15 +194,15 @@ class Invitation:
                   (self.iid,))
         return SigningKey(c.fetchone()[0].decode("hex"))
 
-    def getMyTransportRecord(self):
+    def getMyPublicChannelRecord(self):
         c = self.db.cursor()
-        c.execute("SELECT myTransportRecord FROM invitations WHERE id = ?",
+        c.execute("SELECT my_channel_record FROM invitations WHERE id = ?",
                   (self.iid,))
         return c.fetchone()[0]
 
-    def getMyPrivateTransportRecord(self):
+    def getMyPrivateChannelData(self):
         c = self.db.cursor()
-        c.execute("SELECT myPrivateTransportRecord FROM invitations WHERE id = ?",
+        c.execute("SELECT my_private_channel_data FROM invitations WHERE id = ?",
                   (self.iid,))
         return json.loads(c.fetchone()[0])
 
@@ -307,12 +308,12 @@ class Invitation:
         # theirTempPubkey will committed by our caller, in the same txn as
         # the message send
 
-        my_priv = self.getMyTempPrivkey()
-        my_tport = self.getMyTransportRecord()
-        b = Box(my_priv, self.theirTempPubkey)
+        my_privkey = self.getMyTempPrivkey()
+        my_channel_record = self.getMyPublicChannelRecord()
+        b = Box(my_privkey, self.theirTempPubkey)
         signedBody = b"".join([self.theirTempPubkey.encode(),
-                               my_priv.public_key.encode(),
-                               my_tport.encode("utf-8")])
+                               my_privkey.public_key.encode(),
+                               my_channel_record.encode("utf-8")])
         my_sign = self.getMySigningKey()
         body = b"".join([b"i0:m2a:",
                          my_sign.verify_key.encode(),
@@ -330,8 +331,8 @@ class Invitation:
         #print "processM2", repr(msg[:10]), "...", self.petname
         assert self.theirTempPubkey
         nonce_and_ciphertext = msg
-        my_priv = self.getMyTempPrivkey()
-        b = Box(my_priv, self.theirTempPubkey)
+        my_privkey = self.getMyTempPrivkey()
+        b = Box(my_privkey, self.theirTempPubkey)
         #nonce = msg[:Box.NONCE_SIZE]
         #ciphertext = msg[Box.NONCE_SIZE:]
         #print "DECRYPTING n+ct", len(msg), msg.encode("hex")
@@ -344,38 +345,38 @@ class Invitation:
         body = theirVerfkey.verify(signedBody)
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
-        theirTransportRecord_json = body[64:].decode("utf-8")
+        their_channel_record_json = body[64:].decode("utf-8")
         #print " binding checks:"
         #print " check_myTempPubkey", check_myTempPubkey.encode("hex")
-        #print " my real tempPubkey", my_priv.public_key.encode(Hex)
+        #print " my real tempPubkey", my_privkey.public_key.encode(Hex)
         #print " check_theirTempPubkey", check_theirTempPubkey.encode("hex")
         #print " first theirTempPubkey", self.theirTempPubkey.encode(Hex)
-        if check_myTempPubkey != my_priv.public_key.encode():
+        if check_myTempPubkey != my_privkey.public_key.encode():
             raise ValueError("binding failure myTempPubkey")
         if check_theirTempPubkey != self.theirTempPubkey.encode():
             raise ValueError("binding failure theirTempPubkey")
 
-        them = json.loads(theirTransportRecord_json)
-        me = self.getMyPrivateTransportRecord()
+        them = json.loads(their_channel_record_json)
+        me = self.getMyPrivateChannelData()
         c = self.db.cursor()
         c.execute("INSERT INTO addressbook"
                   " (petname, acked,"
-                  "  next_outbound_seqnum, my_signkey, their_channel_pubkey,"
-                  "  their_CID_key, their_STID, their_mailbox_descriptor,"
+                  "  next_outbound_seqnum, my_signkey,"
+                  "  their_channel_record_json,"
                   "  my_CID_key, next_CID_token,"
                   "  highest_inbound_seqnum,"
                   "  my_old_channel_privkey, my_new_channel_privkey,"
                   "  they_used_new_channel_key, their_verfkey)"
                   " VALUES (?,?, "
-                  "         ?,?,?,"
-                  "         ?,?,?,"
+                  "         ?,?,"
+                  "         ?,"
                   "         ?,?," # my_CID_key, next_CID_token
                   "         ?,"   # highest_inbound_seqnum
                   "         ?,?,"
                   "         ?,?)",
                   (self.petname, 0,
-                   1, me["my_signkey"], them["channel_pubkey"],
-                   them["CID_key"], them["STID"], them["mailbox_descriptor"],
+                   1, me["my_signkey"],
+                   json.dumps(them),
                    me["my_CID_key"], None,
                    0,
                    me["my_old_channel_privkey"], me["my_new_channel_privkey"],
