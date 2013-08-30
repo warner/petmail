@@ -85,6 +85,7 @@ class Client(service.MultiService):
         c.execute("SELECT * FROM addressbook")
         for row in c.fetchall():
             entry = {}
+            entry["cid"] = row["id"]
             entry["their_verfkey"] = str(row["their_verfkey"])
             entry["their_channel_record"] = json.loads(row["their_channel_record_json"])
             entry["petname"] = row["petname"]

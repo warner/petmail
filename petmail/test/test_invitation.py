@@ -1,6 +1,6 @@
 import os, collections, json
 from twisted.trial import unittest
-from .common import BasedirMixin, NodeRunnerMixin
+from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin
 from ..errors import CommandError
 from ..invitation import splitMessages
 
@@ -12,9 +12,6 @@ AddressbookRow = collections.namedtuple("AddressbookEntry",
                                          ])
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
-    def disable_polling(self, n):
-        list(n.client.im)[0].enable_polling = False
-
     def checkCounts(self, node, code, my, theirs, next, exists=True):
         c = node.db.cursor()
         c.execute("SELECT myMessages, theirMessages, nextExpectedMessage"
@@ -160,3 +157,11 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessRaises(CommandError,
                               n1.client.command_invite, u"new-petname", code)
 
+
+class Two(TwoNodeMixin, unittest.TestCase):
+    def test_two(self):
+        nA, nB, cidAB, cidBA = self.make_nodes()
+        self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+                             cidAB)
+        self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+                             cidBA)

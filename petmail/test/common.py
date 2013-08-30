@@ -40,3 +40,36 @@ class NodeRunnerMixin:
             beforeStart(n)
         n.setServiceParent(self.sparent)
         return n
+
+    def disable_polling(self, n):
+        list(n.client.im)[0].enable_polling = False
+
+
+class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
+    def make_nodes(self):
+        basedirA = os.path.join(self.make_basedir(), "nodeA")
+        self.createNode(basedirA)
+        nA = self.startNode(basedirA, beforeStart=self.disable_polling)
+
+        basedirB = os.path.join(self.make_basedir(), "nodeB")
+        self.createNode(basedirB)
+        nB = self.startNode(basedirB, beforeStart=self.disable_polling)
+
+        rclientA = list(nA.client.im)[0]
+        rclientB = list(nB.client.im)[0]
+        code = "code"
+        nA.client.command_invite(u"petname-from-A", code)
+        nB.client.command_invite(u"petname-from-B", code)
+
+        rclientA.poll()
+        rclientB.poll()
+
+        rclientA.poll()
+        rclientB.poll()
+
+        rclientA.poll()
+        rclientB.poll()
+
+        cidAB = nA.client.command_list_addressbook()[0]["cid"]
+        cidBA = nB.client.command_list_addressbook()[0]["cid"]
+        return nA, nB, cidAB, cidBA
