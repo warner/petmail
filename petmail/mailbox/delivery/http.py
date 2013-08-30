@@ -3,4 +3,6 @@
 # mailbox server.
 
 class OutboundHTTPTransport:
-    pass
+    def __init__(self, db, trecord):
+        self.db = db
+        self.trecord = trecord

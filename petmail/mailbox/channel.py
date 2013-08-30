@@ -146,22 +146,23 @@ class OutboundChannel:
     def createMsgC(self, payload):
         c = self.db.cursor()
         c.execute("SELECT next_outbound_seqnum, my_signkey,"
-                  " their_channel_pubkey, their_CID_key"
+                  " their_channel_record_json"
                   " FROM addressbook WHERE id=?", (self.cid,))
         res = c.fetchone()
         assert res, "missing cid"
-        next_outbound_seqnum = res[0]
+        next_outbound_seqnum = res["next_outbound_seqnum"]
         c.execute("UPDATE addressbook SET next_outbound_seqnum=? WHERE id=?",
                   (next_outbound_seqnum+1, self.cid))
         self.db.commit()
         seqnum_s = struct.pack(">Q", next_outbound_seqnum)
-        my_signkey = SigningKey(res[1].decode("hex"))
+        my_signkey = SigningKey(res["my_signkey"].decode("hex"))
         privkey2 = PrivateKey.generate()
         pubkey2 = privkey2.public_key.encode()
         assert len(pubkey2) == 32
-        channel_pubkey = res[2].decode("hex")
+        crec = json.loads(res["their_channel_record_json"])
+        channel_pubkey = crec["channel_pubkey"].decode("hex")
         channel_box = Box(privkey2, PublicKey(channel_pubkey))
-        CIDKey = res[3].decode("hex")
+        CIDKey = crec["CID_key"].decode("hex")
 
         authenticator = b"ce0:"+pubkey2
         msgE = "".join([seqnum_s,
@@ -183,14 +184,11 @@ class OutboundChannel:
                         msgD])
         return msgC
 
-    def createTransport(self):
+    def createTransports(self):
         c = self.db.cursor()
-        c.execute("SELECT their_STID, their_mailbox_descriptor,"
+        c.execute("SELECT their_channel_record_json"
                   " FROM addressbook WHERE id=?", (self.cid,))
         res = c.fetchone()
         assert res, "missing cid"
-        STID = bytes(res[0])
-        desc = json.loads(res[1])
-        desc["STID"] = STID # TODO: STID should live in the descriptor
-
-        return make_transport(self.db, desc)
+        crec = json.loads(res["their_channel_record_json"])
+        return [make_transport(self.db, t) for t in crec["transports"]]

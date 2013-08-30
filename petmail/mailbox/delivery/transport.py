@@ -3,9 +3,9 @@ from ... import rrid
 from .http import OutboundHTTPTransport
 from nacl.public import PrivateKey, PublicKey, Box
 
-def make_transport(db, descriptor):
-    assert descriptor["type"] == "http"
-    return OutboundHTTPTransport(db, descriptor)
+def make_transport(db, trecord):
+    assert trecord["type"] == "http"
+    return OutboundHTTPTransport(db, trecord)
 
 def createMsgA(desc, msgC):
     MSTID = rrid.rerandomize(desc["STID"])
