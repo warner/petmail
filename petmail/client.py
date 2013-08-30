@@ -60,7 +60,7 @@ class Client(service.MultiService):
         # the mailbox will hold TID_tokenid and TID_privkey, and will tell us
         # TID_token0. TID_privkey will be the same for all customers of the
         # mailbox.
-        mailbox = {"descriptor": "", "TID": TID_token0}
+        mailbox = {"descriptor": json.dumps({}), "TID": TID_token0}
         self.im.startInvitation(petname, code, mailbox)
         return "invitation for %s started" % petname
 

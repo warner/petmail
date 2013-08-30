@@ -74,3 +74,6 @@ def split_into(s, piece_sizes, plus_trailer=False):
         if piece_start != len(s):
             raise ValueError("split did not consume entire string")
     return pieces
+
+def netstring(s):
+    return b"%d:%s." % (len(s), s)

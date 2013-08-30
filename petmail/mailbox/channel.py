@@ -1,9 +1,12 @@
-import re
+import re, struct, json, os
+from hashlib import sha256
 from .. import rrid
 from ..errors import SilentError
-from ..util import split_into, equal
+from ..util import split_into, equal, netstring
+from ..hkdf import HKDF
 from nacl.public import PrivateKey, PublicKey, Box
-from nacl.signing import VerifyKey
+from nacl.signing import SigningKey, VerifyKey
+from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
 
 # msgC:
@@ -69,8 +72,7 @@ class InboundChannel:
         c.execute("SELECT"
                   " my_old_channel_privkey, my_new_channel_privkey,"
                   " their_verfkey"
-                  " FROM addressbook WHERE their_verfkey=?",
-                  (their_verfkey_hex,))
+                  " FROM addressbook WHERE id=?", (channelID,))
         row = c.fetchone()
         self.my_new_channel_privkey = PrivateKey(row["my_old_channel_privkey"].decode("hex"))
         self.my_old_channel_privkey = PrivateKey(row["my_new_channel_privkey"].decode("hex"))
@@ -124,3 +126,77 @@ class InboundChannel:
     def bodyReceived(self, body):
         pass
 
+assert struct.calcsize(">Q") == 64
+
+class OutboundChannel:
+    # I am created to send messages.
+    def __init__(self, db, cid):
+        self.db = db
+        self.cid = cid
+
+    def send(self, payload):
+        c = self.db.cursor()
+        c.execute("SELECT next_outbound_seqnum, my_signkey,"
+                  " their_channel_pubkey, their_CID_key"
+                  " FROM addressbook WHERE id=?", (self.cid,))
+        res = c.fetchone()
+        assert res, "missing cid"
+        next_outbound_seqnum = res[0]
+        c.execute("UPDATE addressbook SET next_outbound_seqnum=? WHERE id=?",
+                  (next_outbound_seqnum+1, self.cid))
+        self.db.commit()
+        seqnum_s = struct.pack(">Q", next_outbound_seqnum)
+        my_signkey = SigningKey(res[1].decode("hex"))
+        privkey2 = PrivateKey.generate()
+        pubkey2 = privkey2.public_key.encode()
+        assert len(pubkey2) == 32
+        channel_pubkey = res[2].decode("hex")
+        channel_box = Box(privkey2, PublicKey(channel_pubkey))
+        CIDKey = res[3].decode("hex")
+
+        authenticator = b"ce0:"+pubkey2
+        msgE = "".join([seqnum_s,
+                        netstring(my_signkey.sign(authenticator)),
+                        json.dumps(payload).encode("utf-8"),
+                        ])
+        msgD = pubkey2 + channel_box.encrypt(msgE, os.urandom(Box.NONCE_SIZE))
+
+        HmsgD = sha256(msgD).digest()
+        CIDToken = HKDF(IKM=CIDKey+seqnum_s, dkLen=32,
+                        info=b"petmail.org/v1/CIDToken")
+        sb = SecretBox(CIDKey)
+        CIDBox = sb.encrypt(seqnum_s+HmsgD+channel_pubkey,
+                            os.urandom(sb.NONCE_SIZE))
+
+        msgC = "".join([b"c0:",
+                        CIDToken,
+                        netstring(CIDBox),
+                        msgD])
+
+        # now wrap msgC into a msgA for each transport they're using
+        self.sendMsgC(msgC)
+
+    def sendMsgC(self, msgC):
+        c = self.db.cursor()
+        c.execute("SELECT their_STID, their_mailbox_descriptor,"
+                  " FROM addressbook WHERE id=?", (self.cid,))
+        res = c.fetchone()
+        assert res, "missing cid"
+        STID = bytes(res[0])
+        mbox = json.loads(res[1])
+        MSTID = rrid.rerandomize(STID)
+        msgB = MSTID + msgC
+
+        privkey1 = PrivateKey.generate()
+        pubkey1 = privkey1.public_key.encode()
+        assert len(pubkey1) == 32
+        transport_pubkey = mbox["transport_pubkey"].decode("hex")
+        transport_box = Box(privkey1, PublicKey(transport_pubkey))
+
+        msgA = pubkey1 + transport_box.encrypt(msgB, os.urandom(Box.NONCE_SIZE))
+
+        self.sendMsgA(msgA)
+
+    def sendMsgA(self, msgA):
+        # TODO: send msgA over the network
+        pass
