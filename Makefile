@@ -58,7 +58,7 @@ test:
 
 .PHONY: test-coverage coverage-html
 test-coverage:
-	$(WLS1) coverage ./bin/petmail test
+	$(WLS1) coverage run ./bin/petmail test
 coverage-html:
 	rm -rf coverage-html
 	coverage html -d coverage-html --include="petmail/*"
