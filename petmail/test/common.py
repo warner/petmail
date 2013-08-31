@@ -70,6 +70,12 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         rclientA.poll()
         rclientB.poll()
 
-        cidAB = nA.client.command_list_addressbook()[0]["cid"]
-        cidBA = nB.client.command_list_addressbook()[0]["cid"]
-        return nA, nB, cidAB, cidBA
+        c = nA.db.cursor()
+        c.execute("SELECT * FROM addressbook")
+        entA = c.fetchone()
+
+        c = nB.db.cursor()
+        c.execute("SELECT * FROM addressbook")
+        entB = c.fetchone()
+
+        return nA, nB, entA, entB

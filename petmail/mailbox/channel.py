@@ -1,9 +1,10 @@
 import re, struct, json, os
 from hashlib import sha256
 from .. import rrid
-from ..errors import SilentError
-from ..util import split_into, equal, netstring
+from ..errors import SilentError, ReplayError, WrongVerfkeyError
+from ..util import split_into, equal
 from ..hkdf import HKDF
+from ..netstring import netstring, split_netstrings_and_trailer
 from delivery.transport import make_transport
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.signing import SigningKey, VerifyKey
@@ -60,6 +61,47 @@ class ChannelManager:
         their_verfkey_hex = results[0][0]
         # return an InboundChannel object for it
         return InboundChannel(self.db, their_verfkey_hex)
+
+def parse_msgC(msgC):
+    if not msgC.startswith("c0:"):
+        raise ValueError("corrupt msgC")
+    msgC = msgC[len("c0:"):]
+    CIDToken = msgC[:32]
+    (CIDBox,), msgD = split_netstrings_and_trailer(msgC[32:])
+    return CIDToken, CIDBox, msgD
+
+def decrypt_CIDBox(CIDKey, CIDBox):
+    sb = SecretBox(CIDKey)
+    m = sb.decrypt(CIDBox) # may raise CryptoError
+    seqnum_s,HmsgD,channel_pubkey = split_into(m, [8, 32, 32])
+    seqnum = struct.unpack(">Q", seqnum_s)[0]
+    return seqnum, HmsgD, channel_pubkey
+
+def decrypt_msgD(msgD, privkeys):
+    pubkey2_s, enc = split_into(msgD, [32], True)
+    pubkey2 = PublicKey(pubkey2_s)
+    for (privkey_hex, keyid) in privkeys:
+        try:
+            privkey = PrivateKey(privkey_hex.decode("hex"))
+            msgE = Box(privkey, pubkey2).decrypt(enc)
+            return msgE, keyid, pubkey2_s
+        except CryptoError:
+            pass
+
+def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
+    seqnum_s = msgE[:8]
+    seqnum = struct.unpack(">Q", seqnum_s)[0]
+    if seqnum <= highest_seqnum:
+        raise ReplayError()
+    (ns,), payload_s = split_netstrings_and_trailer(msgE[8:])
+    m = VerifyKey(sender_verfkey_s).verify(ns)
+    if not m.startswith("ce0:"):
+        raise ValueError("blaf")
+    m = m[len("ce0:"):]
+    if m != pubkey2_s:
+        print repr(m), pubkey2_s(m)
+        raise WrongVerfkeyError()
+    return seqnum, json.loads(payload_s)
 
 class InboundChannel:
     """I am given a msgC. I will decrypt it, update the channel database
