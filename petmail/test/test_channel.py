@@ -2,7 +2,6 @@ from twisted.trial import unittest
 from hashlib import sha256
 from .common import TwoNodeMixin
 from ..mailbox import channel
-from ..mailbox.delivery.http import OutboundHTTPTransport
 
 class msgC(TwoNodeMixin, unittest.TestCase):
     def test_create_and_parse(self):
@@ -28,14 +27,3 @@ class msgC(TwoNodeMixin, unittest.TestCase):
                                               their_verfkey,
                                               entB["highest_inbound_seqnum"])
         self.failUnlessEqual(payload, payload2)
-
-class Transports(TwoNodeMixin, unittest.TestCase):
-    def test_create(self):
-        nA, nB, entA, entB = self.make_nodes()
-        c = channel.OutboundChannel(nA.db, entA["id"])
-        transports = c.createTransports()
-        self.failUnlessEqual(len(transports), 1)
-        self.failUnless(isinstance(transports[0], OutboundHTTPTransport))
-
-        #ic = channel.InboundChannel(nB.db, entB["id"], None)
-
