@@ -3,3 +3,5 @@
 /deps-venv/
 /support/deps/
 .rendezvous
+/.coverage
+/coverage-html/

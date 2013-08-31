@@ -56,6 +56,15 @@ test-pynacl:
 test:
 	$(WLS1) ./bin/petmail test
 
+.PHONY: test-coverage coverage-html
+test-coverage:
+	$(WLS1) coverage ./bin/petmail test
+coverage-html:
+	rm -rf coverage-html
+	coverage html -d coverage-html --include="petmail/*"
+open-coverage-html:
+	open coverage-html/index.html
+
 # TODO: use virtualenv.create_bootstrap_script(extra_text) to create a new
 # modified virtualenv.py . Define an after_install(options,home_dir) function
 # to edit home_dir/bin/activate to append lines to set and export CFLAGS and
