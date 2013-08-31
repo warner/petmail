@@ -1,6 +1,7 @@
 import unittest
 
-from ..netstring import netstring, split_netstrings
+from ..netstring import (netstring, split_netstrings,
+                         split_netstrings_and_trailer)
 
 class Netstring(unittest.TestCase):
     def test_create(self):
@@ -16,8 +17,8 @@ class Netstring(unittest.TestCase):
     def test_leftover(self):
         a1 = netstring("abc")
         a2 = netstring("def")
-        self.failUnlessEqual(split_netstrings(a1+a2+"stuff", True),
-                             ["abc", "def", "stuff"])
+        self.failUnlessEqual(split_netstrings_and_trailer(a1+a2+"stuff"),
+                             (["abc", "def"], "stuff"))
     def test_no_leftover(self):
         self.failUnlessRaises(ValueError,
                               split_netstrings, "3:abc,extra")
