@@ -1,6 +1,6 @@
 import os, collections, json
 from twisted.trial import unittest
-from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin
+from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
 from ..errors import CommandError
 from ..invitation import splitMessages
 
@@ -38,12 +38,17 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         return rows
 
     def test_one(self):
+        code = "code"
+
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
         n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
         rclient1 = list(n1.client.im)[0]
-        code = "code"
-        n1.client.command_invite(u"petname-from-1", code)
+        tport1 = fake_transport()
+        tports1 = {0: tport1[1]}
+
+        n1.client.command_invite(u"petname-from-1", code,
+                                 override_transports=tports1)
         inviteID = rclient1.subscriptions.keys()[0]
         rdir = os.path.join(rclient1.basedir, inviteID)
         self.failUnless(os.path.exists(rdir))
@@ -60,7 +65,10 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         basedir2 = os.path.join(self.make_basedir(), "node2")
         self.createNode(basedir2)
         n2 = self.startNode(basedir2, beforeStart=self.disable_polling)
-        n2.client.command_invite(u"petname-from-2", code)
+        tport2 = fake_transport()
+        tports2 = {0: tport2[1]}
+        n2.client.command_invite(u"petname-from-2", code,
+                                 override_transports=tports2)
         rclient2 = list(n2.client.im)[0]
         # messages: node1-M1, node2-M1
 
@@ -153,7 +161,10 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir1)
         n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
         code = "code"
-        n1.client.command_invite(u"petname-from-1", code)
+        tport = fake_transport()
+        tports = {0: tport[1]}
+        n1.client.command_invite(u"petname-from-1", code,
+                                 override_transports=tports)
         self.failUnlessRaises(CommandError,
                               n1.client.command_invite, u"new-petname", code)
 

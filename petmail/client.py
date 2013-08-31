@@ -55,29 +55,31 @@ class Client(service.MultiService):
         self.db.commit()
         self.subscribeToMailbox(rc)
 
-    def command_invite(self, petname, code):
-        transports = self.build_transports()
+    def command_invite(self, petname, code, override_transports=None):
+        base_transports = self.get_transports()
+        if override_transports:
+            base_transports = override_transports
+        transports = self.individualize_transports(base_transports)
         self.im.startInvitation(petname, code, transports)
         return "invitation for %s started" % petname
 
-    def build_transports(self):
-        # returns dict of tid->pubrecord . The pubrecords will be given to
-        # the peer. We'll remember the list of tids privately.
+    def get_transports(self):
+        # returns dict of tid->pubrecord . These will be individualized
+        # before delivery to the peer.
 
         # TODO: build this by scanning the DB
+        from .test.common import fake_transport
+        return {0: fake_transport()[1]}
 
-        # the mailbox will hold TID_tokenid and TID_privkey, and will tell us
-        # TID_token0. TID_privkey will be the same for all customers of the
-        # mailbox.
-        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
-        STID = rrid.randomize(TID_token0)
-
-        priv="fbf86cb264701a5a6ffa3a031475a1d20a80415202ce8e385cef1776c602a242"
-        pub="5d6d224811d1aed51fb3e6816719ee3f91fc32efe9545a3d67be2a7caddeeb23"
-
-        t1 = { "type": "http", "url": "http://localhost:8009/mailbox",
-               "transport_pubkey": pub, "STID": STID.encode("hex") }
-        return {0: t1}
+    def individualize_transports(self, base_transports):
+        transports = {}
+        for tid in base_transports:
+            b = base_transports[tid]
+            t = b["for_sender"].copy()
+            TID_token0 = b["for_recipient"]["TID"].decode("hex")
+            t["STID"] = rrid.randomize(TID_token0).encode("hex")
+            transports[tid] = t
+        return transports
 
     def command_list_addressbook(self):
         resp = []

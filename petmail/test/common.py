@@ -1,8 +1,10 @@
 import os
 from twisted.application import service
 from StringIO import StringIO
+from nacl.public import PrivateKey
 from ..scripts import runner, startstop
 from ..scripts.create_node import create_node
+from .. import rrid
 
 class BasedirMixin:
     def make_basedir(self):
@@ -44,6 +46,22 @@ class NodeRunnerMixin:
     def disable_polling(self, n):
         list(n.client.im)[0].enable_polling = False
 
+def fake_transport():
+    privkey = PrivateKey.generate()
+    pubkey_hex = privkey.public_key.encode().encode("hex")
+    TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+    private = {"privkey": privkey,
+               "TID": (TID_tokenid, TID_privkey, TID_token0) }
+    # this is what lives in our database. All channels that share the same
+    # transport will use the same thing.
+    db_record = { "for_sender": {"type": "http",
+                                 "url": "http://localhost:8009/mailbox",
+                                 "transport_pubkey": pubkey_hex,
+                                 },
+                  "for_recipient": {"TID": TID_token0.encode("hex") },
+                  }
+    return private, db_record
+
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
     def make_nodes(self):
@@ -58,8 +76,14 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         rclientA = list(nA.client.im)[0]
         rclientB = list(nB.client.im)[0]
         code = "code"
-        nA.client.command_invite(u"petname-from-A", code)
-        nB.client.command_invite(u"petname-from-B", code)
+        self.tport1 = fake_transport()
+        tports1 = {0: self.tport1[1]}
+        nA.client.command_invite(u"petname-from-A", code,
+                                 override_transports=tports1)
+        self.tport2 = fake_transport()
+        tports2 = {0: self.tport2[1]}
+        nB.client.command_invite(u"petname-from-B", code,
+                                 override_transports=tports2)
 
         rclientA.poll()
         rclientB.poll()

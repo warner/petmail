@@ -1,6 +1,6 @@
 import json
 from twisted.trial import unittest
-from nacl.public import PrivateKey, PublicKey, Box
+from nacl.public import PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel, transport
 from ..mailbox.delivery.http import OutboundHTTPTransport
@@ -23,10 +23,8 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         msgA = transport.createMsgA(trec, msgC)
 
         pubkey1_s, boxed = transport.parseMsgA(msgA)
-        # the corresponding pubkey is currently hardcoded into
-        # Client.build_transports
-        tpriv="fbf86cb264701a5a6ffa3a031475a1d20a80415202ce8e385cef1776c602a242"
-        b = Box(PrivateKey(tpriv.decode("hex")), PublicKey(pubkey1_s))
+        tpriv = self.tport2[0]["privkey"]
+        b = Box(tpriv, PublicKey(pubkey1_s))
         msgB = b.decrypt(boxed)
 
         MSTID, msgC2 = transport.parseMsgB(msgB)
