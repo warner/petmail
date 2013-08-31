@@ -13,3 +13,6 @@ class ReplayError(Exception):
 
 class WrongVerfkeyError(Exception):
     pass
+
+class BadSignatureError(Exception):
+    pass

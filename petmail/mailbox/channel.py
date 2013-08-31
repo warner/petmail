@@ -2,7 +2,7 @@ import re, struct, json, os
 from hashlib import sha256
 from .. import rrid
 from ..errors import SilentError, ReplayError, WrongVerfkeyError
-from ..util import split_into, equal
+from ..util import split_into, equal, verify_with_prefix
 from ..hkdf import HKDF
 from ..netstring import netstring, split_netstrings_and_trailer
 from delivery.transport import make_transport
@@ -94,10 +94,7 @@ def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
     if seqnum <= highest_seqnum:
         raise ReplayError()
     (ns,), payload_s = split_netstrings_and_trailer(msgE[8:])
-    m = VerifyKey(sender_verfkey_s).verify(ns)
-    if not m.startswith("ce0:"):
-        raise ValueError("blaf")
-    m = m[len("ce0:"):]
+    m = verify_with_prefix(VerifyKey(sender_verfkey_s), ns, "ce0:")
     if m != pubkey2_s:
         print repr(m), pubkey2_s(m)
         raise WrongVerfkeyError()

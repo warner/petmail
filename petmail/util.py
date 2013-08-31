@@ -1,5 +1,6 @@
 
 import os, base64, hashlib
+from .errors import BadSignatureError
 
 class BadPrefixError(Exception):
     pass
@@ -74,3 +75,9 @@ def split_into(s, piece_sizes, plus_trailer=False):
         if piece_start != len(s):
             raise ValueError("split did not consume entire string")
     return pieces
+
+def verify_with_prefix(vk, sm, prefix):
+    m = vk.verify(sm)
+    if not m.startswith(prefix):
+        raise BadSignatureError("missing expected prefix")
+    return m[len(prefix):]
