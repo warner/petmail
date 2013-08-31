@@ -100,6 +100,33 @@ def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
         raise WrongVerfkeyError()
     return seqnum, json.loads(payload_s)
 
+def find_channel_from_CIDToken(db, CIDToken):
+    # XXX not implemented
+    cid = None
+    which_channel_key = None # e.g. unknown
+    return cid, which_channel_key
+
+def find_channel_from_CIDBox(db, CIDBox):
+    c = db.cursor()
+    c.execute("SELECT id, my_CID_key,"
+              " my_old_channel_privkey, my_new_channel_privkey"
+              " FROM addressbook")
+    for row in c.fetchall():
+        try:
+            CIDKey = row["my_CID_key"].decode("hex")
+            seqnum, HmsgD, channel_pubkey = decrypt_CIDBox(CIDKey, CIDBox)
+            which_channel_key = None
+            old_priv = PrivateKey(row["my_old_channel_privkey"].decode("hex"))
+            if channel_pubkey == old_priv.public_key.encode():
+                which_channel_key = "old"
+            new_priv = PrivateKey(row["my_new_channel_privkey"].decode("hex"))
+            if channel_pubkey == new_priv.public_key.encode():
+                which_channel_key = "new"
+            return row["id"], which_channel_key
+        except CryptoError:
+            pass
+    return None, None
+
 class InboundChannel:
     """I am given a msgC. I will decrypt it, update the channel database
     records as necessary, and finally dispatch the payload to a handler.

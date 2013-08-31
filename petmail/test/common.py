@@ -73,14 +73,19 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         self.createNode(basedirB)
         nB = self.startNode(basedirB, beforeStart=self.disable_polling)
 
+        self.tport1 = fake_transport()
+        self.tport2 = fake_transport()
+
+        entA, entB = self.add_new_channel(nA, nB)
+        return nA, nB, entA, entB
+
+    def add_new_channel(self, nA, nB):
         rclientA = list(nA.client.im)[0]
         rclientB = list(nB.client.im)[0]
         code = "code"
-        self.tport1 = fake_transport()
         tports1 = {0: self.tport1[1]}
         nA.client.command_invite(u"petname-from-A", code,
                                  override_transports=tports1)
-        self.tport2 = fake_transport()
         tports2 = {0: self.tport2[1]}
         nB.client.command_invite(u"petname-from-B", code,
                                  override_transports=tports2)
@@ -102,4 +107,4 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         c.execute("SELECT * FROM addressbook")
         entB = c.fetchone()
 
-        return nA, nB, entA, entB
+        return entA, entB

@@ -27,3 +27,26 @@ class msgC(TwoNodeMixin, unittest.TestCase):
                                               their_verfkey,
                                               entB["highest_inbound_seqnum"])
         self.failUnlessEqual(payload, payload2)
+
+    def test_channel_dispatch(self):
+        nA, nB, entA, entB = self.make_nodes()
+        entA2, entB2 = self.add_new_channel(nA, nB)
+        entA3, entB3 = self.add_new_channel(nA, nB)
+
+        c = channel.OutboundChannel(nA.db, entA2["id"])
+        payload = {"hi": "there"}
+        msgC = c.createMsgC(payload)
+        self.failUnless(msgC.startswith("c0:"))
+
+        CIDToken, CIDBox, msgD = channel.parse_msgC(msgC)
+
+        # TODO: test CIDToken
+
+        # test CIDBox
+        cid,which_key = channel.find_channel_from_CIDBox(nB.db, CIDBox)
+        self.failUnlessEqual(cid, entB2["id"])
+        # this is a trick question: both old/new keys are the same so far.
+        # But it should match at least one of them: it isn't unknown.
+        self.failUnlessIn(which_key, ["old", "new"])
+
+        # TODO: test trial-descryption of msgC
