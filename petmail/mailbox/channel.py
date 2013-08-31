@@ -5,7 +5,7 @@ from ..errors import SilentError, ReplayError, WrongVerfkeyError
 from ..util import split_into, equal, verify_with_prefix
 from ..hkdf import HKDF
 from ..netstring import netstring, split_netstrings_and_trailer
-from delivery.transport import make_transport
+from .transport import make_transport
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.signing import SigningKey, VerifyKey
 from nacl.secret import SecretBox
