@@ -5,6 +5,7 @@ from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .rendezvous import localdir
 from .errors import CommandError
+from .mailbox import channel
 
 class Client(service.MultiService):
     def __init__(self, db, basedir):
@@ -62,6 +63,10 @@ class Client(service.MultiService):
         transports = self.individualize_transports(base_transports)
         self.im.startInvitation(petname, code, transports)
         return "invitation for %s started" % petname
+
+    def send_message(self, cid, payload):
+        c = channel.OutboundChannel(self.db, cid)
+        return c.send(payload)
 
     def get_transports(self):
         # returns dict of tid->pubrecord . These will be individualized

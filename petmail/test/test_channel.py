@@ -90,3 +90,13 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 
         self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
         self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 1)
+
+class Send(TwoNodeMixin, unittest.TestCase):
+    def test_send(self):
+        nA, nB, entA, entB = self.make_nodes()
+        d = nA.client.send_message(entA["id"], {"hi": "world"})
+        def _sent(res):
+            pass
+        d.addCallback(_sent)
+        return d
+

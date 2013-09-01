@@ -1,5 +1,6 @@
 import re, struct, json, os
 from hashlib import sha256
+from twisted.internet import defer
 from .. import rrid
 from ..errors import (SilentError, ReplayError, WrongVerfkeyError,
                       UnknownChannelError)
@@ -284,9 +285,11 @@ class OutboundChannel:
         # returns a Deferred that fires when the delivery is complete, so
         # tests can synchronize
         msgC = self.createMsgC(payload)
-        t = self.createTransport()
-        # now wrap msgC into a msgA for each transport they're using
-        return t.send(msgC)
+        dl = []
+        for t in self.createTransports():
+            # now wrap msgC into a msgA for each transport they're using
+            dl.append(t.send(msgC))
+        return defer.DeferredList(dl)
 
     def createMsgC(self, payload):
         c = self.db.cursor()
