@@ -203,7 +203,7 @@ class WebPort(service.MultiService):
         self.basedir = basedir
         self.node = node
 
-        root = Root()
+        self.root = root = Root()
 
         if node.client:
             # Access tokens last as long as the node is running: they are
@@ -256,3 +256,6 @@ class WebPort(service.MultiService):
                     log.err()
                 return port
             d.addCallback(_ready)
+
+    def getRoot(self):
+        return self.root

@@ -37,6 +37,10 @@ class Node(service.MultiService):
     def init_webport(self):
         w = web.WebPort(self.basedir, self, self.db)
         w.setServiceParent(self)
+        self.webroot = w.getRoot()
+
+    def get_webroot(self):
+        return self.webroot # root Resource
 
     def init_client(self):
         from . import client
