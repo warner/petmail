@@ -1,8 +1,9 @@
 from twisted.trial import unittest
 from hashlib import sha256
-from nacl.public import PrivateKey
+from nacl.public import PrivateKey, PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel
+from ..mailbox.transport import parseMsgA, parseMsgB
 
 class msgC(TwoNodeMixin, unittest.TestCase):
     def test_create_and_parse(self):
@@ -96,7 +97,14 @@ class Send(TwoNodeMixin, unittest.TestCase):
         nA, nB, entA, entB = self.make_nodes()
         d = nA.client.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
-            pass
+            msgA = res[0][1]
+            self.failUnless(msgA.startswith("a0:"))
+            pubkey1_s, boxed = parseMsgA(msgA)
+            tpriv = self.tport2[0]["privkey"]
+            b = Box(tpriv, PublicKey(pubkey1_s))
+            msgB = b.decrypt(boxed)
+            MSTID, msgC = parseMsgB(msgB)
+
         d.addCallback(_sent)
         return d
 
