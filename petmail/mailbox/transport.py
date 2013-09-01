@@ -6,11 +6,11 @@ I know how to build a msgC into a msgA, and how to parse msgA into a msgC.
 from ..util import remove_prefix, split_into
 from ..netstring import split_netstrings_and_trailer
 from .delivery.http import OutboundHTTPTransport
-from .delivery.loopback import LoopbackTransport
+from .delivery.test import ReturnTransport
 
 def make_transport(db, trecord):
-    if trecord["type"] == "loopback":
-        return LoopbackTransport(db, trecord)
+    if trecord["type"] == "test-return":
+        return ReturnTransport(db, trecord)
     elif trecord["type"] == "http":
         return OutboundHTTPTransport(db, trecord)
     else:

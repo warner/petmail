@@ -4,7 +4,7 @@
 from twisted.internet import defer
 from .common import createMsgA
 
-class LoopbackTransport:
+class ReturnTransport:
     def __init__(self, db, trecord):
         self.db = db
         self.trecord = trecord

@@ -54,7 +54,7 @@ def fake_transport():
                "TID": (TID_tokenid, TID_privkey, TID_token0) }
     # this is what lives in our database. All channels that share the same
     # transport will use the same thing.
-    db_record = { "for_sender": {"type": "loopback",
+    db_record = { "for_sender": {"type": "test-return",
                                  "transport_pubkey": pubkey_hex,
                                  },
                   "for_recipient": {"TID": TID_token0.encode("hex") },
