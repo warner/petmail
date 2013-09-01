@@ -1,5 +1,6 @@
 from twisted.trial import unittest
 from hashlib import sha256
+from nacl.public import PrivateKey
 from .common import TwoNodeMixin
 from ..mailbox import channel
 
@@ -20,7 +21,7 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(HmsgD, sha256(msgD).digest())
 
         keys = [(entB["my_new_channel_privkey"], "keyid")]
-        msgE, keyid, pubkey2_s = channel.decrypt_msgD(msgD, keys)
+        keyid, pubkey2_s, msgE = channel.decrypt_msgD(msgD, keys)
 
         their_verfkey = entB["their_verfkey"].decode("hex")
         seqnum, payload2 = channel.check_msgE(msgE, pubkey2_s,
@@ -45,8 +46,15 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         # test CIDBox
         cid,which_key = channel.find_channel_from_CIDBox(nB.db, CIDBox)
         self.failUnlessEqual(cid, entB2["id"])
-        # this is a trick question: both old/new keys are the same so far.
-        # But it should match at least one of them: it isn't unknown.
-        self.failUnlessIn(which_key, ["old", "new"])
+        # the CIDBox claims to tell us which key to use. We won't actually
+        # use it unless it matches the cid that was able to open the CIDBox
+        privkey_s = entB2["my_new_channel_privkey"].decode("hex")
+        pubkey = PrivateKey(privkey_s).public_key.encode()
+        self.failUnlessEqual(which_key, pubkey)
+
+        # but other clients should not recognize this CIDBox
+        cid,which_key = channel.find_channel_from_CIDBox(nA.db, CIDBox)
+        self.failUnlessEqual(cid, None)
+        self.failUnlessEqual(which_key, None)
 
         # TODO: test trial-descryption of msgC

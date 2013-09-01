@@ -62,6 +62,8 @@ class ChannelManager:
         # return an InboundChannel object for it
         return InboundChannel(self.db, their_verfkey_hex)
 
+# receiving msgC: work inwards, getting hints on which channel to use
+
 def parse_msgC(msgC):
     if not msgC.startswith("c0:"):
         raise ValueError("corrupt msgC")
@@ -70,6 +72,69 @@ def parse_msgC(msgC):
     (CIDBox,), msgD = split_netstrings_and_trailer(msgC[32:])
     return CIDToken, CIDBox, msgD
 
+def find_channel_from_CIDToken(db, CIDToken):
+    # XXX not implemented
+    cid = None
+    known_channel_pubkey = None # e.g. unknown
+    return cid, known_channel_pubkey
+
+def find_channel_from_CIDBox(db, CIDBox):
+    c = db.cursor()
+    c.execute("SELECT id, my_CID_key, highest_inbound_seqnum FROM addressbook")
+    for row in c.fetchall():
+        try:
+            CIDKey = row["my_CID_key"].decode("hex")
+            seqnum, HmsgD, channel_pubkey = decrypt_CIDBox(CIDKey, CIDBox)
+            # if we get here, the CIDBox matches this channel. We're allowed
+            # to reject the message if the seqnum shows it to be a replay.
+            if seqnum <= row["highest_inbound_seqnum"]:
+                raise ReplayError("seqnum in CIDBox is too old")
+            return row["id"], channel_pubkey
+        except CryptoError:
+            pass
+    return None, None
+
+def build_channel_keylist(db, known_cid):
+    c = db.cursor()
+    if known_cid:
+        c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
+                  " FROM addressbook WHERE id=?", (known_cid,))
+    else:
+        c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
+                  " FROM addressbook")
+    for row in c.fetchall():
+        yield (row["my_old_channel_privkey"], (row["id"], "old"))
+        yield (row["my_new_channel_privkey"], (row["id"], "new"))
+
+def filter_on_known_channel_pubkey(keylist, known_channel_pubkey):
+    assert known_channel_pubkey
+    for (privkey_hex, keyid) in keylist:
+        pubkey = PrivateKey(privkey_hex.decode("hex")).public_key.encode()
+        if pubkey == known_channel_pubkey:
+            yield (privkey_hex, keyid)
+
+# this builds a list of candidates, filtered with any hints we got
+def find_channel_list(db, CIDToken, CIDBox):
+    cid, known_channel_pubkey = find_channel_from_CIDToken(db, CIDToken)
+    if not cid:
+        cid, known_channel_pubkey = find_channel_from_CIDBox(db, CIDBox)
+    keylist = build_channel_keylist(db, cid)
+    if known_channel_pubkey:
+        keylist = filter_on_known_channel_pubkey(keylist, known_channel_pubkey)
+    return keylist
+
+# then we trial-decrypt with all candidates
+def decrypt_msgD(msgD, keylist):
+    pubkey2_s, enc = split_into(msgD, [32], True)
+    pubkey2 = PublicKey(pubkey2_s)
+    for (privkey_hex, keyid) in keylist:
+        try:
+            privkey = PrivateKey(privkey_hex.decode("hex"))
+            msgE = Box(privkey, pubkey2).decrypt(enc)
+            return keyid, pubkey2_s, msgE
+        except CryptoError:
+            pass
+
 def decrypt_CIDBox(CIDKey, CIDBox):
     sb = SecretBox(CIDKey)
     m = sb.decrypt(CIDBox) # may raise CryptoError
@@ -77,16 +142,7 @@ def decrypt_CIDBox(CIDKey, CIDBox):
     seqnum = struct.unpack(">Q", seqnum_s)[0]
     return seqnum, HmsgD, channel_pubkey
 
-def decrypt_msgD(msgD, privkeys):
-    pubkey2_s, enc = split_into(msgD, [32], True)
-    pubkey2 = PublicKey(pubkey2_s)
-    for (privkey_hex, keyid) in privkeys:
-        try:
-            privkey = PrivateKey(privkey_hex.decode("hex"))
-            msgE = Box(privkey, pubkey2).decrypt(enc)
-            return msgE, keyid, pubkey2_s
-        except CryptoError:
-            pass
+# then validate on the way back out
 
 def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
     seqnum_s = msgE[:8]
@@ -100,32 +156,22 @@ def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
         raise WrongVerfkeyError()
     return seqnum, json.loads(payload_s)
 
-def find_channel_from_CIDToken(db, CIDToken):
-    # XXX not implemented
-    cid = None
-    which_channel_key = None # e.g. unknown
-    return cid, which_channel_key
-
-def find_channel_from_CIDBox(db, CIDBox):
-    c = db.cursor()
-    c.execute("SELECT id, my_CID_key,"
-              " my_old_channel_privkey, my_new_channel_privkey"
-              " FROM addressbook")
-    for row in c.fetchall():
-        try:
-            CIDKey = row["my_CID_key"].decode("hex")
-            seqnum, HmsgD, channel_pubkey = decrypt_CIDBox(CIDKey, CIDBox)
-            which_channel_key = None
-            old_priv = PrivateKey(row["my_old_channel_privkey"].decode("hex"))
-            if channel_pubkey == old_priv.public_key.encode():
-                which_channel_key = "old"
-            new_priv = PrivateKey(row["my_new_channel_privkey"].decode("hex"))
-            if channel_pubkey == new_priv.public_key.encode():
-                which_channel_key = "new"
-            return row["id"], which_channel_key
-        except CryptoError:
-            pass
-    return None, None
+def validate_msgC((CIDKey, channel_pubkey), seqnum_from_msgE, CIDBox, CIDToken, msgD):
+    # decrypt_CIDBox will fail if it wasn't encrypted with the right
+    # channel_key
+    (seqnum_from_CIDBox,
+     HmsgD,
+     channel_pubkey_from_CIDBox) = decrypt_CIDBox(CIDKey, CIDBox)
+    if seqnum_from_CIDBox != seqnum_from_msgE:
+        raise ValueError("CIDBox seqnum mismatch (vs msgE)")
+    if channel_pubkey_from_CIDBox != channel_pubkey:
+        raise ValueError("CIDBox pubkey mismatch (vs msgD)")
+    if HmsgD != sha256(msgD).digest():
+        raise ValueError("CIDBox HmsgD mismatch")
+    if build_CIDToken(CIDKey, seqnum_from_msgE) != CIDToken:
+        raise ValueError("CIDToken was wrong")
+    # ok, message is valid. Caller should update highest_seen_seqnum and
+    # deliver the payload
 
 class InboundChannel:
     """I am given a msgC. I will decrypt it, update the channel database
@@ -193,6 +239,10 @@ class InboundChannel:
     def bodyReceived(self, body):
         pass
 
+def build_CIDToken(CIDKey, seqnum):
+    seqnum_s = struct.pack(">Q", seqnum)
+    return HKDF(IKM=CIDKey+seqnum_s, dkLen=32, info=b"petmail.org/v1/CIDToken")
+
 assert struct.calcsize(">Q")*8 == 64
 
 class OutboundChannel:
@@ -238,8 +288,7 @@ class OutboundChannel:
         msgD = pubkey2 + channel_box.encrypt(msgE, os.urandom(Box.NONCE_SIZE))
 
         HmsgD = sha256(msgD).digest()
-        CIDToken = HKDF(IKM=CIDKey+seqnum_s, dkLen=32,
-                        info=b"petmail.org/v1/CIDToken")
+        CIDToken = build_CIDToken(CIDKey, next_outbound_seqnum)
         sb = SecretBox(CIDKey)
         CIDBox = sb.encrypt(seqnum_s+HmsgD+channel_pubkey,
                             os.urandom(sb.NONCE_SIZE))
