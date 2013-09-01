@@ -3,7 +3,8 @@ from twisted.trial import unittest
 from nacl.public import PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel, transport
-from ..mailbox.delivery.http import OutboundHTTPTransport
+from ..mailbox.delivery.common import createMsgA
+from ..mailbox.delivery.loopback import LoopbackTransport
 
 class Transports(TwoNodeMixin, unittest.TestCase):
     def test_create_from_channel(self):
@@ -11,7 +12,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         c = channel.OutboundChannel(nA.db, entA["id"])
         transports = c.createTransports()
         self.failUnlessEqual(len(transports), 1)
-        self.failUnless(isinstance(transports[0], OutboundHTTPTransport))
+        self.failUnless(isinstance(transports[0], LoopbackTransport))
 
         #ic = channel.InboundChannel(nB.db, entB["id"], None)
 
@@ -20,7 +21,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         msgC = "msgC"
 
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
-        msgA = transport.createMsgA(trec, msgC)
+        msgA = createMsgA(trec, msgC)
 
         pubkey1_s, boxed = transport.parseMsgA(msgA)
         tpriv = self.tport2[0]["privkey"]
