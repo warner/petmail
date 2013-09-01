@@ -151,60 +151,6 @@ class API(resource.Resource):
         r = rclass(self.db, self.client, payload)
         return r
 
-class OFF:
-    def render_POST(self, request):
-        method = str(r["method"])
-        c = self.db.cursor()
-        data = None
-        text = "unknown query"
-        if method == "webport":
-            c.execute("SELECT `webport` FROM `node`")
-            text = c.fetchone()[0]
-        elif method == "inbox_location":
-            c.execute("SELECT `inbox_location` FROM `client_config`")
-            text = c.fetchone()[0]
-        elif method == "relay_connected":
-            connected = self.client.control_relayConnected()
-            if connected:
-                text = "connected"
-            else:
-                text = "not connected"
-        elif method == "pubkey":
-            c.execute("SELECT `pubkey` FROM `client_config`")
-            text = c.fetchone()[0]
-        elif method == "profile-set-name":
-            self.client.control_setProfileName(str(r["args"]["name"]))
-        elif method == "profile-name":
-            text = self.client.control_getProfileName()
-        elif method == "profile-set-icon":
-            self.client.control_setProfileIcon(str(r["args"]["icon-data"]))
-            data = {}
-        elif method == "profile-get-icon":
-            data = {"icon-data": self.client.control_getProfileIcon()}
-        elif method == "getOutboundInvitations":
-            data = self.client.control_getOutboundInvitationsJSONable()
-        elif method == "getAddressBook":
-            data = self.client.control_getAddressBookJSONable()
-        elif method == "deleteAddressBookEntry":
-            self.client.control_deleteAddressBookEntry(str(r["args"]["petname"]))
-        elif method == "sendMessage":
-            self.client.control_sendMessage(r["args"])
-        elif method == "startInvitation":
-            self.client.control_startInvitation(r["args"])
-        elif method == "sendInvitation":
-            data = self.client.control_sendInvitation(str(r["args"]["name"]))
-        elif method == "cancelInvitation":
-            self.client.control_cancelInvitation(r["args"])
-        elif method == "acceptInvitation":
-            self.client.control_acceptInvitation(str(r["args"]["name"]),
-                                                 str(r["args"]["code"]))
-            text = "process started"
-        else:
-            raise ValueError("Unknown method '%s'" % method)
-        if data is not None:
-            return json.dumps(data)
-        return json.dumps({"text": str(text)})
-
 class ControlOpener(resource.Resource):
     def __init__(self, db, access_token):
         resource.Resource.__init__(self)
