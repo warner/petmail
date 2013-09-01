@@ -1,7 +1,8 @@
 import re, struct, json, os
 from hashlib import sha256
 from .. import rrid
-from ..errors import SilentError, ReplayError, WrongVerfkeyError
+from ..errors import (SilentError, ReplayError, WrongVerfkeyError,
+                      UnknownChannelError)
 from ..util import split_into, equal, verify_with_prefix
 from ..hkdf import HKDF
 from ..netstring import netstring, split_netstrings_and_trailer
@@ -95,7 +96,9 @@ def find_channel_from_CIDBox(db, CIDBox):
     return None, None
 
 def build_channel_keylist(db, known_cid):
+    # generates list of (PrivateKey, (cid, which, PublicKey))
     c = db.cursor()
+    # TODO: limit this by the transport the message arrived on
     if known_cid:
         c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
                   " FROM addressbook WHERE id=?", (known_cid,))
@@ -103,8 +106,11 @@ def build_channel_keylist(db, known_cid):
         c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
                   " FROM addressbook")
     for row in c.fetchall():
-        yield (row["my_old_channel_privkey"], (row["id"], "old"))
-        yield (row["my_new_channel_privkey"], (row["id"], "new"))
+        privkey = PrivateKey(row["my_old_channel_privkey"].decode("hex"))
+        yield (privkey, (row["id"], "old", privkey.public_key))
+
+        privkey = PrivateKey(row["my_new_channel_privkey"].decode("hex"))
+        yield (privkey, (row["id"], "new", privkey.public_key))
 
 def filter_on_known_channel_pubkey(keylist, known_channel_pubkey):
     assert known_channel_pubkey
@@ -134,13 +140,14 @@ def decrypt_msgD(msgD, keylist):
             return keyid, pubkey2_s, msgE
         except CryptoError:
             pass
+    return None, None, None
 
 def decrypt_CIDBox(CIDKey, CIDBox):
     sb = SecretBox(CIDKey)
     m = sb.decrypt(CIDBox) # may raise CryptoError
-    seqnum_s,HmsgD,channel_pubkey = split_into(m, [8, 32, 32])
+    seqnum_s,HmsgD,channel_pubkey_s = split_into(m, [8, 32, 32])
     seqnum = struct.unpack(">Q", seqnum_s)[0]
-    return seqnum, HmsgD, channel_pubkey
+    return seqnum, HmsgD, channel_pubkey_s
 
 # then validate on the way back out
 
@@ -156,15 +163,15 @@ def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
         raise WrongVerfkeyError()
     return seqnum, json.loads(payload_s)
 
-def validate_msgC((CIDKey, channel_pubkey), seqnum_from_msgE, CIDBox, CIDToken, msgD):
+def validate_msgC(CIDKey, channel_pubkey,
+                  seqnum_from_msgE, CIDBox, CIDToken, msgD):
     # decrypt_CIDBox will fail if it wasn't encrypted with the right
     # channel_key
-    (seqnum_from_CIDBox,
-     HmsgD,
-     channel_pubkey_from_CIDBox) = decrypt_CIDBox(CIDKey, CIDBox)
+    (seqnum_from_CIDBox, HmsgD,
+     channel_pubkey_s_from_CIDBox) = decrypt_CIDBox(CIDKey, CIDBox)
     if seqnum_from_CIDBox != seqnum_from_msgE:
         raise ValueError("CIDBox seqnum mismatch (vs msgE)")
-    if channel_pubkey_from_CIDBox != channel_pubkey:
+    if channel_pubkey_s_from_CIDBox != channel_pubkey.encode():
         raise ValueError("CIDBox pubkey mismatch (vs msgD)")
     if HmsgD != sha256(msgD).digest():
         raise ValueError("CIDBox HmsgD mismatch")
@@ -172,6 +179,29 @@ def validate_msgC((CIDKey, channel_pubkey), seqnum_from_msgE, CIDBox, CIDToken, 
         raise ValueError("CIDToken was wrong")
     # ok, message is valid. Caller should update highest_seen_seqnum and
     # deliver the payload
+
+def process_msgC(db, msgC):
+    CIDToken, CIDBox, msgD = parse_msgC(msgC)
+    keylist = find_channel_list(db, CIDToken, CIDBox)
+    keyid, pubkey2_s, msgE = decrypt_msgD(msgD, keylist)
+    if not keyid:
+        raise UnknownChannelError()
+    cid, which_key, channel_pubkey = keyid
+    c = db.cursor()
+    c.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey_hex"
+              " FROM addressbook WHERE id=?", (cid,))
+    row = c.fetchone()
+    seqnum, payload = check_msgE(msgE, pubkey2_s,
+                                 row["their_verfkey"].decode("hex"),
+                                 row["highest_inbound_seqnum"])
+    # seqnum > highest_inbound_seqnum
+    validate_msgC(row["my_CID_key"].decode("hex"), channel_pubkey,
+                  seqnum, CIDBox, CIDToken, msgD)
+    c.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
+              (seqnum, cid))
+    db.commit()
+    return cid, payload
+
 
 class InboundChannel:
     """I am given a msgC. I will decrypt it, update the channel database

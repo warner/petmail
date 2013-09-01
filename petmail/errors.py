@@ -16,3 +16,7 @@ class WrongVerfkeyError(Exception):
 
 class BadSignatureError(Exception):
     pass
+
+class UnknownChannelError(Exception):
+    """Message not decryptable by any of our channels."""
+
