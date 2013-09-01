@@ -1,11 +1,13 @@
 import os.path, weakref, json
 from twisted.application import service
 from nacl.signing import SigningKey
+from nacl.public import PrivateKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .rendezvous import localdir
 from .errors import CommandError
 from .mailbox import channel
+from .mailbox.server import LocalServer
 
 class Client(service.MultiService):
     def __init__(self, db, basedir):
@@ -14,11 +16,13 @@ class Client(service.MultiService):
 
         self.subscribers = weakref.WeakKeyDictionary()
 
+        self.local_server = None
         self.mailboxClients = set()
         c = self.db.cursor()
-        c.execute("SELECT `private_descriptor` FROM `mailboxes`")
+        c.execute("SELECT id, private_descriptor_json FROM mailboxes")
         for row in c.fetchall():
-            rc = self.buildRetrievalClient(str(row[0]))
+            privdesc = json.loads(row["private_descriptor_json"])
+            rc = self.buildRetrievalClient(row["id"], privdesc)
             self.subscribeToMailbox(rc)
 
         self.im = invitation.InvitationManager(db, self)
@@ -27,17 +31,36 @@ class Client(service.MultiService):
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
 
-    def buildRetrievalClient(self, private_descriptor):
+    def maybe_create_local_mailbox(self):
+        # if we aren't already running a local mailbox, start one
+        if not self.local_server:
+            c = self.db.cursor()
+            c.execute("SELECT id, private_descriptor_json FROM mailboxes")
+            for row in c.fetchall():
+                privdesc = json.loads(row["private_descriptor_json"])
+                if privdesc["type"] != "local":
+                    continue
+                self.local_server = LocalServer(privdesc)
+                self.local_server.setServiceParent(self)
+                break
+        return self.local_server
+
+    def buildRetrievalClient(self, tid, private_descriptor):
         # parse descriptor, import correct module and constructor
-        bits = private_descriptor.split(":")
-        retrieval_type = bits[0]
-        if retrieval_type == "direct-http":
-            from .mailbox.retrieval import direct_http
-            retrieval_class = direct_http.DirectHTTPMailboxRetrievalClient
+        extra_args = {}
+        retrieval_type = private_descriptor["type"]
+        if retrieval_type == "http":
+            from .mailbox.retrieval import from_http_server
+            retrieval_class = from_http_server.HTTPRetriever
+        elif retrieval_type == "local":
+            from .mailbox.retrieval.local import LocalRetriever
+            retrieval_class = LocalRetriever
+            extra_args["server"] = self.maybe_create_local_mailbox()
         else:
             raise CommandError("unrecognized mailbox-retrieval protocol '%s'"
                                % retrieval_type)
-        rc = retrieval_class(private_descriptor, self, self.db)
+        rc = retrieval_class(tid, private_descriptor, self, self.db,
+                             **extra_args)
         return rc
 
     def subscribeToMailbox(self, rc):
@@ -47,14 +70,46 @@ class Client(service.MultiService):
         # child, that happens here.
         rc.setServiceParent(self)
 
-    def command_add_mailbox(self, private_descriptor):
-        # make sure we can build it, before committing it to the DB
-        rc = self.buildRetrievalClient(private_descriptor)
+    def command_add_mailbox(self, public_descriptor, private_descriptor):
+        # it'd be nice to make sure we can build it, before committing it to
+        # the DB. But we need the tid first, which comes from the DB. The
+        # commit-after-build below might accomplish this anyways.
         c = self.db.cursor()
-        c.execute("INSERT INTO mailboxes (private_descriptor) VALUES (?)",
-                  (private_descriptor,))
+        c.execute("INSERT INTO mailboxes"
+                  " (descriptor_json, private_descriptor_json)"
+                  " VALUES (?,?)",
+                  (json.dumps(public_descriptor),
+                   json.dumps(private_descriptor)))
+        tid = c.lastrowid
+        rc = self.buildRetrievalClient(tid, private_descriptor)
         self.db.commit()
         self.subscribeToMailbox(rc)
+
+    def command_enable_local_mailbox(self):
+        # create the persistent state needed to run a mailbox from our webapi
+        # port. Then activate it. This should only be called once.
+        if self.local_server:
+            raise CommandError("local server already activated")
+        privkey = PrivateKey.generate()
+        pubkey = privkey.public_key
+        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+
+        pubdesc = { "type": "http",
+                    # TODO: we must learn our local ipaddr and the webport
+                    "url": "http://localhost:8009/mailbox",
+                    "transport_pubkey": pubkey.encode().encode("hex"),
+                    "TID": TID_token0.encode("hex"),
+                   }
+        privdesc = { "transport_privkey": privkey.encode().encode("hex"),
+                     "TID_private_key": TID_privkey,
+                     "TID_tokenid": TID_tokenid,
+                    }
+        self.command_add_mailbox(pubdesc, privdesc)
+        # that will add self.local_server, and persist the mailbox info
+
+    def message_received(self, tid, msgC):
+        assert msgC.startswith("c0:")
+        pass
 
     def command_invite(self, petname, code, override_transports=None):
         base_transports = self.get_transports()

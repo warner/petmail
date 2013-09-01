@@ -29,9 +29,9 @@ CREATE TABLE `webapi_access_tokens`
 
 CREATE TABLE `mailboxes` -- one per mailbox
 (
- `descriptor` STRING, -- given to peers, tells them how to send us messages
- `private_descriptor` STRING -- kept secret, tells us how to read inbox
- `TID` STRING -- Transport ID, shared with mailbox, identifies our queue
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `descriptor_json` STRING, -- give to peers, tells them how to send us messages
+ `private_descriptor_json` STRING -- kept secret, tells us how to read inbox
 );
 
 CREATE TABLE `client_profile` -- contains one row

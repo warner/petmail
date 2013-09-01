@@ -6,10 +6,10 @@ from twisted.trial import unittest
 
 class Import(unittest.TestCase):
     def test_import_all(self):
-        from .. import _version, base32, client, database, errors, hkdf
-        del _version, base32, client, database, errors, hkdf
-        from .. import invitation, node, rrid, util, web
-        del invitation, node, rrid, util, web
+        from .. import _version, base32, client, database, errors, eventual
+        del _version, base32, client, database, errors, eventual
+        from .. import hkdf, invitation, netstring, node, rrid, util, web
+        del hkdf, invitation, netstring, node, rrid, util, web
 
         from ..rendezvous import localdir
         del localdir
@@ -17,11 +17,11 @@ class Import(unittest.TestCase):
         from ..scripts import create_node, open, runner, startstop, webwait
         del create_node, open, runner, startstop, webwait
 
-        from ..mailbox import channel, server
-        del channel, server
+        from ..mailbox import channel, server, transport
+        del channel, server, transport
 
-        from ..mailbox.delivery import http
-        del http
+        from ..mailbox.delivery import common, http, loopback
+        del common, http, loopback
 
-        from ..mailbox.retrieval import direct, direct_http, from_http_server
-        del direct, direct_http, from_http_server
+        from ..mailbox.retrieval import local as local2, from_http_server
+        del local2, from_http_server
