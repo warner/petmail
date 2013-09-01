@@ -20,8 +20,9 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         seqnum, HmsgD, channel_pubkey = channel.decrypt_CIDBox(CIDKey, CIDBox)
         self.failUnlessEqual(HmsgD, sha256(msgD).digest())
 
-        keys = [(entB["my_new_channel_privkey"], "keyid")]
-        keyid, pubkey2_s, msgE = channel.decrypt_msgD(msgD, keys)
+        Bkey = PrivateKey(entB["my_new_channel_privkey"].decode("hex"))
+        keylist = [(Bkey, "keyid")]
+        keyid, pubkey2_s, msgE = channel.decrypt_msgD(msgD, keylist)
 
         their_verfkey = entB["their_verfkey"].decode("hex")
         seqnum, payload2 = channel.check_msgE(msgE, pubkey2_s,
@@ -29,15 +30,32 @@ class msgC(TwoNodeMixin, unittest.TestCase):
                                               entB["highest_inbound_seqnum"])
         self.failUnlessEqual(payload, payload2)
 
+    def get_inbound_seqnum(self, c, cid):
+        c.execute("SELECT highest_inbound_seqnum FROM addressbook"
+                  " WHERE id=?", (cid,))
+        return c.fetchone()[0]
+
+    def get_outbound_seqnum(self, c, cid):
+        c.execute("SELECT next_outbound_seqnum FROM addressbook"
+                  " WHERE id=?", (cid,))
+        return c.fetchone()[0]
+
     def test_channel_dispatch(self):
         nA, nB, entA, entB = self.make_nodes()
         entA2, entB2 = self.add_new_channel(nA, nB)
         entA3, entB3 = self.add_new_channel(nA, nB)
+        cA = nA.db.cursor()
+        cB = nB.db.cursor()
+        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 1)
+        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
 
-        c = channel.OutboundChannel(nA.db, entA2["id"])
+        chan = channel.OutboundChannel(nA.db, entA2["id"])
         payload = {"hi": "there"}
-        msgC = c.createMsgC(payload)
+        msgC = chan.createMsgC(payload)
         self.failUnless(msgC.startswith("c0:"))
+
+        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
 
         CIDToken, CIDBox, msgD = channel.parse_msgC(msgC)
 
@@ -52,9 +70,23 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         pubkey = PrivateKey(privkey_s).public_key.encode()
         self.failUnlessEqual(which_key, pubkey)
 
+        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+
         # but other clients should not recognize this CIDBox
         cid,which_key = channel.find_channel_from_CIDBox(nA.db, CIDBox)
         self.failUnlessEqual(cid, None)
         self.failUnlessEqual(which_key, None)
 
-        # TODO: test trial-descryption of msgC
+        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+
+        # this exercises the full processing path, which will increment both
+        # outbound and inbound seqnums
+        cid2, payload2 = channel.process_msgC(nB.db, msgC)
+
+        self.failUnlessEqual(cid2, entB2["id"])
+        self.failUnlessEqual(payload2, payload)
+
+        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 1)

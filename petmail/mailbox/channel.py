@@ -85,12 +85,12 @@ def find_channel_from_CIDBox(db, CIDBox):
     for row in c.fetchall():
         try:
             CIDKey = row["my_CID_key"].decode("hex")
-            seqnum, HmsgD, channel_pubkey = decrypt_CIDBox(CIDKey, CIDBox)
+            seqnum, HmsgD, channel_pubkey_s = decrypt_CIDBox(CIDKey, CIDBox)
             # if we get here, the CIDBox matches this channel. We're allowed
             # to reject the message if the seqnum shows it to be a replay.
             if seqnum <= row["highest_inbound_seqnum"]:
                 raise ReplayError("seqnum in CIDBox is too old")
-            return row["id"], channel_pubkey
+            return row["id"], channel_pubkey_s
         except CryptoError:
             pass
     return None, None
@@ -112,30 +112,29 @@ def build_channel_keylist(db, known_cid):
         privkey = PrivateKey(row["my_new_channel_privkey"].decode("hex"))
         yield (privkey, (row["id"], "new", privkey.public_key))
 
-def filter_on_known_channel_pubkey(keylist, known_channel_pubkey):
-    assert known_channel_pubkey
-    for (privkey_hex, keyid) in keylist:
-        pubkey = PrivateKey(privkey_hex.decode("hex")).public_key.encode()
-        if pubkey == known_channel_pubkey:
-            yield (privkey_hex, keyid)
+def filter_on_known_channel_pubkey(keylist, known_channel_pubkey_s):
+    assert known_channel_pubkey_s
+    for (privkey, keyid) in keylist:
+        if privkey.public_key.encode() == known_channel_pubkey_s:
+            yield (privkey, keyid)
 
 # this builds a list of candidates, filtered with any hints we got
 def find_channel_list(db, CIDToken, CIDBox):
-    cid, known_channel_pubkey = find_channel_from_CIDToken(db, CIDToken)
+    cid, known_channel_pubkey_s = find_channel_from_CIDToken(db, CIDToken)
     if not cid:
-        cid, known_channel_pubkey = find_channel_from_CIDBox(db, CIDBox)
+        cid, known_channel_pubkey_s = find_channel_from_CIDBox(db, CIDBox)
     keylist = build_channel_keylist(db, cid)
-    if known_channel_pubkey:
-        keylist = filter_on_known_channel_pubkey(keylist, known_channel_pubkey)
+    if known_channel_pubkey_s:
+        keylist = filter_on_known_channel_pubkey(keylist,
+                                                 known_channel_pubkey_s)
     return keylist
 
 # then we trial-decrypt with all candidates
 def decrypt_msgD(msgD, keylist):
     pubkey2_s, enc = split_into(msgD, [32], True)
     pubkey2 = PublicKey(pubkey2_s)
-    for (privkey_hex, keyid) in keylist:
+    for (privkey, keyid) in keylist:
         try:
-            privkey = PrivateKey(privkey_hex.decode("hex"))
             msgE = Box(privkey, pubkey2).decrypt(enc)
             return keyid, pubkey2_s, msgE
         except CryptoError:
@@ -188,7 +187,7 @@ def process_msgC(db, msgC):
         raise UnknownChannelError()
     cid, which_key, channel_pubkey = keyid
     c = db.cursor()
-    c.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey_hex"
+    c.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey"
               " FROM addressbook WHERE id=?", (cid,))
     row = c.fetchone()
     seqnum, payload = check_msgE(msgE, pubkey2_s,
