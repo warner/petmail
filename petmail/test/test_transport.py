@@ -59,14 +59,16 @@ class Transports(TwoNodeMixin, unittest.TestCase):
     def test_send_local_payload(self):
         nA, nB, entA, entB = self.make_nodes(transport="local")
         payloads = []
-        def payload_received(tid, msgC):
-            payloads.append((tid,msgC))
+        def payload_received(tid, seqnum, msgC):
+            payloads.append((tid,seqnum,msgC))
         nB.client.payload_received = payload_received
         d = nA.client.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             self.failUnlessEqual(len(payloads), 1)
-            self.failUnlessEqual(payloads[0][0], entB["id"])
-            self.failUnlessEqual(payloads[0][1], {"hi": "world"})
+            tid,seqnum,payload = payloads[0]
+            self.failUnlessEqual(tid, entB["id"])
+            self.failUnlessEqual(seqnum, 1)
+            self.failUnlessEqual(payload, {"hi": "world"})
         d.addCallback(_sent)
 
         # now bounce node B and confirm that it can grab the server port when
@@ -79,8 +81,10 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         d.addCallback(lambda _: nA.client.send_message(entA["id"], {"hi": "2"}))
         def _sent2(res):
             self.failUnlessEqual(len(payloads), 2)
-            self.failUnlessEqual(payloads[1][0], entB["id"])
-            self.failUnlessEqual(payloads[1][1], {"hi": "2"})
+            tid,seqnum,payload = payloads[1]
+            self.failUnlessEqual(tid, entB["id"])
+            self.failUnlessEqual(seqnum, 2)
+            self.failUnlessEqual(payload, {"hi": "2"})
         d.addCallback(_sent2)
 
         return d

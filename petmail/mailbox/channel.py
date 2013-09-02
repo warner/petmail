@@ -160,7 +160,7 @@ def process_msgC(db, msgC):
     c.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
               (seqnum, cid))
     db.commit()
-    return cid, payload
+    return cid, seqnum, payload
 
 def build_CIDToken(CIDKey, seqnum):
     seqnum_s = struct.pack(">Q", seqnum)

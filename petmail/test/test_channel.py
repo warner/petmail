@@ -84,9 +84,10 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 
         # this exercises the full processing path, which will increment both
         # outbound and inbound seqnums
-        cid2, payload2 = channel.process_msgC(nB.db, msgC)
+        cid2, seqnum, payload2 = channel.process_msgC(nB.db, msgC)
 
         self.failUnlessEqual(cid2, entB2["id"])
+        self.failUnlessEqual(seqnum, 1)
         self.failUnlessEqual(payload2, payload)
 
         self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
