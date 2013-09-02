@@ -91,8 +91,11 @@ class Client(service.MultiService):
 
     def msgC_received(self, tid, msgC):
         assert msgC.startswith("c0:")
-        print "Client.message_received"
-        pass
+        cid, payload = channel.process_msgC(self.db, msgC)
+        self.payload_received(cid, payload)
+
+    def payload_received(self, cid, payload):
+        print "payload_received", cid, payload
 
     def command_invite(self, petname, code, override_transports=None):
         base_transports = self.get_transports()

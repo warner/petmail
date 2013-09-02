@@ -13,8 +13,6 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(len(transports), 1)
         self.failUnless(isinstance(transports[0], ReturnTransport))
 
-        #ic = channel.InboundChannel(nB.db, entB["id"], None)
-
     def test_msgA(self):
         nA, nB, entA, entB = self.make_nodes()
         msgC = "msgC"
@@ -52,5 +50,19 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         def _sent(res):
             self.failUnlessEqual(len(messages), 1)
             self.failUnlessEqual(messages[0][0], entB["id"])
+        d.addCallback(_sent)
+        return d
+
+    def test_send_payload(self):
+        nA, nB, entA, entB = self.make_nodes(transport="local")
+        payloads = []
+        def payload_received(tid, msgC):
+            payloads.append((tid,msgC))
+        nB.client.payload_received = payload_received
+        d = nA.client.send_message(entA["id"], {"hi": "world"})
+        def _sent(res):
+            self.failUnlessEqual(len(payloads), 1)
+            self.failUnlessEqual(payloads[0][0], entB["id"])
+            self.failUnlessEqual(payloads[0][1], {"hi": "world"})
         d.addCallback(_sent)
         return d
