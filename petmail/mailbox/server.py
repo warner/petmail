@@ -54,29 +54,49 @@ class BaseServer(service.MultiService):
     def __init__(self):
         service.MultiService.__init__(self)
 
-class HTTPServer(BaseServer):
-    def __init__(self, webroot):
-        BaseServer.__init__(self)
-        webroot.putChild("inbox", ServerResource(self.handle_msgA))
-
-class LocalServer(HTTPServer):
+class HTTPMailboxServer(BaseServer):
     """I am a local HTTP-based server, attached to our webapi port. I don't
     persist anything myself, but expect my creator to provide me with our
-    persistent state.
+    persistent state. I can deliver messages to a local transport (endpoints
+    inside our same process), or write messages to disk for later retrieval
+    by remote clients.
     """
-
-    def __init__(self, desc, webroot):
-        HTTPServer.__init__(self, webroot)
-        self.TID_privkey = desc["TID_private_key"].decode("hex")
+    def __init__(self, webroot, enable_retrieval, desc):
+        BaseServer.__init__(self)
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
-        # The general HTTPServer hosts multiple transports, and needs a
-        # mapping from TID to a handler (e.g. a queue and some retrieval
-        # credentials). The LocalServer is not shared, so it has exactly one
-        # transport.
-        self.TID_tokenid = desc["TID_tokenid"].decode("hex")
+        self.TID_privkey = desc["TID_private_key"].decode("hex")
 
-    def register_handler(self, handler):
-        self.handler = handler
+        # If we feed a local transport, it will have just one TID. If we
+        # queue messages for any other transports, they'll each have their
+        # own TID and handler (e.g. a queue and some retrieval credentials).
+        self.local_TID0 = desc["local_TID0"].decode("hex")
+        self.local_TID_tokenid = desc["local_TID_tokenid"].decode("hex")
+
+        # this is how we get messages from senders
+        webroot.putChild("mailbox", ServerResource(self.handle_msgA))
+
+        if enable_retrieval:
+            # add a second resource for clients to retrieve messages
+            raise NotImplementedError()
+
+    def get_retrieval_descriptor(self):
+        return { "type": "local",
+                 "transport_privkey": self.privkey.encode().encode("hex"),
+                 "TID_private_key": self.TID_privkey.encode("hex"),
+                 "TID": self.local_TID0.encode("hex"),
+                 "TID_tokenid": self.local_TID_tokenid.encode("hex"),
+                 }
+
+    def get_sender_descriptor(self):
+        pubkey = self.privkey.public_key
+        return { "type": "http",
+                 # TODO: we must learn our local ipaddr and the webport
+                 "url": "http://localhost:8009/mailbox",
+                 "transport_pubkey": pubkey.encode().encode("hex"),
+                 }
+
+    def register_local_transport_handler(self, handler):
+        self.local_transport_handler = handler
 
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
@@ -87,7 +107,9 @@ class LocalServer(HTTPServer):
     def handle_msgB(self, msgB):
         MSTID, msgC = parseMsgB(msgB)
         TID = rrid.decrypt(self.TID_privkey, MSTID)
-        if TID != self.TID_tokenid:
+        if TID == self.local_TID_tokenid:
+            self.local_transport_handler(msgC)
+        else:
+            # TODO: look up registered transports, queue message
             raise KeyError("unrecognized transport identifier")
-        self.handler(msgC)
 

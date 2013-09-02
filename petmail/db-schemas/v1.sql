@@ -27,12 +27,22 @@ CREATE TABLE `webapi_access_tokens`
  `token` STRING
 );
 
+CREATE TABLE `mailbox_server_config` -- contains exactly one row
+(
+ -- .transport_privkey, TID_private_key, local_TID0, local_TID_tokenid
+ `private_descriptor_json` STRING,
+ `enable_retrieval` INT -- for public servers
+);
+
 CREATE TABLE `mailboxes` -- one per mailbox
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
   -- give sender_desc to peers, tells them how to send us messages
+  -- .type, (.url), .transport_pubkey
+  -- we will add .STID before sending
  `sender_descriptor_json` STRING,
  -- private_descriptor is for recipient (us), tells us how to read our inbox
+ -- .type, .TID0, (.url), (retrieval credentials)
  `private_descriptor_json` STRING
 );
 

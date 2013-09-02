@@ -1,3 +1,4 @@
+import json
 from twisted.application import service
 from . import database, web
 
@@ -8,14 +9,15 @@ class Node(service.MultiService):
         self.dbfile = dbfile
 
         self.sqlite, self.db = database.get_db(dbfile)
-        self.init_webport()
+        webroot = self.init_webport()
+        self.init_mailbox_server(webroot)
         self.client = None
         c = self.db.cursor()
         c.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
             name = str(name)
             if name == "client":
-                self.init_client(self.webroot)
+                self.init_client()
                 self.web.enable_client(self.client, self.db)
             else:
                 raise ValueError("Unknown service '%s'" % name)
@@ -38,9 +40,23 @@ class Node(service.MultiService):
     def init_webport(self):
         self.web = web.WebPort(self.basedir, self)
         self.web.setServiceParent(self)
-        self.webroot = self.web.getRoot()
+        return self.web.getRoot()
 
-    def init_client(self, webroot):
+    def init_mailbox_server(self, webroot):
+        from .mailbox.server import HTTPMailboxServer
+        c = self.db.cursor()
+        c.execute("SELECT * FROM mailbox_server_config")
+        row = c.fetchone()
+        if row:
+            s = HTTPMailboxServer(webroot,
+                                  bool(row["enable_retrieval"]),
+                                  json.loads(row["private_descriptor_json"]))
+            s.setServiceParent(self)
+            self.mailbox_server = s
+        else:
+            self.mailbox_server = None
+
+    def init_client(self):
         from . import client
-        self.client = client.Client(self.db, self.basedir, webroot)
+        self.client = client.Client(self.db, self.basedir, self.mailbox_server)
         self.client.setServiceParent(self)

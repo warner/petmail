@@ -1,19 +1,17 @@
 import os.path, weakref, json
 from twisted.application import service
 from nacl.signing import SigningKey
-from nacl.public import PrivateKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .rendezvous import localdir
 from .errors import CommandError
 from .mailbox import channel
-from .mailbox.server import LocalServer
 
 class Client(service.MultiService):
-    def __init__(self, db, basedir, webroot):
+    def __init__(self, db, basedir, mailbox_server):
         service.MultiService.__init__(self)
         self.db = db
-        self.webroot = webroot
+        self.mailbox_server = mailbox_server
 
         self.subscribers = weakref.WeakKeyDictionary()
 
@@ -32,20 +30,6 @@ class Client(service.MultiService):
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
 
-    def maybe_create_local_mailbox(self):
-        # if we aren't already running a local mailbox, start one
-        if not self.local_server:
-            c = self.db.cursor()
-            c.execute("SELECT id, private_descriptor_json FROM mailboxes")
-            for row in c.fetchall():
-                privdesc = json.loads(row["private_descriptor_json"])
-                if privdesc["type"] != "local":
-                    continue
-                self.local_server = LocalServer(privdesc, self.webroot)
-                self.local_server.setServiceParent(self)
-                break
-        return self.local_server
-
     def buildRetrievalClient(self, tid, private_descriptor):
         # parse descriptor, import correct module and constructor
         extra_args = {}
@@ -56,7 +40,9 @@ class Client(service.MultiService):
         elif retrieval_type == "local":
             from .mailbox.retrieval.local import LocalRetriever
             retrieval_class = LocalRetriever
-            extra_args["server"] = self.maybe_create_local_mailbox()
+            if not self.mailbox_server:
+                raise ValueError("LocalRetriever requires MailboxServer")
+            extra_args["server"] = self.mailbox_server
         else:
             raise CommandError("unrecognized mailbox-retrieval protocol '%s'"
                                % retrieval_type)
@@ -89,25 +75,21 @@ class Client(service.MultiService):
     def command_enable_local_mailbox(self):
         # create the persistent state needed to run a mailbox from our webapi
         # port. Then activate it. This should only be called once.
-        if self.local_server:
-            raise CommandError("local server already activated")
-        privkey = PrivateKey.generate()
-        pubkey = privkey.public_key
-        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        c = self.db.cursor()
+        c.execute("SELECT * FROM mailboxes")
+        for row in c.fetchall():
+            privdesc = json.loads(row["private_descriptor_json"])
+            if privdesc["type"] == "local":
+                raise CommandError("local server already activated")
+        server = self.mailbox_server
+        self.command_add_mailbox(server.get_sender_descriptor(),
+                                 server.get_retrieval_descriptor())
+        # that will build a Retriever that connects to the local mailbox
+        # server, with persistence for later runs
 
-        pubdesc = { "type": "http",
-                    # TODO: we must learn our local ipaddr and the webport
-                    "url": "http://localhost:8009/mailbox",
-                    "transport_pubkey": pubkey.encode().encode("hex"),
-                   }
-        privdesc = { "type": "local",
-                     "transport_privkey": privkey.encode().encode("hex"),
-                     "TID_private_key": TID_privkey.encode("hex"),
-                     "TID": TID_token0.encode("hex"),
-                     "TID_tokenid": TID_tokenid.encode("hex"),
-                    }
-        self.command_add_mailbox(pubdesc, privdesc)
-        # that will add self.local_server, and persist the mailbox info
+        # TODO: consider telling the server, here, to start accepting TIDs
+        # for the local client (and not accepting such TIDs by default) (and
+        # persist that state for later)
 
     def message_received(self, tid, msgC):
         assert msgC.startswith("c0:")

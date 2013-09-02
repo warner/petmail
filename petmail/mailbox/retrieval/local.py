@@ -18,7 +18,7 @@ class LocalRetriever(service.MultiService):
         service.MultiService.__init__(self)
         self.tid = tid
         self.client = client
-        server.register_handler(self.message_handler)
+        server.register_local_transport_handler(self.message_handler)
 
     def message_handler(self, msgC):
         self.client.message_received(self.tid, msgC)
