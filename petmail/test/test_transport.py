@@ -107,5 +107,13 @@ class Transports(TwoNodeMixin, unittest.TestCase):
             self.failUnlessEqual(rows[0]["seqnum"], 1)
             self.failUnlessEqual(json.loads(rows[0]["payload_json"]), P1)
         d.addCallback(_sent)
+        d.addCallback(lambda _: nB.client.command_fetch_all_messages())
+        def _fetched(messages):
+            self.failUnlessEqual(len(messages), 1)
+            self.failUnlessEqual(messages[0]["id"], 1)
+            self.failUnlessEqual(messages[0]["cid"], entB["id"])
+            self.failUnlessEqual(messages[0]["seqnum"], 1)
+            self.failUnlessEqual(messages[0]["payload"], P1)
+        d.addCallback(_fetched)
 
         return d

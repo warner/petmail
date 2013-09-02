@@ -161,6 +161,16 @@ class Client(service.MultiService):
             resp.append(entry)
         return resp
 
+    def command_fetch_all_messages(self):
+        c = self.db.cursor()
+        c.execute("SELECT * FROM inbound_messages")
+        return [{ "id": row["id"],
+                  "cid": row["cid"],
+                  "seqnum": row["seqnum"],
+                  "payload": json.loads(row["payload_json"]),
+                  }
+                for row in c.fetchall()]
+
 class OFF:
     def control_relayConnected(self):
         return bool(self.connection)

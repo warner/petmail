@@ -144,6 +144,12 @@ class SendBasic(BaseHandler):
         return self.client.command_send_basic_message(cid, message)
 handlers["send-basic"] = SendBasic
 
+class FetchMessages(BaseHandler):
+    def handle(self, payload):
+        return {"ok": "ok",
+                "messages": self.client.command_fetch_all_messages()}
+handlers["fetch-messages"] = FetchMessages
+
 class API(resource.Resource):
     def __init__(self, access_token, db, client):
         resource.Resource.__init__(self)

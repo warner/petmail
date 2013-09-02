@@ -92,6 +92,9 @@ class SendBasicOptions(BasedirParameterMixin, usage.Options):
         self["cid"] = cid
         self["message"] = message
 
+class FetchMessagesOptions(BasedirParameterMixin, usage.Options):
+    pass
+
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
         if not test_args:
@@ -113,6 +116,7 @@ class Options(usage.Options):
                    ("add-mailbox", None, AddMailboxOptions, "Add a new mailbox"),
                    ("enable-local-mailbox", None, EnableLocalMailboxOptions, "Enable the local (in-process) HTTP mailbox"),
                    ("send-basic", None, SendBasicOptions, "Send a basic message"),
+                   ("fetch-messages", None, FetchMessagesOptions, "Fetch all stored messages"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -191,6 +195,14 @@ def render_addressbook(result):
         lines.append(" (our verfkey): %s" % entry["my_verfkey"])
     return "\n".join(lines)+"\n"
 
+def render_messages(result):
+    lines = []
+    for entry in sorted(result["messages"], key=lambda e: e["id"]):
+        lines.append('== %d: (cid=%d #%d)):' % (entry["id"], entry["cid"],
+                                             entry["seqnum"]))
+        lines.append(str(entry["payload"]))
+    return "\n".join(lines)+"\n"
+
 def WebCommand(name, argnames, render=render_text):
     # Build a dispatch function for simple commands that deliver some string
     # arguments to a web API, then display a result.
@@ -226,6 +238,8 @@ DISPATCH = {"create-node": create_node,
             "add-mailbox": WebCommand("add-mailbox", ["descriptor"]),
             "enable-local-mailbox": WebCommand("enable-local-mailbox", []),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),
+            "fetch-messages": WebCommand("fetch-messages", [],
+                                         render=render_messages),
             "accept": accept,
             }
 
