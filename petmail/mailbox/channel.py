@@ -5,7 +5,7 @@ from ..errors import ReplayError, WrongVerfkeyError, UnknownChannelError
 from ..util import split_into, verify_with_prefix
 from ..hkdf import HKDF
 from ..netstring import netstring, split_netstrings_and_trailer
-from .transport import make_transport
+from .delivery import OutboundHTTPTransport, ReturnTransport
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.signing import SigningKey, VerifyKey
 from nacl.secret import SecretBox
@@ -231,4 +231,12 @@ class OutboundChannel:
         res = c.fetchone()
         assert res, "missing cid"
         crec = json.loads(res["their_channel_record_json"])
-        return [make_transport(self.db, t) for t in crec["transports"]]
+        return [self.make_transport(t) for t in crec["transports"]]
+
+    def make_transport(self, trecord):
+        if trecord["type"] == "test-return":
+            return ReturnTransport(self.db, trecord)
+        elif trecord["type"] == "http":
+            return OutboundHTTPTransport(self.db, trecord)
+        else:
+            raise ValueError("unknown transport '%s'" % trecord["type"])

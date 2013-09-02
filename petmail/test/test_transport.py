@@ -2,8 +2,9 @@ import json
 from twisted.trial import unittest
 from nacl.public import PublicKey, Box
 from .common import TwoNodeMixin
-from ..mailbox import channel, transport
+from ..mailbox import channel
 from ..mailbox.delivery import createMsgA, ReturnTransport
+from ..mailbox.server import parseMsgA, parseMsgB
 
 class Transports(TwoNodeMixin, unittest.TestCase):
     def test_create_from_channel(self):
@@ -20,12 +21,12 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
         msgA = createMsgA(trec, msgC)
 
-        pubkey1_s, boxed = transport.parseMsgA(msgA)
+        pubkey1_s, boxed = parseMsgA(msgA)
         tpriv = self.tport2[0]["privkey"]
         b = Box(tpriv, PublicKey(pubkey1_s))
         msgB = b.decrypt(boxed)
 
-        MSTID, msgC2 = transport.parseMsgB(msgB)
+        MSTID, msgC2 = parseMsgB(msgB)
         self.failUnlessEqual(msgC, msgC2)
 
         # TODO: use a stable fake TID private key instead of randomly

@@ -6,9 +6,19 @@
 from twisted.application import service
 from twisted.web import resource
 from nacl.public import PrivateKey, PublicKey, Box
-from ..eventual import eventually
-from .transport import parseMsgA, parseMsgB
 from .. import rrid
+from ..eventual import eventually
+from ..util import remove_prefix, split_into
+from ..netstring import split_netstrings_and_trailer
+
+def parseMsgA(msgA):
+    key_and_boxed = remove_prefix(msgA, "a0:")
+    pubkey1_s, boxed = split_into(key_and_boxed, [32], True)
+    return pubkey1_s, boxed
+
+def parseMsgB(msgB):
+    (MSTID,),msgC = split_netstrings_and_trailer(msgB)
+    return MSTID, msgC
 
 # the Mailbox object decrypts msgA to get msgB, decrypts the TID, looks up a
 # Transport, then dispatches msgB to the transport

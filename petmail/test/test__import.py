@@ -17,8 +17,5 @@ class Import(unittest.TestCase):
         from ..scripts import create_node, open, runner, startstop, webwait
         del create_node, open, runner, startstop, webwait
 
-        from ..mailbox import channel, server, transport
-        del channel, server, transport
-
-        from ..mailbox import delivery, retrieval
-        del delivery, retrieval
+        from ..mailbox import channel, server, delivery, retrieval
+        del channel, server, delivery, retrieval

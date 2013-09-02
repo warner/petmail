@@ -3,7 +3,7 @@ from hashlib import sha256
 from nacl.public import PrivateKey, PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel
-from ..mailbox.transport import parseMsgA, parseMsgB
+from ..mailbox.server import parseMsgA, parseMsgB
 
 class msgC(TwoNodeMixin, unittest.TestCase):
     def test_create_and_parse(self):
