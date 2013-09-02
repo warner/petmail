@@ -65,15 +65,15 @@ class LocalServer(HTTPServer):
     persistent state.
     """
 
-    def __init__(self, desc):
-        HTTPServer.__init__(self)
+    def __init__(self, desc, webroot):
+        HTTPServer.__init__(self, webroot)
         self.TID_privkey = desc["TID_private_key"].decode("hex")
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         # The general HTTPServer hosts multiple transports, and needs a
         # mapping from TID to a handler (e.g. a queue and some retrieval
         # credentials). The LocalServer is not shared, so it has exactly one
         # transport.
-        self.TID_tokenid = desc["TID_tokenid"]
+        self.TID_tokenid = desc["TID_tokenid"].decode("hex")
 
     def register_handler(self, handler):
         self.handler = handler

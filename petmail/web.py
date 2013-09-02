@@ -198,45 +198,45 @@ class Root(resource.Resource):
         self.putChild("media", static.File(MEDIA_DIRNAME))
 
 class WebPort(service.MultiService):
-    def __init__(self, basedir, node, db):
+    def __init__(self, basedir, node):
         service.MultiService.__init__(self)
         self.basedir = basedir
         self.node = node
 
         self.root = root = Root()
 
-        if node.client:
-            # Access tokens last as long as the node is running: they are
-            # cleared at each startup. It's important to clear these before
-            # the web port starts listening, to avoid a race with 'petmail
-            # open' adding a new nonce
-            cursor = db.cursor()
-            cursor.execute("DELETE FROM `webapi_access_tokens`")
-            cursor.execute("DELETE FROM `webapi_opener_tokens`")
-
-            # The access token will be used by both CLI commands (which read
-            # it directly from the database) and the frontend web client
-            # (which fetches it from /open-control with a single-use opener
-            # token).
-            access_token = make_nonce()
-            cursor.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
-                           (access_token,))
-            db.commit()
-
-            root.putChild("open-control", ControlOpener(db, access_token))
-            root.putChild("control", Control(access_token))
-
-            api = resource.Resource() # /api
-            api_v1 = API(access_token, db, node.client) # /api/v1
-            client_events = Events(access_token, db, node.client) # /api/v1/events
-            api_v1.putChild("events", client_events)
-            api.putChild("v1", api_v1)
-            root.putChild("api", api)
-
         site = server.Site(root)
         webport = str(node.get_node_config("webport"))
         self.port_service = strports.service(webport, site)
         self.port_service.setServiceParent(self)
+
+    def enable_client(self, client, db):
+        # Access tokens last as long as the node is running: they are
+        # cleared at each startup. It's important to clear these before
+        # the web port starts listening, to avoid a race with 'petmail
+        # open' adding a new nonce
+        cursor = db.cursor()
+        cursor.execute("DELETE FROM `webapi_access_tokens`")
+        cursor.execute("DELETE FROM `webapi_opener_tokens`")
+
+        # The access token will be used by both CLI commands (which read
+        # it directly from the database) and the frontend web client
+        # (which fetches it from /open-control with a single-use opener
+        # token).
+        access_token = make_nonce()
+        cursor.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
+                       (access_token,))
+        db.commit()
+
+        self.root.putChild("open-control", ControlOpener(db, access_token))
+        self.root.putChild("control", Control(access_token))
+
+        api = resource.Resource() # /api
+        api_v1 = API(access_token, db, client) # /api/v1
+        client_events = Events(access_token, db, client) # /api/v1/events
+        api_v1.putChild("events", client_events)
+        api.putChild("v1", api_v1)
+        self.root.putChild("api", api)
 
     def startService(self):
         service.MultiService.startService(self)

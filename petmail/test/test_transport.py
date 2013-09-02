@@ -34,3 +34,10 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         # TODO: use a stable fake TID private key instead of randomly
         # generating one (and throwing it away) in Client.build_transports(),
         # so we can decrypt it here and make sure it matches
+
+    def test_local(self):
+        nA, nB, entA, entB = self.make_nodes(transport="local")
+        chanAB = json.loads(entA["their_channel_record_json"])
+        transportsAB = chanAB["transports"]
+        self.failUnlessEqual(len(transportsAB), 1)
+        self.failUnlessEqual(transportsAB[0]["type"], "http")

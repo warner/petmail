@@ -8,16 +8,17 @@ class Node(service.MultiService):
         self.dbfile = dbfile
 
         self.sqlite, self.db = database.get_db(dbfile)
+        self.init_webport()
         self.client = None
         c = self.db.cursor()
         c.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
             name = str(name)
             if name == "client":
-                self.init_client()
+                self.init_client(self.webroot)
+                self.web.enable_client(self.client, self.db)
             else:
                 raise ValueError("Unknown service '%s'" % name)
-        self.init_webport()
 
     def startService(self):
         #print "NODE STARTED"
@@ -35,14 +36,11 @@ class Node(service.MultiService):
         self.db.commit()
 
     def init_webport(self):
-        w = web.WebPort(self.basedir, self, self.db)
-        w.setServiceParent(self)
-        self.webroot = w.getRoot()
+        self.web = web.WebPort(self.basedir, self)
+        self.web.setServiceParent(self)
+        self.webroot = self.web.getRoot()
 
-    def get_webroot(self):
-        return self.webroot # root Resource
-
-    def init_client(self):
+    def init_client(self, webroot):
         from . import client
-        self.client = client.Client(self.db, self.basedir)
+        self.client = client.Client(self.db, self.basedir, webroot)
         self.client.setServiceParent(self)

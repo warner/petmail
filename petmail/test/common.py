@@ -63,7 +63,7 @@ def fake_transport():
 
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
-    def make_nodes(self):
+    def make_nodes(self, transport="test-return"):
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         self.createNode(basedirA)
         nA = self.startNode(basedirA, beforeStart=self.disable_polling)
@@ -72,8 +72,18 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         self.createNode(basedirB)
         nB = self.startNode(basedirB, beforeStart=self.disable_polling)
 
-        self.tport1 = fake_transport()
-        self.tport2 = fake_transport()
+        if transport == "test-return":
+            self.tport1 = fake_transport()
+            self.tports1 = {0: self.tport1[1]}
+            self.tport2 = fake_transport()
+            self.tports2 = {0: self.tport2[1]}
+        elif transport == "local":
+            nA.client.command_enable_local_mailbox()
+            nB.client.command_enable_local_mailbox()
+            self.tports1 = None
+            self.tports2 = None
+        else:
+            raise KeyError("huh?")
 
         entA, entB = self.add_new_channel(nA, nB)
         return nA, nB, entA, entB
@@ -82,12 +92,10 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         rclientA = list(nA.client.im)[0]
         rclientB = list(nB.client.im)[0]
         code = "code"
-        tports1 = {0: self.tport1[1]}
         nA.client.command_invite(u"petname-from-A", code,
-                                 override_transports=tports1)
-        tports2 = {0: self.tport2[1]}
+                                 override_transports=self.tports1)
         nB.client.command_invite(u"petname-from-B", code,
-                                 override_transports=tports2)
+                                 override_transports=self.tports2)
 
         rclientA.poll()
         rclientB.poll()

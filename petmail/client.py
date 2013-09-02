@@ -10,9 +10,10 @@ from .mailbox import channel
 from .mailbox.server import LocalServer
 
 class Client(service.MultiService):
-    def __init__(self, db, basedir):
+    def __init__(self, db, basedir, webroot):
         service.MultiService.__init__(self)
         self.db = db
+        self.webroot = webroot
 
         self.subscribers = weakref.WeakKeyDictionary()
 
@@ -40,7 +41,7 @@ class Client(service.MultiService):
                 privdesc = json.loads(row["private_descriptor_json"])
                 if privdesc["type"] != "local":
                     continue
-                self.local_server = LocalServer(privdesc)
+                self.local_server = LocalServer(privdesc, self.webroot)
                 self.local_server.setServiceParent(self)
                 break
         return self.local_server
@@ -70,15 +71,15 @@ class Client(service.MultiService):
         # child, that happens here.
         rc.setServiceParent(self)
 
-    def command_add_mailbox(self, public_descriptor, private_descriptor):
+    def command_add_mailbox(self, sender_descriptor, private_descriptor):
         # it'd be nice to make sure we can build it, before committing it to
         # the DB. But we need the tid first, which comes from the DB. The
         # commit-after-build below might accomplish this anyways.
         c = self.db.cursor()
         c.execute("INSERT INTO mailboxes"
-                  " (descriptor_json, private_descriptor_json)"
+                  " (sender_descriptor_json, private_descriptor_json)"
                   " VALUES (?,?)",
-                  (json.dumps(public_descriptor),
+                  (json.dumps(sender_descriptor),
                    json.dumps(private_descriptor)))
         tid = c.lastrowid
         rc = self.buildRetrievalClient(tid, private_descriptor)
@@ -98,11 +99,12 @@ class Client(service.MultiService):
                     # TODO: we must learn our local ipaddr and the webport
                     "url": "http://localhost:8009/mailbox",
                     "transport_pubkey": pubkey.encode().encode("hex"),
-                    "TID": TID_token0.encode("hex"),
                    }
-        privdesc = { "transport_privkey": privkey.encode().encode("hex"),
-                     "TID_private_key": TID_privkey,
-                     "TID_tokenid": TID_tokenid,
+        privdesc = { "type": "local",
+                     "transport_privkey": privkey.encode().encode("hex"),
+                     "TID_private_key": TID_privkey.encode("hex"),
+                     "TID": TID_token0.encode("hex"),
+                     "TID_tokenid": TID_tokenid.encode("hex"),
                     }
         self.command_add_mailbox(pubdesc, privdesc)
         # that will add self.local_server, and persist the mailbox info
@@ -126,17 +128,21 @@ class Client(service.MultiService):
     def get_transports(self):
         # returns dict of tid->pubrecord . These will be individualized
         # before delivery to the peer.
-
-        # TODO: build this by scanning the DB
-        from .test.common import fake_transport
-        return {0: fake_transport()[1]}
+        c = self.db.cursor()
+        transports = {}
+        c.execute("SELECT * FROM mailboxes")
+        for row in c.fetchall():
+            transports[row["id"]] = {
+                "for_sender": json.loads(row["sender_descriptor_json"]),
+                "for_recipient": json.loads(row["private_descriptor_json"]),
+                }
+        return transports
 
     def individualize_transports(self, base_transports):
         transports = {}
-        for tid in base_transports:
-            b = base_transports[tid]
-            t = b["for_sender"].copy()
-            TID_token0 = b["for_recipient"]["TID"].decode("hex")
+        for tid, base in base_transports.items():
+            t = base["for_sender"].copy()
+            TID_token0 = base["for_recipient"]["TID"].decode("hex")
             t["STID"] = rrid.randomize(TID_token0).encode("hex")
             transports[tid] = t
         return transports

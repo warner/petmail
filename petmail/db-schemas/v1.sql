@@ -30,8 +30,10 @@ CREATE TABLE `webapi_access_tokens`
 CREATE TABLE `mailboxes` -- one per mailbox
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
- `descriptor_json` STRING, -- give to peers, tells them how to send us messages
- `private_descriptor_json` STRING -- kept secret, tells us how to read inbox
+  -- give sender_desc to peers, tells them how to send us messages
+ `sender_descriptor_json` STRING,
+ -- private_descriptor is for recipient (us), tells us how to read our inbox
+ `private_descriptor_json` STRING
 );
 
 CREATE TABLE `client_profile` -- contains one row
