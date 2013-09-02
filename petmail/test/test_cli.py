@@ -46,7 +46,8 @@ class CLI(unittest.TestCase):
 
     def test_addressbook(self):
         r = {"ok": "ok",
-             "addressbook": [{"their_verfkey": "key1",
+             "addressbook": [{"cid": "42",
+                              "their_verfkey": "key1",
                               "their_transport": "tport1",
                               "petname": u"pet",
                               "my_transport": "tport2",
@@ -58,7 +59,7 @@ class CLI(unittest.TestCase):
         self.failUnlessEqual(path, "list-addressbook")
         self.failUnlessEqual(body, {})
         expected = textwrap.dedent(u'''\
-        "pet":
+        "pet" (42):
          acknowledged
          their verfkey: key1
          (our verfkey): key2

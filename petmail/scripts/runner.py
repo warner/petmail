@@ -84,6 +84,14 @@ class AddMailboxOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, descriptor):
         self["descriptor"] = descriptor
 
+class EnableLocalMailboxOptions(BasedirParameterMixin, usage.Options):
+    pass
+
+class SendBasicOptions(BasedirParameterMixin, usage.Options):
+    def parseArgs(self, cid, message):
+        self["cid"] = cid
+        self["message"] = message
+
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
         if not test_args:
@@ -102,7 +110,9 @@ class Options(usage.Options):
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
                    ("addressbook", None, AddressbookOptions, "List Addressbook"),
-                   ("add-mailbox", None, AddMailboxOptions, "Add a new nailbox"),
+                   ("add-mailbox", None, AddMailboxOptions, "Add a new mailbox"),
+                   ("enable-local-mailbox", None, EnableLocalMailboxOptions, "Enable the local (in-process) HTTP mailbox"),
+                   ("send-basic", None, SendBasicOptions, "Send a basic message"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -174,7 +184,7 @@ def render_all(result):
 def render_addressbook(result):
     lines = []
     for entry in sorted(result["addressbook"], key=lambda e: e["petname"]):
-        lines.append('"%s":' % entry["petname"])
+        lines.append('"%s" (%s):' % (entry["petname"], entry["cid"]))
         lines.append(" %s" % {False: "not acknowledged",
                               True: "acknowledged"}[entry["acked"]])
         lines.append(" their verfkey: %s" % entry["their_verfkey"])
@@ -214,6 +224,8 @@ DISPATCH = {"create-node": create_node,
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
             "add-mailbox": WebCommand("add-mailbox", ["descriptor"]),
+            "enable-local-mailbox": WebCommand("enable-local-mailbox", []),
+            "send-basic": WebCommand("send-basic", ["cid", "message"]),
             "accept": accept,
             }
 

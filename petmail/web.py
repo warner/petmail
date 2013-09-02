@@ -131,6 +131,19 @@ class AddMailbox(BaseHandler):
         return {"ok": "ok"}
 handlers["add-mailbox"] = AddMailbox
 
+class EnableLocalMailbox(BaseHandler):
+    def handle(self, payload):
+        self.client.command_enable_local_mailbox()
+        return {"ok": "ok"}
+handlers["enable-local-mailbox"] = EnableLocalMailbox
+
+class SendBasic(BaseHandler):
+    def handle(self, payload):
+        cid = int(payload["cid"])
+        message = payload["message"]
+        return self.client.command_send_basic_message(cid, message)
+handlers["send-basic"] = SendBasic
+
 class API(resource.Resource):
     def __init__(self, access_token, db, client):
         resource.Resource.__init__(self)

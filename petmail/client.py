@@ -96,6 +96,8 @@ class Client(service.MultiService):
 
     def payload_received(self, cid, payload):
         print "payload_received", cid, payload
+        if payload.has_key("basic"):
+            print "BASIC:", payload["basic"]
 
     def command_invite(self, petname, code, override_transports=None):
         base_transports = self.get_transports()
@@ -104,6 +106,10 @@ class Client(service.MultiService):
         transports = self.individualize_transports(base_transports)
         self.im.startInvitation(petname, code, transports)
         return "invitation for %s started" % petname
+
+    def command_send_basic_message(self, cid, message):
+        self.send_message(cid, {"basic": message}) # ignore Deferred
+        return "maybe sent"
 
     def send_message(self, cid, payload):
         c = channel.OutboundChannel(self.db, cid)
