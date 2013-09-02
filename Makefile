@@ -65,14 +65,16 @@ test-pynacl:
 test:
 	$(WLS1) ./bin/petmail test
 
-.PHONY: test-coverage coverage-html
+.PHONY: test-coverage coverage-html open-coverage
 test-coverage:
 	$(WLS1) coverage run ./bin/petmail test
 coverage-html:
-	rm -rf coverage-html
-	coverage html -d coverage-html --include="petmail/*"
-open-coverage-html:
-	open coverage-html/index.html
+	rm -rf .coverage-html
+	coverage html -d .coverage-html --include="petmail/*"
+open-coverage:
+	open .coverage-html/index.html
+.coverage.el: .coverage misc/coverage2el.py
+	python misc/coverage2el.py
 
 # TODO: use virtualenv.create_bootstrap_script(extra_text) to create a new
 # modified virtualenv.py . Define an after_install(options,home_dir) function

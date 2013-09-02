@@ -4,4 +4,6 @@
 /support/deps/
 .rendezvous
 /.coverage
-/coverage-html/
+/.coverage.el
+/.coverage-html/
+
