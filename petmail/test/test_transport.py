@@ -3,8 +3,7 @@ from twisted.trial import unittest
 from nacl.public import PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel, transport
-from ..mailbox.delivery.common import createMsgA
-from ..mailbox.delivery.test import ReturnTransport
+from ..mailbox.delivery import createMsgA, ReturnTransport
 
 class Transports(TwoNodeMixin, unittest.TestCase):
     def test_create_from_channel(self):

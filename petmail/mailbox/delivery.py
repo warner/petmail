@@ -1,7 +1,8 @@
 import os
-from ... import rrid
-from ...netstring import netstring
+from twisted.internet import defer
 from nacl.public import PrivateKey, PublicKey, Box
+from .. import rrid
+from ..netstring import netstring
 
 # msgA:
 #  a0:
@@ -25,3 +26,23 @@ def createMsgA(trec, msgC):
                      pubkey1,
                      transport_box.encrypt(msgB, os.urandom(Box.NONCE_SIZE))])
     return msgA
+
+class ReturnTransport: # for tests
+    """I call mailbox.transport to create msgA, then return it."""
+    def __init__(self, db, trecord):
+        self.db = db
+        self.trecord = trecord
+
+    def send(self, msgC):
+        msgA = createMsgA(self.trecord, msgC)
+        return defer.succeed(msgA)
+
+class OutboundHTTPTransport:
+    """I call mailbox.transport to create msgA, then perform an HTTP POST to a
+    mailbox server."""
+    def __init__(self, db, trecord):
+        self.db = db
+        self.trecord = trecord
+
+    def send(self, msgC):
+        return defer.succeed(None)
