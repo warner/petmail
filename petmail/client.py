@@ -5,7 +5,7 @@ from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .rendezvous import localdir
 from .errors import CommandError
-from .mailbox import channel
+from .mailbox import channel, retrieval
 
 class Client(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
@@ -35,19 +35,17 @@ class Client(service.MultiService):
         extra_args = {}
         retrieval_type = private_descriptor["type"]
         if retrieval_type == "http":
-            from .mailbox.retrieval import HTTPRetriever
-            retrieval_class = HTTPRetriever
+            retrieval_class = retrieval.HTTPRetriever
         elif retrieval_type == "local":
-            from .mailbox.retrieval import LocalRetriever
-            retrieval_class = LocalRetriever
-            if not self.mailbox_server:
-                raise ValueError("LocalRetriever requires MailboxServer")
+            retrieval_class = retrieval.LocalRetriever
+            assert self.mailbox_server
             extra_args["server"] = self.mailbox_server
         else:
             raise CommandError("unrecognized mailbox-retrieval protocol '%s'"
                                % retrieval_type)
-        rc = retrieval_class(tid, private_descriptor, self, self.db,
-                             **extra_args)
+        def got_msgC(msgC):
+            self.msgC_received(tid, msgC)
+        rc = retrieval_class(private_descriptor, got_msgC, **extra_args)
         return rc
 
     def subscribeToMailbox(self, rc):
@@ -91,7 +89,7 @@ class Client(service.MultiService):
         # for the local client (and not accepting such TIDs by default) (and
         # persist that state for later)
 
-    def message_received(self, tid, msgC):
+    def msgC_received(self, tid, msgC):
         assert msgC.startswith("c0:")
         print "Client.message_received"
         pass

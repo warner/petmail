@@ -12,14 +12,9 @@ class LocalRetriever(service.MultiService):
     itself, as opposed to remote senders to delivering messages to
     customers).
     """
-    def __init__(self, tid, descriptor, client, db, server):
+    def __init__(self, descriptor, got_msgC, server):
         service.MultiService.__init__(self)
-        self.tid = tid
-        self.client = client
-        server.register_local_transport_handler(self.message_handler)
-
-    def message_handler(self, msgC):
-        self.client.message_received(self.tid, msgC)
+        server.register_local_transport_handler(got_msgC)
 
 ENABLE_POLLING = False
 
@@ -29,12 +24,10 @@ class HTTPRetriever(service.MultiService):
     Server-Sent Events to discover new messages. Once I've retrieved them, I
     delete them from the server. I handle transport encryption to hide the
     message contents as I grab them."""
-    def __init__(self, tid, descriptor, client, db):
+    def __init__(self, descriptor, got_msgC):
         service.MultiService.__init__(self)
-        self.tid = tid
         self.descriptor = descriptor
-        self.client = client
-        self.db = db
+        self.got_msgC = got_msgC
         self.ts = internet.TimerService(10*60, self.poll)
         if ENABLE_POLLING:
             self.ts.setServiceParent(self)
@@ -46,7 +39,7 @@ class HTTPRetriever(service.MultiService):
         def _done(page):
             # the response is a single msgC, or an empty string
             if page:
-                self.client.message_received(self.tid, page)
+                self.got_msgC(page)
                 eventually(self.poll) # repeat until drained
         d.addCallback(_done)
         d.addErrback(log.err)

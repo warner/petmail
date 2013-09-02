@@ -47,7 +47,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         messages = []
         def message_received(tid, msgC):
             messages.append((tid,msgC))
-        nB.client.message_received = message_received
+        nB.client.msgC_received = message_received
         d = nA.client.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             self.failUnlessEqual(len(messages), 1)
