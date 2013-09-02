@@ -95,10 +95,16 @@ class Client(service.MultiService):
         self.payload_received(cid, seqnum, payload_json)
 
     def payload_received(self, cid, seqnum, payload_json):
-        payload = json.loads(payload_json)
-        print "payload_received", cid, seqnum, payload
-        if payload.has_key("basic"):
-            print "BASIC:", payload["basic"]
+        c = self.db.cursor()
+        c.execute("INSERT INTO inbound_messages"
+                  " (cid, seqnum, payload_json)"
+                  " VALUES (?,?,?)",
+                  (cid, seqnum, payload_json))
+        self.db.commit()
+        #payload = json.loads(payload_json)
+        #print "payload_received", cid, seqnum, payload
+        #if payload.has_key("basic"):
+        #    print "BASIC:", payload["basic"]
 
     def command_invite(self, petname, code, override_transports=None):
         base_transports = self.get_transports()

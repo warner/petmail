@@ -91,3 +91,21 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         d.addCallback(_sent2)
 
         return d
+
+    def test_send_local_payload_stored(self):
+        nA, nB, entA, entB = self.make_nodes(transport="local")
+        P1 = {"hi": "world"}
+
+        d = nA.client.send_message(entA["id"], P1)
+        def _sent(res):
+            c = nB.db.cursor()
+            c.execute("SELECT * FROM inbound_messages")
+            rows = c.fetchall()
+            self.failUnlessEqual(len(rows), 1)
+            self.failUnlessEqual(rows[0]["id"], 1) # global msgid
+            self.failUnlessEqual(rows[0]["cid"], entB["id"])
+            self.failUnlessEqual(rows[0]["seqnum"], 1)
+            self.failUnlessEqual(json.loads(rows[0]["payload_json"]), P1)
+        d.addCallback(_sent)
+
+        return d

@@ -106,3 +106,11 @@ CREATE TABLE `addressbook`
  `they_used_new_channel_key` INTEGER,
  `their_verfkey` STRING -- from their invitation message
 );
+
+CREATE TABLE `inbound_messages`
+(
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `cid` INTEGER, -- points to addressbook entry
+ `seqnum` INTEGER, -- scoped to channel
+ `payload_json` STRING
+);
