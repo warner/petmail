@@ -115,5 +115,9 @@ class HTTPMailboxServer(BaseServer):
             self.local_transport_handler(msgC)
         else:
             # TODO: look up registered transports, queue message
-            raise KeyError("unrecognized transport identifier")
+            self.signal_unrecognized_TID(TID)
+
+    def signal_unrecognized_TID(self, TID):
+        # this can be overridden by unit tests
+        raise KeyError("unrecognized transport identifier")
 

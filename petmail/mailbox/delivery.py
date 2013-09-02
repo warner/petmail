@@ -22,10 +22,9 @@ def createMsgA(trec, msgC):
     assert len(pubkey1) == 32
     transport_pubkey = trec["transport_pubkey"].decode("hex")
     transport_box = Box(privkey1, PublicKey(transport_pubkey))
+    boxed = transport_box.encrypt(msgB, os.urandom(Box.NONCE_SIZE))
 
-    msgA = b"".join([b"a0:",
-                     pubkey1,
-                     transport_box.encrypt(msgB, os.urandom(Box.NONCE_SIZE))])
+    msgA = b"".join([b"a0:", pubkey1, boxed])
     return msgA
 
 class ReturnTransport: # for tests
