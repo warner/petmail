@@ -9,8 +9,8 @@ class Node(service.MultiService):
         self.dbfile = dbfile
 
         self.sqlite, self.db = database.get_db(dbfile)
-        webroot = self.init_webport()
-        self.init_mailbox_server(webroot)
+        self.init_webport()
+        self.init_mailbox_server()
         self.client = None
         c = self.db.cursor()
         c.execute("SELECT name FROM services")
@@ -40,21 +40,17 @@ class Node(service.MultiService):
     def init_webport(self):
         self.web = web.WebPort(self.basedir, self)
         self.web.setServiceParent(self)
-        return self.web.getRoot()
 
-    def init_mailbox_server(self, webroot):
+    def init_mailbox_server(self):
         from .mailbox.server import HTTPMailboxServer
         c = self.db.cursor()
+        # TODO: learn/be-told our IP addr/hostname
         c.execute("SELECT * FROM mailbox_server_config")
         row = c.fetchone()
-        if row:
-            s = HTTPMailboxServer(webroot,
-                                  bool(row["enable_retrieval"]),
-                                  json.loads(row["private_descriptor_json"]))
-            s.setServiceParent(self)
-            self.mailbox_server = s
-        else:
-            self.mailbox_server = None
+        s = HTTPMailboxServer(self.web, bool(row["enable_retrieval"]),
+                              json.loads(row["private_descriptor_json"]))
+        s.setServiceParent(self)
+        self.mailbox_server = s
 
     def init_client(self):
         from . import client

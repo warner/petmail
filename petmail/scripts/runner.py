@@ -42,6 +42,8 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     optParameters = [
         ("webport", "p", "tcp:0:interface=127.0.0.1",
          "TCP port for the node's HTTP interface."),
+        ("webhost", "h", "localhost",
+         "hostname/IP-addr to advertise in URLs"),
         ("relay", "r", "tcp:host=localhost:port=5773", "Relay location"),
         ]
 

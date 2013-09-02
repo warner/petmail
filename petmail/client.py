@@ -93,6 +93,7 @@ class Client(service.MultiService):
 
     def message_received(self, tid, msgC):
         assert msgC.startswith("c0:")
+        print "Client.message_received"
         pass
 
     def command_invite(self, petname, code, override_transports=None):

@@ -1,7 +1,6 @@
 import os, sys, json
 from nacl.public import PrivateKey
-from .. import rrid
-from .. import database
+from .. import rrid, database
 
 def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
     basedir = so["basedir"]
@@ -9,9 +8,11 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
         print >>stderr, "basedir '%s' already exists, refusing to touch it" % basedir
         return 1
     os.mkdir(basedir)
-    sqlite, db = database.get_db(os.path.join(basedir, "petmail.db"), stderr)
+    dbfile = os.path.join(basedir, "petmail.db")
+    sqlite, db = database.get_db(dbfile, stderr)
     c = db.cursor()
-    c.execute("INSERT INTO node (webport) VALUES (?)", (so["webport"],))
+    c.execute("INSERT INTO node (webhost, webport) VALUES (?,?)",
+              (so["webhost"], so["webport"]))
     c.execute("INSERT INTO services (name) VALUES (?)", ("client",))
     c.execute("INSERT INTO `client_profile`"
               " (`name`, `icon_data`) VALUES (?,?)",

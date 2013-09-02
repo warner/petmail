@@ -40,3 +40,17 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         transportsAB = chanAB["transports"]
         self.failUnlessEqual(len(transportsAB), 1)
         self.failUnlessEqual(transportsAB[0]["type"], "http")
+
+    def test_send(self):
+        nA, nB, entA, entB = self.make_nodes(transport="local")
+        #chanAB = json.loads(entA["their_channel_record_json"])
+        messages = []
+        def message_received(tid, msgC):
+            messages.append((tid,msgC))
+        nB.client.message_received = message_received
+        d = nA.client.send_message(entA["id"], {"hi": "world"})
+        def _sent(res):
+            self.failUnlessEqual(len(messages), 1)
+            self.failUnlessEqual(messages[0][0], entB["id"])
+        d.addCallback(_sent)
+        return d

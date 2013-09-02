@@ -61,8 +61,10 @@ class HTTPMailboxServer(BaseServer):
     inside our same process), or write messages to disk for later retrieval
     by remote clients.
     """
-    def __init__(self, webroot, enable_retrieval, desc):
+
+    def __init__(self, web, enable_retrieval, desc):
         BaseServer.__init__(self)
+        self.web = web
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         self.TID_privkey = desc["TID_private_key"].decode("hex")
 
@@ -73,7 +75,7 @@ class HTTPMailboxServer(BaseServer):
         self.local_TID_tokenid = desc["local_TID_tokenid"].decode("hex")
 
         # this is how we get messages from senders
-        webroot.putChild("mailbox", ServerResource(self.handle_msgA))
+        web.get_root().putChild("mailbox", ServerResource(self.handle_msgA))
 
         if enable_retrieval:
             # add a second resource for clients to retrieve messages
@@ -88,10 +90,12 @@ class HTTPMailboxServer(BaseServer):
                  }
 
     def get_sender_descriptor(self):
+        baseurl = self.web.get_baseurl()
+        assert baseurl.endswith("/")
         pubkey = self.privkey.public_key
         return { "type": "http",
                  # TODO: we must learn our local ipaddr and the webport
-                 "url": "http://localhost:8009/mailbox",
+                 "url": baseurl + "mailbox",
                  "transport_pubkey": pubkey.encode().encode("hex"),
                  }
 

@@ -42,7 +42,7 @@ class HTTPRetriever(service.MultiService):
     def poll(self):
         # TODO: transport security, SSE, overlap prevention, deletion (server
         # currently serves each message just once)
-        d = client.getPage(self.descriptor["url"])
+        d = client.getPage(self.descriptor["url"], method="POST")
         def _done(page):
             # the response is a single msgC, or an empty string
             if page:

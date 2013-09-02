@@ -257,5 +257,14 @@ class WebPort(service.MultiService):
                 return port
             d.addCallback(_ready)
 
-    def getRoot(self):
+    def get_root(self):
         return self.root
+
+    def get_baseurl(self):
+        webhost = str(self.node.get_node_config("webhost"))
+        assert webhost
+        webport = str(self.node.get_node_config("webport"))
+        pieces = webport.split(":")
+        assert pieces[0] == "tcp"
+        assert int(pieces[1]) != 0
+        return "http://%s:%d/" % (webhost, int(pieces[1]))

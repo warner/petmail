@@ -107,4 +107,3 @@ class Send(TwoNodeMixin, unittest.TestCase):
 
         d.addCallback(_sent)
         return d
-

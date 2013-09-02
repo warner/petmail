@@ -1,5 +1,6 @@
 import os
 from twisted.internet import defer
+from twisted.web import client
 from nacl.public import PrivateKey, PublicKey, Box
 from .. import rrid
 from ..netstring import netstring
@@ -45,4 +46,6 @@ class OutboundHTTPTransport:
         self.trecord = trecord
 
     def send(self, msgC):
-        return defer.succeed(None)
+        msgA = createMsgA(self.trecord, msgC)
+        url = str(self.trecord["url"])
+        return client.getPage(url, method="POST", postdata=msgA)
