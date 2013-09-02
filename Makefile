@@ -35,6 +35,15 @@ rebuild: stop n1 n2
 	rm -rf .rendezvous
 	$(MAKE) bounce
 
+# do this before 'connect'
+enable-local-mailbox:
+	./bin/petmail enable-local-mailbox -d n1
+	./bin/petmail enable-local-mailbox -d n2
+
+connect:
+	./bin/petmail invite -d n1 -n Bob code
+	./bin/petmail invite -d n2 -n Alice code
+
 dump-n1:
 	sqlite3 n1/petmail.db .dump
 dump-n2:
