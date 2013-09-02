@@ -40,7 +40,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(len(transportsAB), 1)
         self.failUnlessEqual(transportsAB[0]["type"], "http")
 
-    def test_send(self):
+    def test_send_local(self):
         nA, nB, entA, entB = self.make_nodes(transport="local")
         #chanAB = json.loads(entA["their_channel_record_json"])
         messages = []
@@ -54,7 +54,9 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         d.addCallback(_sent)
         return d
 
-    def test_send_payload(self):
+
+
+    def test_send_local_payload(self):
         nA, nB, entA, entB = self.make_nodes(transport="local")
         payloads = []
         def payload_received(tid, msgC):
@@ -66,4 +68,19 @@ class Transports(TwoNodeMixin, unittest.TestCase):
             self.failUnlessEqual(payloads[0][0], entB["id"])
             self.failUnlessEqual(payloads[0][1], {"hi": "world"})
         d.addCallback(_sent)
+
+        # now bounce node B and confirm that it can grab the server port when
+        # it comes back up
+        d.addCallback(lambda _: nB.disownServiceParent())
+        d.addCallback(lambda _: self.startNode(nB.basedir))
+        def _new_nodeB(new_nB):
+            new_nB.client.payload_received = payload_received
+        d.addCallback(_new_nodeB)
+        d.addCallback(lambda _: nA.client.send_message(entA["id"], {"hi": "2"}))
+        def _sent2(res):
+            self.failUnlessEqual(len(payloads), 2)
+            self.failUnlessEqual(payloads[1][0], entB["id"])
+            self.failUnlessEqual(payloads[1][1], {"hi": "2"})
+        d.addCallback(_sent2)
+
         return d
