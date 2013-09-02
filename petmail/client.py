@@ -35,10 +35,10 @@ class Client(service.MultiService):
         extra_args = {}
         retrieval_type = private_descriptor["type"]
         if retrieval_type == "http":
-            from .mailbox.retrieval import from_http_server
-            retrieval_class = from_http_server.HTTPRetriever
+            from .mailbox.retrieval import HTTPRetriever
+            retrieval_class = HTTPRetriever
         elif retrieval_type == "local":
-            from .mailbox.retrieval.local import LocalRetriever
+            from .mailbox.retrieval import LocalRetriever
             retrieval_class = LocalRetriever
             if not self.mailbox_server:
                 raise ValueError("LocalRetriever requires MailboxServer")

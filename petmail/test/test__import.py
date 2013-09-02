@@ -20,8 +20,5 @@ class Import(unittest.TestCase):
         from ..mailbox import channel, server, transport
         del channel, server, transport
 
-        from ..mailbox import delivery
-        del delivery
-
-        from ..mailbox.retrieval import local as local2, from_http_server
-        del local2, from_http_server
+        from ..mailbox import delivery, retrieval
+        del delivery, retrieval
