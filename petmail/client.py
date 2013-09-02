@@ -91,10 +91,11 @@ class Client(service.MultiService):
 
     def msgC_received(self, tid, msgC):
         assert msgC.startswith("c0:")
-        cid, seqnum, payload = channel.process_msgC(self.db, msgC)
-        self.payload_received(cid, seqnum, payload)
+        cid, seqnum, payload_json = channel.process_msgC(self.db, msgC)
+        self.payload_received(cid, seqnum, payload_json)
 
-    def payload_received(self, cid, seqnum, payload):
+    def payload_received(self, cid, seqnum, payload_json):
+        payload = json.loads(payload_json)
         print "payload_received", cid, seqnum, payload
         if payload.has_key("basic"):
             print "BASIC:", payload["basic"]

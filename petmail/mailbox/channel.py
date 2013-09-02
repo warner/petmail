@@ -121,7 +121,7 @@ def check_msgE(msgE, pubkey2_s, sender_verfkey_s, highest_seqnum):
     if m != pubkey2_s:
         print repr(m), pubkey2_s(m)
         raise WrongVerfkeyError()
-    return seqnum, json.loads(payload_s)
+    return seqnum, payload_s
 
 def validate_msgC(CIDKey, channel_pubkey,
                   seqnum_from_msgE, CIDBox, CIDToken, msgD):
@@ -151,16 +151,16 @@ def process_msgC(db, msgC):
     c.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey"
               " FROM addressbook WHERE id=?", (cid,))
     row = c.fetchone()
-    seqnum, payload = check_msgE(msgE, pubkey2_s,
-                                 row["their_verfkey"].decode("hex"),
-                                 row["highest_inbound_seqnum"])
+    seqnum, payload_s = check_msgE(msgE, pubkey2_s,
+                                   row["their_verfkey"].decode("hex"),
+                                   row["highest_inbound_seqnum"])
     # seqnum > highest_inbound_seqnum
     validate_msgC(row["my_CID_key"].decode("hex"), channel_pubkey,
                   seqnum, CIDBox, CIDToken, msgD)
     c.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
               (seqnum, cid))
-    db.commit()
-    return cid, seqnum, payload
+    db.commit() # TODO: allow caller to do the commit
+    return cid, seqnum, payload_s
 
 def build_CIDToken(CIDKey, seqnum):
     seqnum_s = struct.pack(">Q", seqnum)

@@ -1,3 +1,4 @@
+import json
 from twisted.trial import unittest
 from hashlib import sha256
 from nacl.public import PrivateKey, PublicKey, Box
@@ -26,10 +27,10 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         keyid, pubkey2_s, msgE = channel.decrypt_msgD(msgD, keylist)
 
         their_verfkey = entB["their_verfkey"].decode("hex")
-        seqnum, payload2 = channel.check_msgE(msgE, pubkey2_s,
-                                              their_verfkey,
-                                              entB["highest_inbound_seqnum"])
-        self.failUnlessEqual(payload, payload2)
+        seqnum, payload2_s = channel.check_msgE(msgE, pubkey2_s,
+                                                their_verfkey,
+                                                entB["highest_inbound_seqnum"])
+        self.failUnlessEqual(payload, json.loads(payload2_s))
 
     def get_inbound_seqnum(self, c, cid):
         c.execute("SELECT highest_inbound_seqnum FROM addressbook"
@@ -84,11 +85,11 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 
         # this exercises the full processing path, which will increment both
         # outbound and inbound seqnums
-        cid2, seqnum, payload2 = channel.process_msgC(nB.db, msgC)
+        cid2, seqnum, payload2_s = channel.process_msgC(nB.db, msgC)
 
         self.failUnlessEqual(cid2, entB2["id"])
         self.failUnlessEqual(seqnum, 1)
-        self.failUnlessEqual(payload2, payload)
+        self.failUnlessEqual(json.loads(payload2_s), payload)
 
         self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
         self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 1)
