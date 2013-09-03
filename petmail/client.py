@@ -163,8 +163,11 @@ class Client(service.MultiService):
 
     def command_fetch_all_messages(self):
         c = self.db.cursor()
-        c.execute("SELECT * FROM inbound_messages")
+        c.execute("SELECT inbound_messages.*,addressbook.petname"
+                  " FROM inbound_messages,addressbook"
+                  " WHERE inbound_messages.cid = addressbook.id")
         return [{ "id": row["id"],
+                  "petname": row["petname"],
                   "cid": row["cid"],
                   "seqnum": row["seqnum"],
                   "payload": json.loads(row["payload_json"]),

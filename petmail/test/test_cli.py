@@ -95,6 +95,7 @@ class CLI(unittest.TestCase):
                                           "messages": [
                                               {
                                                   "id": 1,
+                                                  "petname": u"Alice",
                                                   "cid": 2,
                                                   "seqnum": 3,
                                                   "payload": {"hi":"there"},
@@ -103,4 +104,4 @@ class CLI(unittest.TestCase):
         self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "fetch-messages")
         self.failUnlessEqual(body, {})
-        self.failUnlessEqual(out, "== 1: (cid=2 #3):\n{'hi': 'there'}\n")
+        self.failUnlessEqual(out, "== 1: from Alice (cid=2 #3):\n{'hi': 'there'}\n")
