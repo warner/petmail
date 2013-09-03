@@ -113,9 +113,25 @@
   () ; forms run on mode entry/exit
 )
 
+;; if you have other projects that use this scheme, add the following to your
+;; .emacs.el:
+;; (add-to-list 'coverage-annotation-basedirs "/abspath/to/project/source")
+
+(setq coverage-annotation-basedirs '())
+
+;; we live in PETMAIL_SOURCE/misc/coverage.el . At load, add PETMAIL_SOURCE.
+(add-to-list 'coverage-annotation-basedirs
+             (file-name-directory
+              (directory-file-name
+               (file-name-directory buffer-file-name))))
+
 (defun maybe-enable-coverage-mode ()
-  (if (string-match "/petmail/" (buffer-file-name))
-      (coverage-annotation-minor-mode t)
+  (let ((enable nil))
+    (dolist (basedir coverage-annotation-basedirs)
+      (if (string-match (concat "^" basedir) (buffer-file-name))
+          (setq enable t)))
+    (if enable
+        (coverage-annotation-minor-mode t))
     ))
 
 (add-hook 'python-mode-hook 'maybe-enable-coverage-mode)
