@@ -85,6 +85,7 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir)
         n = self.startNode(basedir)
         d = self.cliMustSucceed("open", "-n", "-d", basedir)
+        # test "petmail sample -d BASEDIR"
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir))
         d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok\n"))
         d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
@@ -116,5 +117,10 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
                                  "Please see node logs for details\n")
             self.flushLoggedErrors(SampleError)
         d.addCallback(_fail2)
+
+        # test "petmail -d BASEDIR sample" too
+        d.addCallback(lambda _: self.cliMustSucceed("-d", basedir, "sample"))
+        d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok\n"))
+
         return d
 

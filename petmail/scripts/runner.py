@@ -23,8 +23,13 @@ class NoNodeError(Exception):
 
 class BasedirParameterMixin:
     optParameters = [
-        ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
+        ("basedir", "d", None, "Base directory"),
         ]
+    def postOptions(self):
+        if not self["basedir"]:
+            if self.parent:
+                self["basedir"] = self.parent["basedir"]
+
 class BasedirArgument:
     def parseArgs(self, basedir=None):
         if basedir is not None:
@@ -55,6 +60,7 @@ class StopNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     pass
 class RestartNodeOptions(BasedirParameterMixin, StartArguments, usage.Options):
     def postOptions(self):
+        BasedirParameterMixin.postOptions(self)
         self["no-open"] = False
 class OpenOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     optFlags = [
@@ -104,6 +110,9 @@ class TestOptions(usage.Options):
 
 class Options(usage.Options):
     synopsis = "\nUsage: petmail <command>"
+    optParameters = [
+        ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
+        ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
