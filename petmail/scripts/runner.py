@@ -198,8 +198,8 @@ def render_addressbook(result):
 def render_messages(result):
     lines = []
     for entry in sorted(result["messages"], key=lambda e: e["id"]):
-        lines.append('== %d: (cid=%d #%d)):' % (entry["id"], entry["cid"],
-                                             entry["seqnum"]))
+        lines.append('== %d: (cid=%d #%d):' % (entry["id"], entry["cid"],
+                                               entry["seqnum"]))
         lines.append(str(entry["payload"]))
     return "\n".join(lines)+"\n"
 

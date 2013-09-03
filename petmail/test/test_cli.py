@@ -73,3 +73,34 @@ class CLI(unittest.TestCase):
         self.failUnlessEqual(path, "add-mailbox")
         self.failUnlessEqual(body, {"descriptor": "mailbox-descriptor"})
         self.failUnlessEqual(out, "ok\n")
+
+    def test_enable_local_mailbox(self):
+        path,body,rc,out,err = self.call(OK,
+                                         "enable-local-mailbox")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "enable-local-mailbox")
+        self.failUnlessEqual(body, {})
+        self.failUnlessEqual(out, "ok\n")
+
+    def test_send_basic(self):
+        path,body,rc,out,err = self.call(OK,
+                                         "send-basic", "1", "message")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "send-basic")
+        self.failUnlessEqual(body, {"cid": "1", "message": "message"})
+        self.failUnlessEqual(out, "ok\n")
+
+    def test_fetch_messages(self):
+        path,body,rc,out,err = self.call({"ok": "ok",
+                                          "messages": [
+                                              {
+                                                  "id": 1,
+                                                  "cid": 2,
+                                                  "seqnum": 3,
+                                                  "payload": {"hi":"there"},
+                                                  }]},
+                                         "fetch-messages")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "fetch-messages")
+        self.failUnlessEqual(body, {})
+        self.failUnlessEqual(out, "== 1: (cid=2 #3):\n{'hi': 'there'}\n")
