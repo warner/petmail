@@ -73,6 +73,8 @@ coverage-html:
 	coverage html -d .coverage-html --include="petmail/*"
 open-coverage:
 	open .coverage-html/index.html
+# you may need to run "deps-venv/bin/pip install coverage" to use this,
+# and you'll want to load misc/coverage.el in your emacs.
 .coverage.el: .coverage misc/coverage2el.py
 	python misc/coverage2el.py
 
