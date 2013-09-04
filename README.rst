@@ -22,6 +22,7 @@ What works so far:
 * creating two test nodes in the source directory, enabling their "local
   mailboxes", having them invite each other, sending a basic text message
   from one to the other, and dumping the incoming messages:
+
   * `make rebuild enable-local-mailbox connect`
   * `./bin/petmail -d n1 send-basic 1 hello`
   * `./bin/petmail -d n2 fetch-messages`
