@@ -63,11 +63,11 @@ PYTHON=deps-venv/bin/python
 test-pynacl:
 	$(WLS1) $(PYTHON) -c "from nacl.public import PrivateKey; print PrivateKey.generate().encode().encode('hex');"
 test:
-	$(WLS1) ./bin/petmail test
+	$(WLS1) ./bin/petmail test $(TEST)
 
 .PHONY: test-coverage coverage-html open-coverage
 test-coverage:
-	$(WLS1) coverage run ./bin/petmail test
+	$(WLS1) coverage run ./bin/petmail test $(TEST)
 coverage-html:
 	rm -rf .coverage-html
 	coverage html -d .coverage-html --include="petmail/*"
