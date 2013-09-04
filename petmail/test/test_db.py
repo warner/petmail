@@ -1,11 +1,8 @@
 import os.path
-from collections import namedtuple
 from twisted.trial import unittest
 from common import BasedirMixin
 from ..eventual import flushEventualQueue
 from ..database import get_db, make_observable_db
-
-Notice = namedtuple("Notice", ["table", "action", "id", "new_value"])
 
 class Database(BasedirMixin, unittest.TestCase):
     def test_create(self):
@@ -22,9 +19,7 @@ class Database(BasedirMixin, unittest.TestCase):
         db = make_observable_db(dbfile)
 
         n = []
-        def notify(table, action, id, new_value):
-            n.append(Notice(table, action, id, new_value))
-        db.subscribe("inbound_messages", notify)
+        db.subscribe("inbound_messages", n.append)
 
         # nobody is watching this table
         mid = db.insert("INSERT INTO mailboxes (sender_descriptor_json)"
@@ -72,7 +67,7 @@ class Database(BasedirMixin, unittest.TestCase):
             self.failUnlessEqual(n2.action, "delete")
             self.failUnlessEqual(n2.id, imid)
             self.failUnlessEqual(n2.new_value, None)
-            db.unsubscribe("inbound_messages", notify)
+            db.unsubscribe("inbound_messages", n.append)
             db.insert("INSERT INTO inbound_messages"
                       " (cid, seqnum, payload_json)"
                       " VALUES (?,?,?)", (6, 2, "ignoreme"),

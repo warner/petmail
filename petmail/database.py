@@ -1,8 +1,10 @@
 
 import os, sys
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import sqlite3
 from .eventual import eventually
+
+Notice = namedtuple("Notice", ["table", "action", "id", "new_value"])
 
 class DBError(Exception):
     pass
@@ -15,11 +17,11 @@ def get_schema(version):
 class ObservableDatabase:
     def __init__(self, connection):
         self.conn = connection
-        self.observers = defaultdict(set)
+        self.observers = defaultdict(list)
         self.pending_notifications = []
 
     def subscribe(self, table, observer):
-        self.observers[table].add(observer)
+        self.observers[table].append(observer)
 
     def unsubscribe(self, table, observer):
         self.observers[table].remove(observer)
@@ -36,8 +38,8 @@ class ObservableDatabase:
         if table:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
                                   (new_id,))
-            self.pending_notifications.append( (table, "insert", new_id,
-                                                c.fetchone()) )
+            self.pending_notifications.append(Notice(table, "insert", new_id,
+                                                     c.fetchone()))
         return new_id
 
     def update(self, sql, values, table=None, id=None):
@@ -45,18 +47,18 @@ class ObservableDatabase:
         if table:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
                                   (id,))
-            self.pending_notifications.append( (table, "update", id,
-                                                c.fetchone()) )
+            self.pending_notifications.append(Notice(table, "update", id,
+                                                     c.fetchone()))
 
     def delete(self, sql, values, table, id):
         self.conn.execute(sql, values)
-        self.pending_notifications.append( (table, "delete", id, None) )
+        self.pending_notifications.append(Notice(table, "delete", id, None))
 
     def commit(self):
         self.conn.commit()
-        for (table, action, id, new_value) in self.pending_notifications:
-            for o in self.observers[table]:
-                eventually(o, table, action, id, new_value)
+        for event in self.pending_notifications:
+            for o in self.observers[event.table]:
+                eventually(o, event)
         self.pending_notifications[:] = []
 
 def get_db(dbfile, stderr=sys.stderr):

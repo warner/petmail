@@ -48,12 +48,8 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         tport1 = fake_transport()
         tports1 = {0: tport1[1]}
 
-        Notice = collections.namedtuple("Notice",
-                                        ["table", "action", "id", "new_value"])
         nA_notices = []
-        def notify(table, action, id, new_value):
-            nA_notices.append(Notice(table, action, id, new_value))
-        n1.client.subscribe("addressbook", notify)
+        n1.client.subscribe("addressbook", nA_notices.append)
 
         n1.client.command_invite(u"petname-from-1", code,
                                  override_transports=tports1)
@@ -176,7 +172,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
             self.failUnlessEqual(nA_notices[1].new_value["petname"],
                                  "petname-from-1")
-            n1.client.unsubscribe("addressbook", notify)
+            n1.client.unsubscribe("addressbook", nA_notices.append)
         d.addCallback(_then)
         return d
 
