@@ -181,15 +181,14 @@ class ControlOpener(resource.Resource):
         if "opener-token" not in request.args:
             return "Please use 'petmail open' to get to the control panel\n"
         opener_token = request.args["opener-token"][0]
-        c = self.db.cursor()
-        c.execute("SELECT token FROM webapi_opener_tokens")
+        c = self.db.execute("SELECT token FROM webapi_opener_tokens")
         tokens = [str(row[0]) for row in c.fetchall()]
         if opener_token not in tokens:
             return ("Sorry, that opener-token is expired or invalid,"
                     " please run 'petmail open' again\n")
         # good opener-token, single-use
-        c.execute("DELETE FROM webapi_opener_tokens WHERE token=?",
-                  (opener_token,))
+        self.db.execute("DELETE FROM webapi_opener_tokens WHERE token=?",
+                        (opener_token,))
         self.db.commit()
 
         request.setHeader("content-type", "text/html")
@@ -234,17 +233,16 @@ class WebPort(service.MultiService):
         # cleared at each startup. It's important to clear these before
         # the web port starts listening, to avoid a race with 'petmail
         # open' adding a new nonce
-        cursor = db.cursor()
-        cursor.execute("DELETE FROM `webapi_access_tokens`")
-        cursor.execute("DELETE FROM `webapi_opener_tokens`")
+        db.execute("DELETE FROM `webapi_access_tokens`")
+        db.execute("DELETE FROM `webapi_opener_tokens`")
 
         # The access token will be used by both CLI commands (which read
         # it directly from the database) and the frontend web client
         # (which fetches it from /open-control with a single-use opener
         # token).
         access_token = make_nonce()
-        cursor.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
-                       (access_token,))
+        db.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
+                   (access_token,))
         db.commit()
 
         self.root.putChild("open-control", ControlOpener(db, access_token))

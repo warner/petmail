@@ -67,16 +67,14 @@ def get_db(dbfile, stderr=sys.stderr):
     db.row_factory = sqlite3.Row
 
     VERSION = 1
-    c = db.cursor()
     if must_create:
         schema = get_schema(VERSION)
-        c.executescript(schema)
-        c.execute("INSERT INTO version (version) VALUES (?)", (VERSION,))
+        db.executescript(schema)
+        db.execute("INSERT INTO version (version) VALUES (?)", (VERSION,))
         db.commit()
 
     try:
-        c.execute("SELECT version FROM version")
-        version = c.fetchone()[0]
+        version = db.execute("SELECT version FROM version").fetchone()[0]
     except sqlite3.DatabaseError, e:
         # this indicates that the file is not a compatible database format.
         # Perhaps it was created with an old version, or it might be junk.

@@ -12,8 +12,7 @@ class Node(service.MultiService):
         self.init_webport()
         self.init_mailbox_server()
         self.client = None
-        c = self.db.cursor()
-        c.execute("SELECT name FROM services")
+        c = self.db.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
             name = str(name)
             if name == "client":
@@ -27,14 +26,12 @@ class Node(service.MultiService):
         service.MultiService.startService(self)
 
     def get_node_config(self, name):
-        c = self.db.cursor()
-        c.execute("SELECT %s FROM node LIMIT 1" % name)
+        c = self.db.execute("SELECT %s FROM node LIMIT 1" % name)
         (value,) = c.fetchone()
         return value
 
     def set_node_config(self, name, value):
-        c = self.db.cursor()
-        c.execute("UPDATE node SET %s=?" % name, (value,))
+        self.db.execute("UPDATE node SET %s=?" % name, (value,))
         self.db.commit()
 
     def init_webport(self):
@@ -43,9 +40,8 @@ class Node(service.MultiService):
 
     def init_mailbox_server(self):
         from .mailbox.server import HTTPMailboxServer
-        c = self.db.cursor()
         # TODO: learn/be-told our IP addr/hostname
-        c.execute("SELECT * FROM mailbox_server_config")
+        c = self.db.execute("SELECT * FROM mailbox_server_config")
         row = c.fetchone()
         s = HTTPMailboxServer(self.web, bool(row["enable_retrieval"]),
                               json.loads(row["private_descriptor_json"]))

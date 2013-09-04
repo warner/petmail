@@ -19,8 +19,7 @@ def get_url_and_token(basedir, err):
     if not (os.path.isdir(basedir) and os.path.exists(dbfile)):
         raise NoNodeError(basedir)
     db = database.get_db(dbfile, err)
-    c = db.cursor()
-    c.execute("SELECT webport FROM node LIMIT 1")
+    c = db.execute("SELECT webport FROM node LIMIT 1")
     (webport,) = c.fetchone()
     parts = webport.split(":")
     assert parts[0] == "tcp"
@@ -29,7 +28,7 @@ def get_url_and_token(basedir, err):
         # Node has not yet chosen a port number. It needs to be started.
         return None, None
     url = "http://localhost:%d/" % portnum
-    c.execute("SELECT token FROM webapi_access_tokens LIMIT 1")
+    c = db.execute("SELECT token FROM webapi_access_tokens LIMIT 1")
     (token,) = c.fetchone()
     if not token:
         # Node has assigned a port, but not created a token. Wait longer.

@@ -41,8 +41,8 @@ def find_channel_from_CIDToken(db, CIDToken):
     return cid, known_channel_pubkey
 
 def find_channel_from_CIDBox(db, CIDBox):
-    c = db.cursor()
-    c.execute("SELECT id, my_CID_key, highest_inbound_seqnum FROM addressbook")
+    c = db.execute("SELECT id, my_CID_key, highest_inbound_seqnum"
+                   " FROM addressbook")
     for row in c.fetchall():
         try:
             CIDKey = row["my_CID_key"].decode("hex")
@@ -58,14 +58,15 @@ def find_channel_from_CIDBox(db, CIDBox):
 
 def build_channel_keylist(db, known_cid):
     # generates list of (PrivateKey, (cid, which, PublicKey))
-    c = db.cursor()
     # TODO: limit this by the transport the message arrived on
     if known_cid:
-        c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
-                  " FROM addressbook WHERE id=?", (known_cid,))
+        c = db.execute("SELECT id, my_old_channel_privkey, "
+                       "       my_new_channel_privkey"
+                       " FROM addressbook WHERE id=?", (known_cid,))
     else:
-        c.execute("SELECT id, my_old_channel_privkey, my_new_channel_privkey"
-                  " FROM addressbook")
+        c = db.execute("SELECT id, my_old_channel_privkey,"
+                       "       my_new_channel_privkey"
+                       " FROM addressbook")
     for row in c.fetchall():
         privkey = PrivateKey(row["my_old_channel_privkey"].decode("hex"))
         yield (privkey, (row["id"], "old", privkey.public_key))
@@ -147,9 +148,8 @@ def process_msgC(db, msgC):
     if not keyid:
         raise UnknownChannelError()
     cid, which_key, channel_pubkey = keyid
-    c = db.cursor()
-    c.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey"
-              " FROM addressbook WHERE id=?", (cid,))
+    c = db.execute("SELECT my_CID_key, highest_inbound_seqnum, their_verfkey"
+                   " FROM addressbook WHERE id=?", (cid,))
     row = c.fetchone()
     seqnum, payload_s = check_msgE(msgE, pubkey2_s,
                                    row["their_verfkey"].decode("hex"),
@@ -157,8 +157,8 @@ def process_msgC(db, msgC):
     # seqnum > highest_inbound_seqnum
     validate_msgC(row["my_CID_key"].decode("hex"), channel_pubkey,
                   seqnum, CIDBox, CIDToken, msgD)
-    c.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
-              (seqnum, cid))
+    db.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
+               (seqnum, cid))
     db.commit() # TODO: allow caller to do the commit
     return cid, seqnum, payload_s
 
@@ -185,15 +185,15 @@ class OutboundChannel:
         return defer.DeferredList(dl)
 
     def createMsgC(self, payload):
-        c = self.db.cursor()
-        c.execute("SELECT next_outbound_seqnum, my_signkey,"
-                  " their_channel_record_json"
-                  " FROM addressbook WHERE id=?", (self.cid,))
+        c = self.db.execute("SELECT next_outbound_seqnum, my_signkey,"
+                            " their_channel_record_json"
+                            " FROM addressbook WHERE id=?", (self.cid,))
         res = c.fetchone()
         assert res, "missing cid"
         next_outbound_seqnum = res["next_outbound_seqnum"]
-        c.execute("UPDATE addressbook SET next_outbound_seqnum=? WHERE id=?",
-                  (next_outbound_seqnum+1, self.cid))
+        self.db.execute("UPDATE addressbook SET next_outbound_seqnum=?"
+                        " WHERE id=?",
+                        (next_outbound_seqnum+1, self.cid))
         self.db.commit()
         seqnum_s = struct.pack(">Q", next_outbound_seqnum)
         my_signkey = SigningKey(res["my_signkey"].decode("hex"))
@@ -225,9 +225,8 @@ class OutboundChannel:
         return msgC
 
     def createTransports(self):
-        c = self.db.cursor()
-        c.execute("SELECT their_channel_record_json"
-                  " FROM addressbook WHERE id=?", (self.cid,))
+        c = self.db.execute("SELECT their_channel_record_json"
+                            " FROM addressbook WHERE id=?", (self.cid,))
         res = c.fetchone()
         assert res, "missing cid"
         crec = json.loads(res["their_channel_record_json"])

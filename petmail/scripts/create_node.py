@@ -10,13 +10,12 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
     os.mkdir(basedir)
     dbfile = os.path.join(basedir, "petmail.db")
     db = database.get_db(dbfile, stderr)
-    c = db.cursor()
-    c.execute("INSERT INTO node (webhost, webport) VALUES (?,?)",
-              (so["webhost"], so["webport"]))
-    c.execute("INSERT INTO services (name) VALUES (?)", ("client",))
-    c.execute("INSERT INTO `client_profile`"
-              " (`name`, `icon_data`) VALUES (?,?)",
-              ("",""))
+    db.execute("INSERT INTO node (webhost, webport) VALUES (?,?)",
+               (so["webhost"], so["webport"]))
+    db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
+    db.execute("INSERT INTO `client_profile`"
+               " (`name`, `icon_data`) VALUES (?,?)",
+               ("",""))
     privkey = PrivateKey.generate()
     TID_tokenid, TID_privkey, TID_token0 = rrid.create()
     server_desc = { "transport_privkey": privkey.encode().encode("hex"),
@@ -24,10 +23,10 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
                     "local_TID0": TID_token0.encode("hex"),
                     "local_TID_tokenid": TID_tokenid.encode("hex"),
                     }
-    c.execute("INSERT INTO mailbox_server_config"
-              " (private_descriptor_json, enable_retrieval)"
-              " VALUES (?,?)",
-              (json.dumps(server_desc), 0))
+    db.execute("INSERT INTO mailbox_server_config"
+               " (private_descriptor_json, enable_retrieval)"
+               " VALUES (?,?)",
+               (json.dumps(server_desc), 0))
     db.commit()
     print >>stdout, "node created in %s" % basedir
     return 0

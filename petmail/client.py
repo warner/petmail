@@ -17,8 +17,7 @@ class Client(service.MultiService):
 
         self.local_server = None
         self.mailboxClients = set()
-        c = self.db.cursor()
-        c.execute("SELECT id, private_descriptor_json FROM mailboxes")
+        c = self.db.execute("SELECT id, private_descriptor_json FROM mailboxes")
         for row in c.fetchall():
             privdesc = json.loads(row["private_descriptor_json"])
             rc = self.buildRetrievalClient(row["id"], privdesc)
@@ -59,12 +58,11 @@ class Client(service.MultiService):
         # it'd be nice to make sure we can build it, before committing it to
         # the DB. But we need the tid first, which comes from the DB. The
         # commit-after-build below might accomplish this anyways.
-        c = self.db.cursor()
-        c.execute("INSERT INTO mailboxes"
-                  " (sender_descriptor_json, private_descriptor_json)"
-                  " VALUES (?,?)",
-                  (json.dumps(sender_descriptor),
-                   json.dumps(private_descriptor)))
+        c = self.db.execute("INSERT INTO mailboxes"
+                            " (sender_descriptor_json, private_descriptor_json)"
+                            " VALUES (?,?)",
+                            (json.dumps(sender_descriptor),
+                             json.dumps(private_descriptor)))
         tid = c.lastrowid
         rc = self.buildRetrievalClient(tid, private_descriptor)
         self.db.commit()
@@ -73,8 +71,7 @@ class Client(service.MultiService):
     def command_enable_local_mailbox(self):
         # create the persistent state needed to run a mailbox from our webapi
         # port. Then activate it. This should only be called once.
-        c = self.db.cursor()
-        c.execute("SELECT * FROM mailboxes")
+        c = self.db.execute("SELECT * FROM mailboxes")
         for row in c.fetchall():
             privdesc = json.loads(row["private_descriptor_json"])
             if privdesc["type"] == "local":
@@ -95,11 +92,10 @@ class Client(service.MultiService):
         self.payload_received(cid, seqnum, payload_json)
 
     def payload_received(self, cid, seqnum, payload_json):
-        c = self.db.cursor()
-        c.execute("INSERT INTO inbound_messages"
-                  " (cid, seqnum, payload_json)"
-                  " VALUES (?,?,?)",
-                  (cid, seqnum, payload_json))
+        self.db.execute("INSERT INTO inbound_messages"
+                        " (cid, seqnum, payload_json)"
+                        " VALUES (?,?,?)",
+                        (cid, seqnum, payload_json))
         self.db.commit()
         #payload = json.loads(payload_json)
         #print "payload_received", cid, seqnum, payload
@@ -125,9 +121,8 @@ class Client(service.MultiService):
     def get_transports(self):
         # returns dict of tid->pubrecord . These will be individualized
         # before delivery to the peer.
-        c = self.db.cursor()
         transports = {}
-        c.execute("SELECT * FROM mailboxes")
+        c = self.db.execute("SELECT * FROM mailboxes")
         for row in c.fetchall():
             transports[row["id"]] = {
                 "for_sender": json.loads(row["sender_descriptor_json"]),
@@ -146,8 +141,7 @@ class Client(service.MultiService):
 
     def command_list_addressbook(self):
         resp = []
-        c = self.db.cursor()
-        c.execute("SELECT * FROM addressbook")
+        c = self.db.execute("SELECT * FROM addressbook")
         for row in c.fetchall():
             entry = {}
             entry["cid"] = row["id"]
@@ -162,10 +156,9 @@ class Client(service.MultiService):
         return resp
 
     def command_fetch_all_messages(self):
-        c = self.db.cursor()
-        c.execute("SELECT inbound_messages.*,addressbook.petname"
-                  " FROM inbound_messages,addressbook"
-                  " WHERE inbound_messages.cid = addressbook.id")
+        c = self.db.execute("SELECT inbound_messages.*,addressbook.petname"
+                            " FROM inbound_messages,addressbook"
+                            " WHERE inbound_messages.cid = addressbook.id")
         return [{ "id": row["id"],
                   "petname": row["petname"],
                   "cid": row["cid"],

@@ -106,12 +106,7 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         rclientA.poll()
         rclientB.poll()
 
-        c = nA.db.cursor()
-        c.execute("SELECT * FROM addressbook")
-        entA = c.fetchone()
-
-        c = nB.db.cursor()
-        c.execute("SELECT * FROM addressbook")
-        entB = c.fetchone()
+        entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
+        entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
 
         return entA, entB

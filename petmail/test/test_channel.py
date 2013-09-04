@@ -32,32 +32,30 @@ class msgC(TwoNodeMixin, unittest.TestCase):
                                                 entB["highest_inbound_seqnum"])
         self.failUnlessEqual(payload, json.loads(payload2_s))
 
-    def get_inbound_seqnum(self, c, cid):
-        c.execute("SELECT highest_inbound_seqnum FROM addressbook"
-                  " WHERE id=?", (cid,))
+    def get_inbound_seqnum(self, db, cid):
+        c = db.execute("SELECT highest_inbound_seqnum FROM addressbook"
+                       " WHERE id=?", (cid,))
         return c.fetchone()[0]
 
-    def get_outbound_seqnum(self, c, cid):
-        c.execute("SELECT next_outbound_seqnum FROM addressbook"
-                  " WHERE id=?", (cid,))
+    def get_outbound_seqnum(self, db, cid):
+        c = db.execute("SELECT next_outbound_seqnum FROM addressbook"
+                       " WHERE id=?", (cid,))
         return c.fetchone()[0]
 
     def test_channel_dispatch(self):
         nA, nB, entA, entB = self.make_nodes()
         entA2, entB2 = self.add_new_channel(nA, nB)
         entA3, entB3 = self.add_new_channel(nA, nB)
-        cA = nA.db.cursor()
-        cB = nB.db.cursor()
-        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 1)
-        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+        self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 1)
+        self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 0)
 
         chan = channel.OutboundChannel(nA.db, entA2["id"])
         payload = {"hi": "there"}
         msgC = chan.createMsgC(payload)
         self.failUnless(msgC.startswith("c0:"))
 
-        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
-        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+        self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 0)
 
         CIDToken, CIDBox, msgD = channel.parse_msgC(msgC)
 
@@ -72,16 +70,16 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         pubkey = PrivateKey(privkey_s).public_key.encode()
         self.failUnlessEqual(which_key, pubkey)
 
-        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
-        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+        self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 0)
 
         # but other clients should not recognize this CIDBox
         cid,which_key = channel.find_channel_from_CIDBox(nA.db, CIDBox)
         self.failUnlessEqual(cid, None)
         self.failUnlessEqual(which_key, None)
 
-        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
-        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 0)
+        self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 0)
 
         # this exercises the full processing path, which will increment both
         # outbound and inbound seqnums
@@ -91,8 +89,8 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(seqnum, 1)
         self.failUnlessEqual(json.loads(payload2_s), payload)
 
-        self.failUnlessEqual(self.get_outbound_seqnum(cA, entA2["id"]), 2)
-        self.failUnlessEqual(self.get_inbound_seqnum(cB, entB2["id"]), 1)
+        self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 2)
+        self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 1)
 
 class Send(TwoNodeMixin, unittest.TestCase):
     def test_send(self):

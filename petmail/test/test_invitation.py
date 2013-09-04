@@ -13,9 +13,10 @@ AddressbookRow = collections.namedtuple("AddressbookEntry",
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def checkCounts(self, node, code, my, theirs, next, exists=True):
-        c = node.db.cursor()
-        c.execute("SELECT myMessages, theirMessages, nextExpectedMessage"
-                  " FROM invitations WHERE code=?", (code.encode("hex"),))
+        c = node.db.execute("SELECT"
+                            " myMessages, theirMessages, nextExpectedMessage"
+                            " FROM invitations WHERE code=?",
+                            (code.encode("hex"),))
         rows = [ MROW(splitMessages(row[0]), splitMessages(row[1]), row[2])
                  for row in c.fetchall() ]
         if not exists:
@@ -28,10 +29,9 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         return rows
 
     def fetchAddressBook(self, node):
-        c = node.db.cursor()
-        c.execute("SELECT petname, their_verfkey, acked,"
-                  "       my_CID_key, their_channel_record_json"
-                  " FROM addressbook")
+        c = node.db.execute("SELECT petname, their_verfkey, acked,"
+                            "       my_CID_key, their_channel_record_json"
+                            " FROM addressbook")
         rows = [ AddressbookRow(row[0], str(row[1]), bool(row[2]),
                                 str(row[3]), json.loads(row[4]))
                  for row in c.fetchall() ]

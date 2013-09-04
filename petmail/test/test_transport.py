@@ -98,8 +98,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
 
         d = nA.client.send_message(entA["id"], P1)
         def _sent(res):
-            c = nB.db.cursor()
-            c.execute("SELECT * FROM inbound_messages")
+            c = nB.db.execute("SELECT * FROM inbound_messages")
             rows = c.fetchall()
             self.failUnlessEqual(len(rows), 1)
             self.failUnlessEqual(rows[0]["id"], 1) # global msgid
