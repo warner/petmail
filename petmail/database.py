@@ -26,6 +26,11 @@ class ObservableDatabase:
 
     # database methods
 
+    def execute(self, sql, values=None):
+        if values:
+            return self.conn.execute(sql, values)
+        return self.conn.execute(sql)
+
     def insert(self, sql, values, table=None):
         new_id = self.conn.execute(sql, values).lastrowid
         if table:

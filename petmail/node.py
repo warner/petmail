@@ -8,7 +8,7 @@ class Node(service.MultiService):
         self.basedir = basedir
         self.dbfile = dbfile
 
-        self.db = database.get_db(dbfile)
+        self.db = database.make_observable_db(dbfile)
         self.init_webport()
         self.init_mailbox_server()
         self.client = None
