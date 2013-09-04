@@ -34,6 +34,12 @@ class Node(service.MultiService):
         self.db.execute("UPDATE node SET %s=?" % name, (value,))
         self.db.commit()
 
+    def subscribe(self, table, observer):
+        self.db.subscribe(table, observer)
+
+    def unsubscribe(self, table, observer):
+        self.db.unsubscribe(table, observer)
+
     def init_webport(self):
         self.web = web.WebPort(self.basedir, self)
         self.web.setServiceParent(self)

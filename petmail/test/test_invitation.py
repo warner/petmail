@@ -1,6 +1,7 @@
 import os, collections, json
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
+from ..eventual import flushEventualQueue
 from ..errors import CommandError
 from ..invitation import splitMessages
 
@@ -46,6 +47,13 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         rclient1 = list(n1.client.im)[0]
         tport1 = fake_transport()
         tports1 = {0: tport1[1]}
+
+        Notice = collections.namedtuple("Notice",
+                                        ["table", "action", "id", "new_value"])
+        nA_notices = []
+        def notify(table, action, id, new_value):
+            nA_notices.append(Notice(table, action, id, new_value))
+        n1.subscribe("addressbook", notify)
 
         n1.client.command_invite(u"petname-from-1", code,
                                  override_transports=tports1)
@@ -155,6 +163,22 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
         self.failUnlessEqual(a2[0]["acked"], True)
         self.failUnlessEqual(a2[0]["petname"], "petname-from-2")
+
+        self.failUnlessEqual(nA_notices, [])
+        d = flushEventualQueue()
+        def _then(_):
+            self.failUnlessEqual(len(nA_notices), 2)
+            self.failUnlessEqual(nA_notices[0].action, "insert")
+            self.failUnlessEqual(nA_notices[0].new_value["acked"], 0)
+            self.failUnlessEqual(nA_notices[0].new_value["petname"],
+                                 "petname-from-1")
+            self.failUnlessEqual(nA_notices[1].action, "update")
+            self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
+            self.failUnlessEqual(nA_notices[1].new_value["petname"],
+                                 "petname-from-1")
+            n1.unsubscribe("addressbook", notify)
+        d.addCallback(_then)
+        return d
 
     def test_duplicate_code(self):
         basedir1 = os.path.join(self.make_basedir(), "node1")
