@@ -16,7 +16,7 @@ The entry point is `./bin/petmail`. When run from a source tree,
 Developers working on petmail may modify the sources and restart their node
 without needing to copy or install anything.
 
-The `python setup.py build-dep` command can be used to install a copy of
+The `python setup.py build_deps` command can be used to install a copy of
 these dependencies in a local virtual environment named `./deps-venv`.
 `./bin/petmail` will include the venv's site-packages in `sys.path`, before
 the system site-packages directory (so the venv will override anything on the
@@ -45,10 +45,10 @@ executable.
 ## Dependency Verification
 
 To keep the source tree small, Petmail's dependencies are not included.
-`python setup.py build-deps` fetches these tarballs from PyPI. However the
+`python setup.py build_deps` fetches these tarballs from PyPI. However the
 command verifies SHA256 hashes of the tarballs before using them.
 
-If you wish to avoid downloading additional files during the build-dep
+If you wish to avoid downloading additional files during the build_deps
 process, use a "SUMO" source tarball, which includes copies of the
 dependencies. You can also run `python setup.py fetch-deps` to download and
-verify them, after which `build-deps` will not download anything.
+verify them, after which `build_deps` will not download anything.
