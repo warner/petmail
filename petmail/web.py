@@ -2,6 +2,7 @@ import os, json
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from twisted.python import log
+from .database import Notice
 from .util import make_nonce, equal
 from .errors import CommandError
 
@@ -14,11 +15,17 @@ def read_media(fn):
     f.close()
     return data
 
-class SSEProtocol:
-    def __init__(self, request):
+class DBEventsProtocol:
+    def __init__(self, request, renderer):
         self.request = request
-    def connectionLost(self, f=None):
-        pass
+        self.renderer = renderer
+
+    def notify(self, notice):
+        # TODO: set name=table and have the control page use exactly one
+        # EventSource (add APIs to subscribe/unsubscribe various tables as
+        # those panels are displayed). (or just deliver everything always).
+        self.sendEvent(json.dumps(self.renderer(notice)))
+
     def sendEvent(self, data, name=None, id=None, retry=None):
         if name:
             self.request.write("event: %s\n" % name.encode("utf-8"))
@@ -29,47 +36,47 @@ class SSEProtocol:
         for line in data.splitlines():
             self.request.write("data: %s\n" % line.encode("utf-8"))
         self.request.write("\n")
-    def loseConnection(self):
-        self.request.finish()
 
-class SSEResource(resource.Resource):
+class BaseEvents(resource.Resource):
+    def __init__(self, db, client):
+        resource.Resource.__init__(self)
+        self.db = db
+        self.client = client
+
     def render_GET(self, request):
         request.setHeader("content-type", "text/event-stream")
-        p = self.buildProtocol(request)
-        request.notifyFinish().addErrback(p.connectionLost)
+        p = DBEventsProtocol(request, self.render_event)
+        c = self.db.execute("SELECT * FROM `%s`" % self.table)
+        for row in c.fetchall():
+            p.notify(Notice(self.table, "insert", row["id"], row))
+        self.client.subscribe(self.table, p.notify)
+        def _done(_):
+            self.client.unsubscribe(self.table, p.notify)
+        request.notifyFinish().addErrback(_done)
         return server.NOT_DONE_YET
 
-    def buildProtocol(self, request):
-        return SSEProtocol(request)
+def serialize_row(row):
+    return dict([(key, row[key]) for key in row.keys()])
 
-class ClientEventsProtocol(SSEProtocol):
-    def __init__(self, db, client, request):
-        SSEProtocol.__init__(self, request)
-        self.db = db
-        self.client = client
-        client.control_subscribe_events(self)
-    def connectionLost(self, f=None):
-        self.client.control_unsubscribe_events(self)
-    def event(self, what, data):
-        self.sendEvent(data, name=what)
+class MessageEvents(BaseEvents):
+    table = "inbound_messages"
+    def render_event(self, notice):
+        return { "action": notice.action,
+                 "id": notice.id,
+                 "new_value": serialize_row(notice.new_value),
+                }
 
-class Events(SSEResource):
-    def __init__(self, access_token, db, client):
-        SSEResource.__init__(self)
-        self.access_token = access_token
+class EventDispatcher(resource.Resource):
+    def __init__(self, db, client):
+        resource.Resource.__init__(self)
         self.db = db
         self.client = client
 
-    def buildProtocol(self, request):
-        return ClientEventsProtocol(self.db, self.client, request)
-
-    def render_GET(self, request):
-        token = request.args["token"][0]
-        if not equal(token, self.access_token):
-            request.setHeader("content-type", "text/plain")
-            return ("Sorry, this session token is expired,"
-                    " please run 'petmail open' again\n")
-        return SSEResource.render_GET(self, request)
+    def getChild(self, path, request):
+        if path == "messages":
+            return MessageEvents(self.db, self.client)
+        request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
+        return "Unknown Event Type"
 
 handlers = {}
 
@@ -159,6 +166,12 @@ class API(resource.Resource):
 
     def getChild(self, path, request):
         # everything requires a token, check it here
+        if path == "events":
+            # Server-Sent Events use a GET, token must live in queryargs
+            if not equal(request.args["token"][0], self.access_token):
+                request.setResponseCode(http.UNAUTHORIZED, "bad token")
+                return "Invalid token"
+            return EventDispatcher(self.db, self.client)
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
             request.setResponseCode(http.UNAUTHORIZED, "bad token")
@@ -250,8 +263,6 @@ class WebPort(service.MultiService):
 
         api = resource.Resource() # /api
         api_v1 = API(access_token, db, client) # /api/v1
-        client_events = Events(access_token, db, client) # /api/v1/events
-        api_v1.putChild("events", client_events)
         api.putChild("v1", api_v1)
         self.root.putChild("api", api)
 
