@@ -76,10 +76,9 @@ class InvitationManager(service.MultiService):
             rs.unsubscribe(inviteID)
 
     def messagesReceived(self, inviteID, messages):
-        c = self.db.execute("SELECT id FROM invitations"
-                            " WHERE inviteID=? LIMIT 1",
-                            (inviteID,))
-        rows = c.fetchall()
+        rows = self.db.execute("SELECT id FROM invitations"
+                               " WHERE inviteID=? LIMIT 1",
+                               (inviteID,)).fetchall()
         if not rows:
             raise KeyError(inviteID)
         iid = rows[0][0]
@@ -126,19 +125,19 @@ class InvitationManager(service.MultiService):
         c = db.execute("SELECT inviteID FROM invitations")
         if inviteID in [str(row[0]) for row in c.fetchall()]:
             raise CommandError("invitation code already in use")
-        c = db.execute("INSERT INTO `invitations`"
-                       " (code, petname, inviteKey,"
-                       "  inviteID,"
-                       "  myTempPrivkey, mySigningKey,"
-                       "  my_channel_record, my_private_channel_data,"
-                       "  myMessages, theirMessages, nextExpectedMessage)"
-                       " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
-                       (code.encode("hex"), petname, stretched.encode("hex"),
-                        inviteID,
-                        myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
-                        json.dumps(pub_crec), json.dumps(priv_data),
-                        "", "", 1))
-        iid = c.lastrowid
+        iid = db.insert("INSERT INTO `invitations`"
+                        " (code, petname, inviteKey,"
+                        "  inviteID,"
+                        "  myTempPrivkey, mySigningKey,"
+                        "  my_channel_record, my_private_channel_data,"
+                        "  myMessages, theirMessages, nextExpectedMessage)"
+                        " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
+                        (code.encode("hex"), petname, stretched.encode("hex"),
+                         inviteID,
+                         myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
+                         json.dumps(pub_crec), json.dumps(priv_data),
+                         "", "", 1),
+                        "invitations")
         self.subscribe(inviteID)
         i = Invitation(iid, self.db, self)
         i.sendFirstMessage()
@@ -203,8 +202,9 @@ class Invitation:
     def sendFirstMessage(self):
         pub = self.getMyTempPrivkey().public_key.encode()
         self.send("i0:m1:"+pub)
-        self.db.execute("UPDATE invitations SET myMessages=? WHERE id=?",
-                        (",".join(self.myMessages), self.iid))
+        self.db.update("UPDATE invitations SET myMessages=? WHERE id=?",
+                       (",".join(self.myMessages), self.iid),
+                       "invitations", self.iid)
         # that will be commited by our caller
 
     def processMessages(self, messages):
@@ -263,15 +263,16 @@ class Invitation:
         if self.nextExpectedMessage == 3:
             self.findPrefixAndCall("i0:m3:", bodies, self.processM3)
 
-        self.db.execute("UPDATE invitations SET"
-                        "  myMessages=?,"
-                        "  theirMessages=?,"
-                        "  nextExpectedMessage=?"
-                        " WHERE id=?",
-                        (",".join(self.myMessages),
-                         ",".join(self.theirMessages | newMessages),
-                         self.nextExpectedMessage,
-                         self.iid))
+        self.db.update("UPDATE invitations SET"
+                       "  myMessages=?,"
+                       "  theirMessages=?,"
+                       "  nextExpectedMessage=?"
+                       " WHERE id=?",
+                       (",".join(self.myMessages),
+                        ",".join(self.theirMessages | newMessages),
+                        self.nextExpectedMessage,
+                        self.iid),
+                       "invitations", self.iid)
         #print " db.commit"
         self.db.commit()
 
@@ -295,9 +296,10 @@ class Invitation:
     def processM1(self, msg):
         #print "processM1", self.petname
         self.theirTempPubkey = PublicKey(msg)
-        self.db.execute("UPDATE invitations SET theirTempPubkey=?"
-                        " WHERE id=?",
-                        (self.theirTempPubkey.encode(Hex), self.iid))
+        self.db.update("UPDATE invitations SET theirTempPubkey=?"
+                       " WHERE id=?",
+                       (self.theirTempPubkey.encode(Hex), self.iid),
+                       "invitations", self.iid)
         # theirTempPubkey will committed by our caller, in the same txn as
         # the message send
 
@@ -351,32 +353,34 @@ class Invitation:
 
         them = json.loads(their_channel_record_json)
         me = self.getMyPrivateChannelData()
-        c = self.db.execute("INSERT INTO addressbook"
-                            " (petname, acked,"
-                            "  next_outbound_seqnum, my_signkey,"
-                            "  their_channel_record_json,"
-                            "  my_CID_key, next_CID_token,"
-                            "  highest_inbound_seqnum,"
-                            "  my_old_channel_privkey, my_new_channel_privkey,"
-                            "  they_used_new_channel_key, their_verfkey)"
-                            " VALUES (?,?, "
-                            "         ?,?,"
-                            "         ?,"
-                            "         ?,?," # my_CID_key, next_CID_token
-                            "         ?,"   # highest_inbound_seqnum
-                            "         ?,?,"
-                            "         ?,?)",
-                            (self.petname, 0,
-                             1, me["my_signkey"],
-                             json.dumps(them),
-                             me["my_CID_key"], None,
-                             0,
-                             me["my_old_channel_privkey"],
-                             me["my_new_channel_privkey"],
-                             0, theirVerfkey.encode(Hex) ) )
-        addressbook_id = c.lastrowid
-        self.db.execute("UPDATE invitations SET addressbook_id=?"
-                        " WHERE id=?", (addressbook_id, self.iid))
+        addressbook_id = self.db.insert(
+            "INSERT INTO addressbook"
+            " (petname, acked,"
+            "  next_outbound_seqnum, my_signkey,"
+            "  their_channel_record_json,"
+            "  my_CID_key, next_CID_token,"
+            "  highest_inbound_seqnum,"
+            "  my_old_channel_privkey, my_new_channel_privkey,"
+            "  they_used_new_channel_key, their_verfkey)"
+            " VALUES (?,?, "
+            "         ?,?,"
+            "         ?,"
+            "         ?,?," # my_CID_key, next_CID_token
+            "         ?,"   # highest_inbound_seqnum
+            "         ?,?,"
+            "         ?,?)",
+            (self.petname, 0,
+             1, me["my_signkey"],
+             json.dumps(them),
+             me["my_CID_key"], None,
+             0,
+             me["my_old_channel_privkey"],
+             me["my_new_channel_privkey"],
+             0, theirVerfkey.encode(Hex) ),
+            "addressbook")
+        self.db.update("UPDATE invitations SET addressbook_id=?"
+                       " WHERE id=?", (addressbook_id, self.iid),
+                       "invitations", self.iid)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)
@@ -386,9 +390,11 @@ class Invitation:
         #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
-        self.db.execute("UPDATE addressbook SET acked=1 WHERE id=?",
-                        (self.getAddressbookID(),))
-        self.db.execute("DELETE FROM invitations WHERE id=?", (self.iid,))
+        cid = self.getAddressbookID()
+        self.db.update("UPDATE addressbook SET acked=1 WHERE id=?", (cid,),
+                       "addressbook", cid )
+        self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
+                       "invitations", self.iid)
 
         # we no longer care about the channel
         msg4 = "i0:destroy:"+os.urandom(16)

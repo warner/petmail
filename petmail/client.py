@@ -58,12 +58,12 @@ class Client(service.MultiService):
         # it'd be nice to make sure we can build it, before committing it to
         # the DB. But we need the tid first, which comes from the DB. The
         # commit-after-build below might accomplish this anyways.
-        c = self.db.execute("INSERT INTO mailboxes"
-                            " (sender_descriptor_json, private_descriptor_json)"
-                            " VALUES (?,?)",
-                            (json.dumps(sender_descriptor),
-                             json.dumps(private_descriptor)))
-        tid = c.lastrowid
+        tid = self.db.insert("INSERT INTO mailboxes"
+                             " (sender_descriptor_json,private_descriptor_json)"
+                             " VALUES (?,?)",
+                             (json.dumps(sender_descriptor),
+                              json.dumps(private_descriptor)),
+                             "mailboxes")
         rc = self.buildRetrievalClient(tid, private_descriptor)
         self.db.commit()
         self.subscribeToMailbox(rc)
@@ -71,8 +71,7 @@ class Client(service.MultiService):
     def command_enable_local_mailbox(self):
         # create the persistent state needed to run a mailbox from our webapi
         # port. Then activate it. This should only be called once.
-        c = self.db.execute("SELECT * FROM mailboxes")
-        for row in c.fetchall():
+        for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
             privdesc = json.loads(row["private_descriptor_json"])
             if privdesc["type"] == "local":
                 raise CommandError("local server already activated")
@@ -92,10 +91,11 @@ class Client(service.MultiService):
         self.payload_received(cid, seqnum, payload_json)
 
     def payload_received(self, cid, seqnum, payload_json):
-        self.db.execute("INSERT INTO inbound_messages"
+        self.db.insert("INSERT INTO inbound_messages"
                         " (cid, seqnum, payload_json)"
                         " VALUES (?,?,?)",
-                        (cid, seqnum, payload_json))
+                        (cid, seqnum, payload_json),
+                       "inbound_messages")
         self.db.commit()
         #payload = json.loads(payload_json)
         #print "payload_received", cid, seqnum, payload
@@ -122,8 +122,7 @@ class Client(service.MultiService):
         # returns dict of tid->pubrecord . These will be individualized
         # before delivery to the peer.
         transports = {}
-        c = self.db.execute("SELECT * FROM mailboxes")
-        for row in c.fetchall():
+        for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
             transports[row["id"]] = {
                 "for_sender": json.loads(row["sender_descriptor_json"]),
                 "for_recipient": json.loads(row["private_descriptor_json"]),
@@ -141,8 +140,7 @@ class Client(service.MultiService):
 
     def command_list_addressbook(self):
         resp = []
-        c = self.db.execute("SELECT * FROM addressbook")
-        for row in c.fetchall():
+        for row in self.db.execute("SELECT * FROM addressbook").fetchall():
             entry = {}
             entry["cid"] = row["id"]
             entry["their_verfkey"] = str(row["their_verfkey"])

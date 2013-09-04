@@ -157,8 +157,8 @@ def process_msgC(db, msgC):
     # seqnum > highest_inbound_seqnum
     validate_msgC(row["my_CID_key"].decode("hex"), channel_pubkey,
                   seqnum, CIDBox, CIDToken, msgD)
-    db.execute("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
-               (seqnum, cid))
+    db.update("UPDATE addressbook SET highest_inbound_seqnum=? WHERE id=?",
+              (seqnum, cid), "addressbook", cid)
     db.commit() # TODO: allow caller to do the commit
     return cid, seqnum, payload_s
 
@@ -191,9 +191,10 @@ class OutboundChannel:
         res = c.fetchone()
         assert res, "missing cid"
         next_outbound_seqnum = res["next_outbound_seqnum"]
-        self.db.execute("UPDATE addressbook SET next_outbound_seqnum=?"
-                        " WHERE id=?",
-                        (next_outbound_seqnum+1, self.cid))
+        self.db.update("UPDATE addressbook SET next_outbound_seqnum=?"
+                       " WHERE id=?",
+                       (next_outbound_seqnum+1, self.cid),
+                       "addressbook", self.cid)
         self.db.commit()
         seqnum_s = struct.pack(">Q", next_outbound_seqnum)
         my_signkey = SigningKey(res["my_signkey"].decode("hex"))
