@@ -9,7 +9,7 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
         return 1
     os.mkdir(basedir)
     dbfile = os.path.join(basedir, "petmail.db")
-    sqlite, db = database.get_db(dbfile, stderr)
+    db = database.get_db(dbfile, stderr)
     c = db.cursor()
     c.execute("INSERT INTO node (webhost, webport) VALUES (?,?)",
               (so["webhost"], so["webport"]))

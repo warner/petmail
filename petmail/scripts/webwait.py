@@ -18,7 +18,7 @@ def get_url_and_token(basedir, err):
     dbfile = os.path.join(basedir, "petmail.db")
     if not (os.path.isdir(basedir) and os.path.exists(dbfile)):
         raise NoNodeError(basedir)
-    sqlite, db = database.get_db(dbfile, err)
+    db = database.get_db(dbfile, err)
     c = db.cursor()
     c.execute("SELECT webport FROM node LIMIT 1")
     (webport,) = c.fetchone()

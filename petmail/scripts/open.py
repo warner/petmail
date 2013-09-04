@@ -10,7 +10,7 @@ def open_control_panel(so, out, err):
     print >>out, "Node appears to be running, opening browser"
 
     dbfile = os.path.join(basedir, "petmail.db")
-    sqlite, db = database.get_db(dbfile, err)
+    db = database.get_db(dbfile, err)
     c = db.cursor()
 
     c.execute("SELECT name FROM services")
