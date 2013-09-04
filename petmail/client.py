@@ -1,4 +1,4 @@
-import os.path, weakref, json
+import os.path, json
 from twisted.application import service
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
@@ -13,8 +13,6 @@ class Client(service.MultiService):
         self.db = db
         self.mailbox_server = mailbox_server
 
-        self.subscribers = weakref.WeakKeyDictionary()
-
         self.local_server = None
         self.mailboxClients = set()
         c = self.db.execute("SELECT id, private_descriptor_json FROM mailboxes")
@@ -28,6 +26,12 @@ class Client(service.MultiService):
         rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
+
+    def subscribe(self, table, observer):
+        self.db.subscribe(table, observer)
+
+    def unsubscribe(self, table, observer):
+        self.db.unsubscribe(table, observer)
 
     def buildRetrievalClient(self, tid, private_descriptor):
         # parse descriptor, import correct module and constructor

@@ -53,7 +53,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         nA_notices = []
         def notify(table, action, id, new_value):
             nA_notices.append(Notice(table, action, id, new_value))
-        n1.subscribe("addressbook", notify)
+        n1.client.subscribe("addressbook", notify)
 
         n1.client.command_invite(u"petname-from-1", code,
                                  override_transports=tports1)
@@ -176,7 +176,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
             self.failUnlessEqual(nA_notices[1].new_value["petname"],
                                  "petname-from-1")
-            n1.unsubscribe("addressbook", notify)
+            n1.client.unsubscribe("addressbook", notify)
         d.addCallback(_then)
         return d
 
