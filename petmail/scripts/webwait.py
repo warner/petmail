@@ -85,7 +85,7 @@ class BadResponse(object):
     def read(self):
         return ""
 
-def do_http(method, url, body=""):
+def do_http(method, url, body="", event_stream=False):
     assert isinstance(body, str)
     body = StringIO(body)
 
@@ -99,7 +99,10 @@ def do_http(method, url, body=""):
     c.putrequest(method, path)
     c.putheader("Hostname", host)
     c.putheader("User-Agent", "petmail client")
-    c.putheader("Accept", "text/plain, application/octet-stream")
+    if event_stream:
+        c.putheader("Accept", "text/event-stream")
+    else:
+        c.putheader("Accept", "text/plain, application/octet-stream")
     c.putheader("Connection", "close")
 
     old = body.tell()
@@ -152,3 +155,16 @@ def command(basedir, command, args, err=sys.stderr):
         return False, {"err": http_status+resp.read()+"\n"}
     else:
         return False, {"err": http_status+"Please see node logs for details\n"}
+
+def follow_events(basedir, command, args={}, err=sys.stderr):
+    if _debug_no_http:
+        return _debug_no_http(command, args)
+    baseurl, token = get_url_and_token(basedir, err)
+    if not baseurl:
+        return False, {"err": "Error, node is not yet running"}
+    url = baseurl + "api/v1/events/%s" % command
+    url += "?token=%s" % token
+    if args:
+        url += "&" + urllib.urlencode(args).encode("utf-8")
+    resp = do_http("GET", url, event_stream=True)
+    return resp

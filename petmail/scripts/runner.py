@@ -30,6 +30,9 @@ class BasedirParameterMixin:
             if self.parent:
                 self["basedir"] = self.parent["basedir"]
 
+class NoOptions(BasedirParameterMixin, usage.Options):
+    pass
+
 class BasedirArgument:
     def parseArgs(self, basedir=None):
         if basedir is not None:
@@ -83,23 +86,14 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, code):
         self["code"] = code
 
-class AddressbookOptions(BasedirParameterMixin, usage.Options):
-    pass
-
 class AddMailboxOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, descriptor):
         self["descriptor"] = descriptor
-
-class EnableLocalMailboxOptions(BasedirParameterMixin, usage.Options):
-    pass
 
 class SendBasicOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, cid, message):
         self["cid"] = cid
         self["message"] = message
-
-class FetchMessagesOptions(BasedirParameterMixin, usage.Options):
-    pass
 
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
@@ -121,11 +115,12 @@ class Options(usage.Options):
 
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
-                   ("addressbook", None, AddressbookOptions, "List Addressbook"),
+                   ("addressbook", None, NoOptions, "List Addressbook"),
                    ("add-mailbox", None, AddMailboxOptions, "Add a new mailbox"),
-                   ("enable-local-mailbox", None, EnableLocalMailboxOptions, "Enable the local (in-process) HTTP mailbox"),
+                   ("enable-local-mailbox", None, NoOptions, "Enable the local (in-process) HTTP mailbox"),
                    ("send-basic", None, SendBasicOptions, "Send a basic message"),
-                   ("fetch-messages", None, FetchMessagesOptions, "Fetch all stored messages"),
+                   ("fetch-messages", None, NoOptions, "Fetch all stored messages"),
+                   ("follow-messages", None, NoOptions, "Fetch messages"),
 
                    ("test", None, TestOptions, "Run unit tests"),
                    ]
@@ -174,6 +169,10 @@ def restart(*args):
 def open_control_panel(*args):
     from .open import open_control_panel
     return open_control_panel(*args)
+
+def follow_messages(*args):
+    from . import messages
+    return messages.follow_messages(*args)
 
 
 def create_relay(*args):
@@ -249,6 +248,7 @@ DISPATCH = {"create-node": create_node,
             "send-basic": WebCommand("send-basic", ["cid", "message"]),
             "fetch-messages": WebCommand("fetch-messages", [],
                                          render=render_messages),
+            "follow-messages": follow_messages,
             "accept": accept,
             }
 
