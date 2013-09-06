@@ -106,12 +106,15 @@ class Client(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, code, override_transports=None):
+    def _command_invite(self, petname, code, override_transports=None):
         base_transports = self.get_transports()
         if override_transports:
             base_transports = override_transports
         transports = self.individualize_transports(base_transports)
-        self.im.startInvitation(petname, code, transports)
+        return self.im.startInvitation(petname, code, transports)
+    def command_invite(self, petname, code, override_transports=None):
+        # ignore the Deferred: the command form is launch-and-forget
+        self._command_invite(petname, code, override_transports)
         return "invitation for %s started" % petname
 
     def command_send_basic_message(self, cid, message):

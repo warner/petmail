@@ -2,6 +2,7 @@
 import re, os, json, hmac
 from hashlib import sha256
 from twisted.application import service
+from twisted.internet.defer import succeed, DeferredList
 from .hkdf import HKDF
 from .errors import CommandError
 from nacl.signing import SigningKey, VerifyKey, BadSignatureError
@@ -87,8 +88,7 @@ class InvitationManager(service.MultiService):
 
     def sendToAll(self, inviteID, msg):
         #print "sendToAll", msg
-        for rs in list(self):
-            rs.send(inviteID, msg)
+        return DeferredList([rs.send(inviteID, msg) for rs in list(self)])
 
     def readyPendingInvitations(self):
         c = self.db.execute("SELECT inviteID FROM invitations")
@@ -140,8 +140,9 @@ class InvitationManager(service.MultiService):
                         "invitations")
         self.subscribe(inviteID)
         i = Invitation(iid, self.db, self)
-        i.sendFirstMessage()
+        d = i.sendFirstMessage()
         self.db.commit()
+        return d
 
 class Invitation:
     # This has a brief lifetime: one is created in response to the rendezvous
@@ -164,7 +165,7 @@ class Invitation:
         if not res:
             raise KeyError("no pending Invitation for '%d'" % iid)
         self.petname = res[0]
-        self.inviteID = res[1]
+        self.inviteID = str(res[1])
         self.inviteKey = SigningKey(res[2].decode("hex"))
         self.theirTempPubkey = None
         if res[3]:
@@ -201,11 +202,12 @@ class Invitation:
 
     def sendFirstMessage(self):
         pub = self.getMyTempPrivkey().public_key.encode()
-        self.send("i0:m1:"+pub)
+        d = self.send("i0:m1:"+pub)
         self.db.update("UPDATE invitations SET myMessages=? WHERE id=?",
                        (",".join(self.myMessages), self.iid),
                        "invitations", self.iid)
         # that will be commited by our caller
+        return d
 
     def processMessages(self, messages):
         # These messages are neither version-checked nor signature-checked.
@@ -220,9 +222,11 @@ class Invitation:
         # Send anything that didn't make it to the server. This covers the
         # case where we commit our outbound message in send() but crash
         # before finishing delivery.
+        ds = []
         for m in self.myMessages - messages:
             #print "resending", m
-            self.manager.sendToAll(self.inviteID, m)
+            d = self.manager.sendToAll(self.inviteID, m)
+            ds.append(d)
 
         newMessages = messages - self.myMessages - self.theirMessages
         #print " %d new messages" % len(newMessages)
@@ -248,7 +252,7 @@ class Invitation:
                     print " (bad sig)"
                 self.unsubscribe(self.inviteID)
                 # TODO: mark invitation as failed, destroy it
-                return
+                return DeferredList(ds)
 
         #print " new inbound bodies:", ", ".join([repr(b[:10])+" ..." for b in bodies])
 
@@ -256,12 +260,12 @@ class Invitation:
         # will increment self.nextExpectedMessage. We can handle multiple
         # (sequential) messages in a single pass.
         if self.nextExpectedMessage == 1:
-            self.findPrefixAndCall("i0:m1:", bodies, self.processM1)
+            ds.append(self.findPrefixAndCall("i0:m1:", bodies, self.processM1))
             # no elif here: self.nextExpectedMessage may have incremented
         if self.nextExpectedMessage == 2:
-            self.findPrefixAndCall("i0:m2:", bodies, self.processM2)
+            ds.append(self.findPrefixAndCall("i0:m2:", bodies, self.processM2))
         if self.nextExpectedMessage == 3:
-            self.findPrefixAndCall("i0:m3:", bodies, self.processM3)
+            ds.append(self.findPrefixAndCall("i0:m3:", bodies, self.processM3))
 
         self.db.update("UPDATE invitations SET"
                        "  myMessages=?,"
@@ -275,12 +279,13 @@ class Invitation:
                        "invitations", self.iid)
         #print " db.commit"
         self.db.commit()
+        return DeferredList(ds)
 
     def findPrefixAndCall(self, prefix, bodies, handler):
         for msg in bodies:
             if msg.startswith(prefix):
                 return handler(msg[len(prefix):])
-        return None
+        return succeed(None)
 
     def send(self, msg, persist=True):
         #print "send", repr(msg[:10]), "..."
@@ -291,7 +296,7 @@ class Invitation:
             # get it into the same transaction as the update to which inbound
             # messages we've processed.
         assert VALID_MESSAGE.search(signed), signed
-        self.manager.sendToAll(self.inviteID, signed)
+        return self.manager.sendToAll(self.inviteID, signed)
 
     def processM1(self, msg):
         #print "processM1", self.petname
@@ -319,8 +324,9 @@ class Invitation:
         #print "ENCRYPTED n+c", len(nonce_and_ciphertext), nonce_and_ciphertext.encode("hex")
         #print " nonce", nonce.encode("hex")
         msg2 = "i0:m2:"+nonce_and_ciphertext
-        self.send(msg2)
+        d = self.send(msg2)
         self.nextExpectedMessage = 2
+        return d
 
     def processM2(self, msg):
         #print "processM2", repr(msg[:10]), "...", self.petname
@@ -383,8 +389,9 @@ class Invitation:
                        "invitations", self.iid)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
-        self.send(msg3)
+        d = self.send(msg3)
         self.nextExpectedMessage = 3
+        return d
 
     def processM3(self, msg):
         #print "processM3", repr(msg[:10]), "..."
@@ -398,5 +405,7 @@ class Invitation:
 
         # we no longer care about the channel
         msg4 = "i0:destroy:"+os.urandom(16)
-        self.send(msg4, persist=False)
+        d = self.send(msg4, persist=False)
         self.manager.unsubscribe(self.inviteID)
+        return d
+

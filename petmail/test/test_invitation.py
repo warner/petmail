@@ -48,121 +48,143 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         tport1 = fake_transport()
         tports1 = {0: tport1[1]}
 
-        nA_notices = []
-        n1.client.subscribe("addressbook", nA_notices.append)
-
-        n1.client.command_invite(u"petname-from-1", code,
-                                 override_transports=tports1)
-        inviteID = rclient1.subscriptions.keys()[0]
-        rdir = os.path.join(rclient1.basedir, inviteID)
-        self.failUnless(os.path.exists(rdir))
-        # messages: node1-M1
-        # at this point, node1 should have sent a single message (M1), and
-        # should be waiting for the peer's first message (M1)
-        self.checkCounts(n1, code, 1, 0, 1)
-
-        # polling again should ignore the previously-sent message
-        rclient1.poll()
-        self.checkCounts(n1, code, 1, 0, 1)
-
-        # now we add a peer (node2) for them to talk to
         basedir2 = os.path.join(self.make_basedir(), "node2")
         self.createNode(basedir2)
         n2 = self.startNode(basedir2, beforeStart=self.disable_polling)
+        rclient2 = list(n2.client.im)[0]
         tport2 = fake_transport()
         tports2 = {0: tport2[1]}
-        n2.client.command_invite(u"petname-from-2", code,
-                                 override_transports=tports2)
-        rclient2 = list(n2.client.im)[0]
-        # messages: node1-M1, node2-M1
 
-        # node2 should have sent one message. node1 should not have noticed
-        # yet, because we only poll manually here.
-        self.checkCounts(n2, code, 1, 0, 1)
-        self.checkCounts(n1, code, 1, 0, 1)
+        nA_notices = []
+        n1.client.subscribe("addressbook", nA_notices.append)
 
-        # allow node2 to poll. It should see the node1's first message, and
-        # create its own second message. node1 should not notice yet.
-        rclient2.poll()
-        # messages: node1-M1, node2-M1, node2-M2
-        self.checkCounts(n1, code, 1, 0, 1)
-        self.checkCounts(n2, code, 2, 1, 2)
+        d = n1.client._command_invite(u"petname-from-1", code,
+                                      override_transports=tports1)
+        def _then1(_):
+            inviteID = rclient1.subscriptions.keys()[0]
+            self.rdir = os.path.join(rclient1.basedir, inviteID)
+            self.failUnless(os.path.exists(self.rdir))
+            # messages: node1-M1
+            # at this point, node1 should have sent a single message (M1),
+            # and should be waiting for the peer's first message (M1)
+            self.checkCounts(n1, code, 1, 0, 1)
 
-        # node2 polling again should not change anything
-        rclient2.poll()
-        self.checkCounts(n1, code, 1, 0, 1)
-        self.checkCounts(n2, code, 2, 1, 2)
+            # polling again should ignore the previously-sent message
+            return rclient1.poll()
+        d.addCallback(_then1)
+        def _then2(_):
+            self.checkCounts(n1, code, 1, 0, 1)
 
-        # let node1 poll. It will see both of node2's messages, add its
-        # addressbook entry, send it's second and third messages, and be
-        # waiting for an ACK
-        #print "== first client polling to get M2"
-        rclient1.poll()
-        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK
-        self.checkCounts(n2, code, 2, 1, 2)
-        self.checkCounts(n1, code, 3, 2, 3)
+            # now we add a peer (node2) for them to talk to
+            return n2.client._command_invite(u"petname-from-2", code,
+                                             override_transports=tports2)
+        d.addCallback(_then2)
+        def _then3(_):
+            # messages: node1-M1, node2-M1
 
-        a1 = self.fetchAddressBook(n1)
-        self.failUnlessEqual(len(a1), 1)
-        self.failUnlessEqual(a1[0].petname, "petname-from-1")
-        self.failUnlessEqual(a1[0].acked, False)
-        #print a1[0].their_verfkey
-        #print a1[0].their_channel_record
+            # node2 should have sent one message. node1 should not have
+            # noticed yet, because we only poll manually here.
+            self.checkCounts(n2, code, 1, 0, 1)
+            self.checkCounts(n1, code, 1, 0, 1)
 
-        # re-polling should not do anything
-        rclient1.poll()
-        # TODO: the Invitation is incorrectly given new messages here
-        self.checkCounts(n2, code, 2, 1, 2)
-        self.checkCounts(n1, code, 3, 2, 3)
+            # allow node2 to poll. It should see the node1's first message,
+            # and create its own second message. node1 should not notice yet.
+            return rclient2.poll()
+        d.addCallback(_then3)
+        def _then4(_):
+            # messages: node1-M1, node2-M1, node2-M2
+            self.checkCounts(n1, code, 1, 0, 1)
+            self.checkCounts(n2, code, 2, 1, 2)
 
-        # let node2 poll. It will see node1's M2 message, add its addressbook
-        # entry, send its ACK, will see node1's ACK, update its addressbook
-        # entry, send its destroy-channel message, and delete the invitation.
-        #print " == second client polling to get M2"
-        rclient2.poll()
-        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
-        # node2-M3-ACK, node2-M4-destroy
-        self.checkCounts(n2, code, None, None, None, exists=False)
-        self.checkCounts(n1, code, 3, 2, 3)
-        a2 = self.fetchAddressBook(n2)
-        self.failUnlessEqual(len(a2), 1)
-        self.failUnlessEqual(a2[0].petname, "petname-from-2")
-        self.failUnlessEqual(a2[0].acked, True)
+            # node2 polling again should not change anything
+            return rclient2.poll()
+        d.addCallback(_then4)
+        def _then5(_):
+            self.checkCounts(n1, code, 1, 0, 1)
+            self.checkCounts(n2, code, 2, 1, 2)
 
-        # finally, let node1 poll one last time. It will see the ACK and send
-        # the second destroy-channel message.
-        rclient1.poll()
-        # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
-        # node2-M3-ACK, node2-M4-destroy, node1-M4-destroy
-        self.checkCounts(n2, code, None, None, None, exists=False)
-        self.checkCounts(n1, code, None, None, None, exists=False)
-        a1 = self.fetchAddressBook(n1)
-        self.failUnlessEqual(len(a1), 1)
-        self.failUnlessEqual(a1[0].acked, True)
+            # let node1 poll. It will see both of node2's messages, add its
+            # addressbook entry, send it's second and third messages, and be
+            # waiting for an ACK
+            #print "== first client polling to get M2"
+            return rclient1.poll()
+        d.addCallback(_then5)
+        def _then6(_):
+            # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK
+            self.checkCounts(n2, code, 2, 1, 2)
+            self.checkCounts(n1, code, 3, 2, 3)
 
-        self.failUnlessEqual(a1[0].their_channel_record["CID_key"],
-                             a2[0].my_CID_key)
-        self.failUnlessEqual(a1[0].my_CID_key,
-                             a2[0].their_channel_record["CID_key"])
+            a1 = self.fetchAddressBook(n1)
+            self.failUnlessEqual(len(a1), 1)
+            self.failUnlessEqual(a1[0].petname, "petname-from-1")
+            self.failUnlessEqual(a1[0].acked, False)
+            #print a1[0].their_verfkey
+            #print a1[0].their_channel_record
 
-        # finally check that the channel has been destroyed
-        self.failIf(os.path.exists(rdir))
+            # re-polling should not do anything
+            return rclient1.poll()
+        d.addCallback(_then6)
+        def _then7(_):
+            # TODO: the Invitation is incorrectly given new messages here
+            self.checkCounts(n2, code, 2, 1, 2)
+            self.checkCounts(n1, code, 3, 2, 3)
 
-        # look at some client command handlers too
-        a1 = n1.client.command_list_addressbook()
-        self.failUnlessEqual(len(a1), 1)
-        a2 = n2.client.command_list_addressbook()
-        self.failUnlessEqual(len(a2), 1)
-        self.failUnlessEqual(a1[0]["my_verfkey"], a2[0]["their_verfkey"])
-        self.failUnlessEqual(a2[0]["my_verfkey"], a1[0]["their_verfkey"])
-        self.failUnlessEqual(a1[0]["acked"], True)
-        self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
-        self.failUnlessEqual(a2[0]["acked"], True)
-        self.failUnlessEqual(a2[0]["petname"], "petname-from-2")
+            # let node2 poll. It will see node1's M2 message, add its
+            # addressbook entry, send its ACK, will see node1's ACK, update
+            # its addressbook entry, send its destroy-channel message, and
+            # delete the invitation.
+            #print " == second client polling to get M2"
+            return rclient2.poll()
+        d.addCallback(_then7)
+        def _then8(_):
+            # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
+            # node2-M3-ACK, node2-M4-destroy
+            self.checkCounts(n2, code, None, None, None, exists=False)
+            self.checkCounts(n1, code, 3, 2, 3)
+            a2 = self.fetchAddressBook(n2)
+            self.failUnlessEqual(len(a2), 1)
+            self.failUnlessEqual(a2[0].petname, "petname-from-2")
+            self.failUnlessEqual(a2[0].acked, True)
+            self.a2_my_CID_key = a2[0].my_CID_key
+            self.a2_their_CID_key = a2[0].their_channel_record["CID_key"]
 
-        self.failUnlessEqual(nA_notices, [])
-        d = flushEventualQueue()
-        def _then(_):
+            # finally, let node1 poll one last time. It will see the ACK and
+            # send the second destroy-channel message.
+            return rclient1.poll()
+        d.addCallback(_then8)
+        def _then9(_):
+            # messages: node1-M1, node2-M1, node2-M2, node1-M2, node1-M3-ACK,
+            # node2-M3-ACK, node2-M4-destroy, node1-M4-destroy
+            self.checkCounts(n2, code, None, None, None, exists=False)
+            self.checkCounts(n1, code, None, None, None, exists=False)
+            a1 = self.fetchAddressBook(n1)
+            self.failUnlessEqual(len(a1), 1)
+            self.failUnlessEqual(a1[0].acked, True)
+
+            self.failUnlessEqual(a1[0].their_channel_record["CID_key"],
+                                 self.a2_my_CID_key)
+            self.failUnlessEqual(a1[0].my_CID_key,
+                                 self.a2_their_CID_key)
+
+            # finally check that the channel has been destroyed
+            self.failIf(os.path.exists(self.rdir))
+
+            # look at some client command handlers too
+            a1 = n1.client.command_list_addressbook()
+            self.failUnlessEqual(len(a1), 1)
+            a2 = n2.client.command_list_addressbook()
+            self.failUnlessEqual(len(a2), 1)
+            self.failUnlessEqual(a1[0]["my_verfkey"], a2[0]["their_verfkey"])
+            self.failUnlessEqual(a2[0]["my_verfkey"], a1[0]["their_verfkey"])
+            self.failUnlessEqual(a1[0]["acked"], True)
+            self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
+            self.failUnlessEqual(a2[0]["acked"], True)
+            self.failUnlessEqual(a2[0]["petname"], "petname-from-2")
+
+            self.failUnlessEqual(nA_notices, [])
+            return flushEventualQueue()
+        d.addCallback(_then9)
+        def _then10(_):
             self.failUnlessEqual(len(nA_notices), 2)
             self.failUnlessEqual(nA_notices[0].action, "insert")
             self.failUnlessEqual(nA_notices[0].new_value["acked"], 0)
@@ -173,7 +195,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(nA_notices[1].new_value["petname"],
                                  "petname-from-1")
             n1.client.unsubscribe("addressbook", nA_notices.append)
-        d.addCallback(_then)
+        d.addCallback(_then10)
         return d
 
     def test_duplicate_code(self):
