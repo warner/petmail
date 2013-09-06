@@ -3,10 +3,11 @@ from twisted.application import service
 from . import database, web
 
 class Node(service.MultiService):
-    def __init__(self, basedir, dbfile):
+    def __init__(self, basedir, dbfile, enable_polling=True):
         service.MultiService.__init__(self)
         self.basedir = basedir
         self.dbfile = dbfile
+        self.enable_polling = enable_polling
 
         self.db = database.make_observable_db(dbfile)
         self.init_webport()
@@ -50,5 +51,6 @@ class Node(service.MultiService):
 
     def init_client(self):
         from . import client
-        self.client = client.Client(self.db, self.basedir, self.mailbox_server)
+        self.client = client.Client(self.db, self.basedir, self.mailbox_server,
+                                    self.enable_polling)
         self.client.setServiceParent(self)

@@ -16,7 +16,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
     directory for 'writes', and poll the directory for reads.
     """
 
-    def __init__(self, basedir):
+    def __init__(self, basedir, enable_polling=True):
         service.MultiService.__init__(self)
         self.basedir = basedir
         if not os.path.isdir(basedir):
@@ -26,7 +26,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         # destroyRequestsSeen maps channelID -> set(destroy messages)
         self.destroyRequestsSeen = defaultdict(set)
         self.verfkeys = {}
-        self.enable_polling = True # disabled by some unit tests
+        self.enable_polling = enable_polling # disabled by some unit tests
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID
