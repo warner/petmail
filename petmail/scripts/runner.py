@@ -53,6 +53,13 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("port", "p", None, "port number to advertise in URLs"),
         ]
 
+class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
+    optParameters = [
+        ("listen", "l", None, "TCP port for the node's HTTP interface."),
+        ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
+        ("port", "p", None, "port number to advertise in URLs"),
+        ]
+
 class StartNodeOptions(BasedirParameterMixin, StartArguments, usage.Options):
     optFlags = [
         ("no-open", "n", "Do not automatically open the control panel"),
@@ -106,6 +113,7 @@ class Options(usage.Options):
         ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
         ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
+                   ("create-relay", None, CreateRelayOptions, "Create a relay"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
                    ("restart", None, RestartNodeOptions, "Restart a node"),
@@ -150,7 +158,11 @@ class Options(usage.Options):
 
 def create_node(*args):
     from .create_node import create_node
-    return create_node(*args)
+    return create_node(*args, services=["client"])
+
+def create_relay(*args):
+    from .create_node import create_node
+    return create_node(*args, services=["relay"])
 
 def start(*args):
     from .startstop import start
@@ -172,10 +184,6 @@ def follow_messages(*args):
     from . import messages
     return messages.follow_messages(*args)
 
-
-def create_relay(*args):
-    from .create_node import create_relay
-    return create_relay(*args)
 
 petmail_executable = []
 
@@ -229,11 +237,11 @@ def accept(*args):
     return accept_invitation(*args)
 
 DISPATCH = {"create-node": create_node,
+            "create-relay": create_relay,
             "start": start,
             "stop": stop,
             "restart": restart,
             "open": open_control_panel,
-            "create-relay": create_relay,
             "test": test,
 
             "sample": WebCommand("sample", ["data", "success-object",

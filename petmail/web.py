@@ -1,4 +1,4 @@
-import os, json
+import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from .database import Notice
@@ -220,6 +220,33 @@ class Control(resource.Resource):
         return read_media("control.html") % {"token": token}
 
 
+class Channel(resource.Resource):
+    def __init__(self, channelid, channels):
+        resource.Resource.__init__(self)
+        self.channelid = channelid
+        self.channels = channels
+    def render_POST(self, request):
+        message = request.content.read()
+        # TODO: check signature
+        # TODO: look for two valid deletion messages
+        self.channels[self.channelid].append(message)
+        return "OK\n"
+    def render_GET(self, request):
+        if "text/event-stream" in request.headers.get("accept", ""):
+            #request.setHeader("content-type", "text/event-stream")
+            # TODO: EventSource
+            pass
+        if not self.channelid in self.channels:
+            return ""
+        return "\n".join(self.channels[self.channelid])+"\n"
+
+class Relay(resource.Resource):
+    def __init__(self):
+        resource.Resource.__init__(self)
+        self.channels = collections.defaultdict(list)
+    def getChild(self, path, request):
+        return Channel(path, self.channels)
+
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self):
@@ -228,9 +255,8 @@ class Root(resource.Resource):
         self.putChild("media", static.File(MEDIA_DIRNAME))
 
 class WebPort(service.MultiService):
-    def __init__(self, basedir, listenport):
+    def __init__(self, listenport):
         service.MultiService.__init__(self)
-        self.basedir = basedir
         self.root = Root()
         site = server.Site(self.root)
         assert listenport != "tcp:0" # must be configured
@@ -254,6 +280,9 @@ class WebPort(service.MultiService):
         api_v1 = API(access_token, db, client) # /api/v1
         api.putChild("v1", api_v1)
         self.root.putChild("api", api)
+
+    def enable_relay(self):
+        self.root.putChild("relay", Relay())
 
     def get_root(self):
         return self.root

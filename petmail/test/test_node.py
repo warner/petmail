@@ -71,12 +71,22 @@ class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
         return d
 
 class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
-    def test_create(self):
+    def test_create_node(self):
         basedir = os.path.join(self.make_basedir(), "node1")
         d = self.cliMustSucceed("create-node", basedir)
         def _check(out):
             self.failUnlessEqual(out, "node created in %s\n" % basedir)
             self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
+        d.addCallback(_check)
+        return d
+
+    def test_create_relay(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-relay", basedir)
+        def _check(out):
+            self.failUnlessEqual(out, "node created in %s\n" % basedir)
+            self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
+            self.startNode(basedir)
         d.addCallback(_check)
         return d
 

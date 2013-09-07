@@ -1,8 +1,8 @@
-import os, sys, json
+import os, json
 from nacl.public import PrivateKey
 from .. import rrid, database, util
 
-def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
+def create_node(so, stdout, stderr, services):
     basedir = so["basedir"]
     if os.path.exists(basedir):
         print >>stderr, "basedir '%s' already exists, refusing to touch it" % basedir
@@ -25,21 +25,24 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
 
     db.execute("INSERT INTO node (listenport, baseurl) VALUES (?,?)",
                (listenport, baseurl))
-    db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
-    db.execute("INSERT INTO `client_profile`"
-               " (`name`, `icon_data`) VALUES (?,?)",
-               ("",""))
-    privkey = PrivateKey.generate()
-    TID_tokenid, TID_privkey, TID_token0 = rrid.create()
-    server_desc = { "transport_privkey": privkey.encode().encode("hex"),
-                    "TID_private_key": TID_privkey.encode("hex"),
-                    "local_TID0": TID_token0.encode("hex"),
-                    "local_TID_tokenid": TID_tokenid.encode("hex"),
-                    }
-    db.execute("INSERT INTO mailbox_server_config"
-               " (private_descriptor_json, enable_retrieval)"
-               " VALUES (?,?)",
-               (json.dumps(server_desc), 0))
+    if "relay" in services:
+        db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
+    if "client" in services:
+        db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
+        db.execute("INSERT INTO `client_profile`"
+                   " (`name`, `icon_data`) VALUES (?,?)",
+                   ("",""))
+        privkey = PrivateKey.generate()
+        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        server_desc = { "transport_privkey": privkey.encode().encode("hex"),
+                        "TID_private_key": TID_privkey.encode("hex"),
+                        "local_TID0": TID_token0.encode("hex"),
+                        "local_TID_tokenid": TID_tokenid.encode("hex"),
+                        }
+        db.execute("INSERT INTO mailbox_server_config"
+                   " (private_descriptor_json, enable_retrieval)"
+                   " VALUES (?,?)",
+                   (json.dumps(server_desc), 0))
     db.commit()
     print >>stdout, "node created in %s" % basedir
     return 0

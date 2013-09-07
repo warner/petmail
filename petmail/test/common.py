@@ -29,7 +29,7 @@ class NodeRunnerMixin:
         so = runner.CreateNodeOptions()
         so.parseOptions([basedir])
         out,err = StringIO(), StringIO()
-        rc = create_node(so, out, err)
+        rc = create_node(so, out, err, ["client"])
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 

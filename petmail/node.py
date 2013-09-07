@@ -10,14 +10,16 @@ class Node(service.MultiService):
 
         self.db = database.make_observable_db(dbfile)
         self.baseurl = self.init_webport()
-        self.init_mailbox_server(self.baseurl)
         self.client = None
         c = self.db.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
             name = str(name)
             if name == "client":
+                self.init_mailbox_server(self.baseurl)
                 self.init_client()
                 self.web.enable_client(self.client, self.db)
+            elif name == "relay":
+                self.web.enable_relay()
             else:
                 raise ValueError("Unknown service '%s'" % name)
 
@@ -44,7 +46,7 @@ class Node(service.MultiService):
         self.db.commit()
 
         c = self.db.execute("SELECT * FROM node").fetchone()
-        self.web = web.WebPort(self.basedir, str(c["listenport"]))
+        self.web = web.WebPort(str(c["listenport"]))
         self.web.setServiceParent(self)
         return str(c["baseurl"])
 
