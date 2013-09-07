@@ -93,8 +93,43 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         def _check(out):
             self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
             self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
-            self.startNode(basedir)
+            n = self.startNode(basedir)
+            url = str(n.db.execute("SELECT * from node").fetchone()["baseurl"])
+            self.failUnless(url.startswith("http://localhost:"), url)
         d.addCallback(_check)
+        return d
+
+    def test_create_relay_urls(self):
+        b = self.make_basedir()
+        def create(*args):
+            return self.cliMustSucceed("create-relay", *args)
+        def check(out, basedir, hostport):
+            exp = "node created in %s, URL is http://%s/\n"
+            self.failUnlessEqual(out, exp % (basedir, hostport))
+        d = defer.succeed(None)
+        b1 = os.path.join(b, "node1")
+        d.addCallback(lambda out: create("--listen", "tcp:1234", b1))
+        d.addCallback(lambda out: check(out, b1, "localhost:1234"))
+        b2 = os.path.join(b, "node2")
+        d.addCallback(lambda out: create("--listen", "tcp:1234",
+                                         "--hostname", "example.org", b2))
+        d.addCallback(lambda out: check(out, b2, "example.org:1234"))
+        b3 = os.path.join(b, "node3")
+        d.addCallback(lambda out: create("--listen", "tcp:1234",
+                                         "--hostname", "example.org",
+                                         "--port", "3456", b3))
+        d.addCallback(lambda out: check(out, b3, "example.org:3456"))
+        b4 = os.path.join(b, "node4")
+        d.addCallback(lambda out: create("--hostname", "example.org",
+                                         "--port", "3457", b4))
+        d.addCallback(lambda out: check(out, b4, "example.org:3457"))
+        b5 = os.path.join(b, "node5")
+        d.addCallback(lambda out: create("--port", "3458", b5))
+        d.addCallback(lambda out: check(out, b5, "localhost:3458"))
+        b6 = os.path.join(b, "node6")
+        d.addCallback(lambda out: create("--listen", "tcp:1234",
+                                         "--port", "3459", b6))
+        d.addCallback(lambda out: check(out, b6, "localhost:3459"))
         return d
 
     def test_sample(self):
