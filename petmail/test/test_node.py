@@ -57,7 +57,7 @@ class CLIinProcessMixin(CLIinThreadMixin):
 
 class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
 
-    def test_run(self):
+    def test_node(self):
         basedir = os.path.join(self.make_basedir(), "node1")
         d = self.cliMustSucceed("create-node", basedir)
         d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
@@ -67,6 +67,13 @@ class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
             self.failUnlessSubstring("Please open: http://localhost:", out)
             self.failUnlessSubstring("/open-control?opener-token=", out)
         d.addCallback(_check_url)
+        d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
+        return d
+
+    def test_relay(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-relay", basedir)
+        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
         d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
         return d
 

@@ -6,13 +6,13 @@ from .common import NodeRunnerMixin
 class Relay(NodeRunnerMixin, unittest.TestCase):
     def test_basic(self):
         port = util.allocate_port()
-        w = web.WebPort("tcp:%d:interface=127.0.0.1" % port)
+        w = web.WebPort("tcp:%d:interface=127.0.0.1" % port, "token")
         w.enable_relay()
         w.setServiceParent(self.sparent)
 
     def test_channel(self):
         port = util.allocate_port()
-        w = web.WebPort("tcp:%d:interface=127.0.0.1" % port)
+        w = web.WebPort("tcp:%d:interface=127.0.0.1" % port, "token")
         w.enable_relay()
         w.setServiceParent(self.sparent)
         baseurl = "http://localhost:%d/" % port

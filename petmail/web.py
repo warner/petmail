@@ -2,7 +2,7 @@ import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from .database import Notice
-from .util import make_nonce, equal
+from .util import equal
 from .errors import CommandError
 
 MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
@@ -255,31 +255,22 @@ class Root(resource.Resource):
         self.putChild("media", static.File(MEDIA_DIRNAME))
 
 class WebPort(service.MultiService):
-    def __init__(self, listenport):
+    def __init__(self, listenport, access_token):
         service.MultiService.__init__(self)
         self.root = Root()
         site = server.Site(self.root)
         assert listenport != "tcp:0" # must be configured
         self.port_service = strports.service(listenport, site)
         self.port_service.setServiceParent(self)
+        self.access_token = access_token
 
     def enable_client(self, client, db):
-        # The access token will be used by both CLI commands (which read
-        # it directly from the database) and the frontend web client
-        # (which fetches it from /open-control with a single-use opener
-        # token).
-        access_token = make_nonce()
-        db.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
-                   (access_token,))
-        db.commit()
-
-        self.root.putChild("open-control", ControlOpener(db, access_token))
-        self.root.putChild("control", Control(access_token))
-
+        token = self.access_token
+        self.root.putChild("open-control", ControlOpener(db, token))
+        self.root.putChild("control", Control(token))
         api = resource.Resource() # /api
-        api_v1 = API(access_token, db, client) # /api/v1
-        api.putChild("v1", api_v1)
         self.root.putChild("api", api)
+        api.putChild("v1", API(token, db, client)) # /api/v1
 
     def enable_relay(self):
         self.root.putChild("relay", Relay())

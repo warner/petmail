@@ -1,6 +1,6 @@
 import json
 from twisted.application import service
-from . import database, web
+from . import database, web, util
 
 class Node(service.MultiService):
     def __init__(self, basedir, dbfile):
@@ -9,7 +9,7 @@ class Node(service.MultiService):
         self.dbfile = dbfile
 
         self.db = database.make_observable_db(dbfile)
-        self.baseurl = self.init_webport()
+        self.init_webport()
         self.client = None
         c = self.db.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
@@ -38,17 +38,27 @@ class Node(service.MultiService):
 
     def init_webport(self):
         # Access tokens last as long as the node is running: they are cleared
-        # at each startup. It's important to clear these before the web port
-        # starts listening, to avoid a race with 'petmail open' adding a new
-        # nonce
+        # at each startup.
         self.db.execute("DELETE FROM `webapi_access_tokens`")
         self.db.execute("DELETE FROM `webapi_opener_tokens`")
         self.db.commit()
 
+        access_token = util.make_nonce()
+
         c = self.db.execute("SELECT * FROM node").fetchone()
-        self.web = web.WebPort(str(c["listenport"]))
+        self.web = web.WebPort(str(c["listenport"]), access_token)
         self.web.setServiceParent(self)
-        return str(c["baseurl"])
+        self.baseurl = str(c["baseurl"])
+
+        # The access token will be used by both CLI commands (which read it
+        # directly from the database) and the frontend web client (which
+        # fetches it from /open-control with a single-use opener token).
+        # 'petmail start' polls the DB for this token to determine when the
+        # node is ready. NOTE: the web server won't actually start listening
+        # on the port until startService(), so there's a tiny race here.
+        self.db.execute("INSERT INTO `webapi_access_tokens` VALUES (?)",
+                        (access_token,))
+        self.db.commit()
 
     def init_mailbox_server(self, baseurl):
         from .mailbox.server import HTTPMailboxServer
