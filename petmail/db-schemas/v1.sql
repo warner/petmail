@@ -28,6 +28,11 @@ CREATE TABLE `webapi_access_tokens`
  `token` STRING
 );
 
+CREATE TABLE `relay_servers`
+(
+ `descriptor_json` STRING
+);
+
 CREATE TABLE `mailbox_server_config` -- contains exactly one row
 (
  -- .transport_privkey, TID_private_key, local_TID0, local_TID_tokenid

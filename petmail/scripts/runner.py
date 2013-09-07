@@ -51,6 +51,7 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("listen", "l", None, "TCP port for the node's HTTP interface."),
         ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
         ("port", "p", None, "port number to advertise in URLs"),
+        ("relay-url", "r", None, "URL of the relay server (for invitations)"),
         ]
 
 class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):

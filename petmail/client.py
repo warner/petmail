@@ -3,7 +3,6 @@ from twisted.application import service
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
-from .rendezvous import localdir
 from .errors import CommandError
 from .mailbox import channel, retrieval
 
@@ -22,9 +21,17 @@ class Client(service.MultiService):
             self.subscribeToMailbox(rc)
 
         self.im = invitation.InvitationManager(db, self)
-        rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
-        rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
-        self.im.addRendezvousService(rs_localdir)
+        c = self.db.execute("SELECT * FROM relay_servers")
+        for row in c.fetchall():
+            desc = json.loads(row["descriptor_json"])
+            if desc["type"] == "localdir":
+                from .rendezvous.localdir import LocalDirectoryRendezvousClient
+                rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
+                rs = LocalDirectoryRendezvousClient(rdir)
+            if desc["type"] == "http":
+                from .rendezvous.web_client import HTTPRendezvousClient
+                rs = HTTPRendezvousClient(str(desc["url"]))
+            self.im.addRendezvousService(rs)
         self.im.setServiceParent(self)
 
     def subscribe(self, table, observer):

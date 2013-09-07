@@ -1,6 +1,7 @@
 import os, sys
 from StringIO import StringIO
 from twisted.trial import unittest
+from twisted.python import failure
 from twisted.internet import threads # CLI tests use deferToThread
 from twisted.internet import defer
 from twisted.internet.utils import getProcessOutputAndValue
@@ -50,9 +51,11 @@ class CLIinProcessMixin(CLIinThreadMixin):
     def anyways(self, res, cb, *args, **kwargs):
         # always run the cleanup callback
         d = defer.maybeDeferred(cb, *args, **kwargs)
-        # if it succeeds, return the original result (which might be a
-        # Failure). Otherwise return the cleanup failure.
-        d.addCallbacks(lambda _: res, lambda f: f)
+        if isinstance(res, failure.Failure):
+            # let the original failure passthrough
+            d.addBoth(lambda _: res)
+        # otherwise the original result was success, so just return the
+        # cleanup result
         return d
 
 class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
@@ -67,6 +70,15 @@ class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
             self.failUnlessSubstring("Please open: http://localhost:", out)
             self.failUnlessSubstring("/open-control?opener-token=", out)
         d.addCallback(_check_url)
+        d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
+        return d
+
+    def test_node_with_relay(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node",
+                                "--relay-url", "http://localhost:1234/",
+                                basedir)
+        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
         d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
         return d
 
@@ -85,6 +97,13 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
             self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
         d.addCallback(_check)
+        return d
+
+    def test_create_node_with_relay(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node",
+                                "--relay-url", "http://localhost:1234/",
+                                basedir)
         return d
 
     def test_create_relay(self):
