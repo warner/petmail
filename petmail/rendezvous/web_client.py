@@ -50,6 +50,8 @@ class HTTPRendezvousClient(service.MultiService):
     def http_response(self, data, channelID):
         # we expect a concatenated list of messages, each of which starts
         # with "r0:" followed by a hex-encoded signed message and a newline
+        if not data:
+            return
         messages = data.strip().split("\n")
         self.parent.messagesReceived(channelID, set(messages))
 
