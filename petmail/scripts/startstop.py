@@ -10,15 +10,14 @@ class MyTwistdConfig(twistd.ServerOptions):
 
 class MyPlugin:
     tapname = "xyznode"
-    def __init__(self, basedir, dbfile, enable_polling=True):
+    def __init__(self, basedir, dbfile):
         self.basedir = basedir
         self.dbfile = dbfile
-        self.enable_polling = enable_polling
     def makeService(self, so):
         # delay this import as late as possible, to allow twistd's code to
         # accept --reactor= selection
         from .. import node
-        return node.Node(self.basedir, self.dbfile, self.enable_polling)
+        return node.Node(self.basedir, self.dbfile)
 
 def start(so, out, err):
     basedir = os.path.abspath(so["basedir"])

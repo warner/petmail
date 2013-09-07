@@ -8,7 +8,7 @@ from .errors import CommandError
 from .mailbox import channel, retrieval
 
 class Client(service.MultiService):
-    def __init__(self, db, basedir, mailbox_server, enable_polling=True):
+    def __init__(self, db, basedir, mailbox_server):
         service.MultiService.__init__(self)
         self.db = db
         self.mailbox_server = mailbox_server
@@ -23,8 +23,7 @@ class Client(service.MultiService):
 
         self.im = invitation.InvitationManager(db, self)
         rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
-        rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir,
-                                                              enable_polling)
+        rs_localdir = localdir.LocalDirectoryRendezvousClient(rdir)
         self.im.addRendezvousService(rs_localdir)
         self.im.setServiceParent(self)
 

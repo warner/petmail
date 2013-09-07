@@ -33,14 +33,18 @@ class NodeRunnerMixin:
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
-    def startNode(self, basedir, enable_polling=False):
+    def startNode(self, basedir, beforeStart=None):
         so = runner.StartNodeOptions()
         so.parseOptions([basedir])
-        p = startstop.MyPlugin(basedir, os.path.join(basedir, "petmail.db"),
-                               enable_polling)
+        p = startstop.MyPlugin(basedir, os.path.join(basedir, "petmail.db"))
         n = p.makeService(so)
+        if beforeStart:
+            beforeStart(n)
         n.setServiceParent(self.sparent)
         return n
+
+    def disable_polling(self, n):
+        list(n.client.im)[0].enable_polling = False
 
 def fake_transport():
     privkey = PrivateKey.generate()
@@ -62,11 +66,11 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
     def make_nodes(self, transport="test-return"):
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         self.createNode(basedirA)
-        nA = self.startNode(basedirA)
+        nA = self.startNode(basedirA, beforeStart=self.disable_polling)
 
         basedirB = os.path.join(self.make_basedir(), "nodeB")
         self.createNode(basedirB)
-        nB = self.startNode(basedirB)
+        nB = self.startNode(basedirB, beforeStart=self.disable_polling)
 
         if transport == "test-return":
             self.tport1 = fake_transport()
