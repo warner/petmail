@@ -44,5 +44,5 @@ def create_node(so, stdout, stderr, services):
                    " VALUES (?,?)",
                    (json.dumps(server_desc), 0))
     db.commit()
-    print >>stdout, "node created in %s" % basedir
+    print >>stdout, "node created in %s, URL is %s" % (basedir, baseurl)
     return 0
