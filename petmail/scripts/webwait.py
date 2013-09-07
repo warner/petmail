@@ -19,20 +19,14 @@ def get_url_and_token(basedir, err):
     if not (os.path.isdir(basedir) and os.path.exists(dbfile)):
         raise NoNodeError(basedir)
     db = database.get_db(dbfile, err)
-    c = db.execute("SELECT webport FROM node LIMIT 1")
-    (webport,) = c.fetchone()
-    parts = webport.split(":")
-    assert parts[0] == "tcp"
-    portnum = int(parts[1])
-    if portnum == 0:
-        # Node has not yet chosen a port number. It needs to be started.
-        return None, None
-    url = "http://localhost:%d/" % portnum
+    url = str(db.execute("SELECT baseurl FROM node LIMIT 1").fetchone()[0])
+    # TODO: consider a separate localhost:listenport URL for CLI use
     c = db.execute("SELECT token FROM webapi_access_tokens LIMIT 1")
-    (token,) = c.fetchone()
-    if not token:
+    row = c.fetchone()
+    if not row:
         # Node has assigned a port, but not created a token. Wait longer.
         return None, None
+    token = str(row["token"])
     return url, token
 
 def wait(basedir, err=sys.stderr):

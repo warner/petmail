@@ -72,9 +72,9 @@ class HTTPMailboxServer(BaseServer):
     by remote clients.
     """
 
-    def __init__(self, web, enable_retrieval, desc):
+    def __init__(self, web, baseurl, enable_retrieval, desc):
         BaseServer.__init__(self)
-        self.web = web
+        self.baseurl = baseurl
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         self.TID_privkey = desc["TID_private_key"].decode("hex")
 
@@ -100,7 +100,7 @@ class HTTPMailboxServer(BaseServer):
                  }
 
     def get_sender_descriptor(self):
-        baseurl = self.web.get_baseurl()
+        baseurl = self.baseurl
         assert baseurl.endswith("/")
         pubkey = self.privkey.public_key
         return { "type": "http",

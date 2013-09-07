@@ -1,6 +1,6 @@
 import os, sys, json
 from nacl.public import PrivateKey
-from .. import rrid, database
+from .. import rrid, database, util
 
 def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
     basedir = so["basedir"]
@@ -10,8 +10,21 @@ def create_node(so, stdout=sys.stdout, stderr=sys.stderr):
     os.mkdir(basedir)
     dbfile = os.path.join(basedir, "petmail.db")
     db = database.get_db(dbfile, stderr)
-    db.execute("INSERT INTO node (webhost, webport) VALUES (?,?)",
-               (so["webhost"], so["webport"]))
+    listenport = so["listen"]
+    if not listenport:
+        # pick a free local port. If you want the node to be reachable from
+        # outside, choose the port at node-creation time.
+        listenport = "tcp:%d:interface=127.0.0.1" % util.allocate_port()
+    hostname = so["hostname"]
+    port = so["port"]
+    if not port:
+        assert listenport.startswith("tcp:"), listenport
+        port = listenport.split(":")[1]
+    port = int(port)
+    baseurl = "http://%s:%d/" % (hostname, port)
+
+    db.execute("INSERT INTO node (listenport, baseurl) VALUES (?,?)",
+               (listenport, baseurl))
     db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
     db.execute("INSERT INTO `client_profile`"
                " (`name`, `icon_data`) VALUES (?,?)",

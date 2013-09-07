@@ -9,8 +9,8 @@ CREATE TABLE `version`
 
 CREATE TABLE `node` -- contains one row
 (
- `webhost` STRING, -- hostname or IP address to advertise in URLs
- `webport` STRING -- twisted service descriptor string, e.g. "tcp:0"
+ `listenport` STRING, -- twisted service descriptor string, e.g. "tcp:1234"
+ `baseurl` STRING
 );
 
 CREATE TABLE `services`

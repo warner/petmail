@@ -1,7 +1,6 @@
 import os, json
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
-from twisted.python import log
 from .database import Notice
 from .util import make_nonce, equal
 from .errors import CommandError
@@ -229,26 +228,16 @@ class Root(resource.Resource):
         self.putChild("media", static.File(MEDIA_DIRNAME))
 
 class WebPort(service.MultiService):
-    def __init__(self, basedir, node):
+    def __init__(self, basedir, listenport):
         service.MultiService.__init__(self)
         self.basedir = basedir
-        self.node = node
-
-        self.root = root = Root()
-
-        site = server.Site(root)
-        webport = str(node.get_node_config("webport"))
-        self.port_service = strports.service(webport, site)
+        self.root = Root()
+        site = server.Site(self.root)
+        assert listenport != "tcp:0" # must be configured
+        self.port_service = strports.service(listenport, site)
         self.port_service.setServiceParent(self)
 
     def enable_client(self, client, db):
-        # Access tokens last as long as the node is running: they are
-        # cleared at each startup. It's important to clear these before
-        # the web port starts listening, to avoid a race with 'petmail
-        # open' adding a new nonce
-        db.execute("DELETE FROM `webapi_access_tokens`")
-        db.execute("DELETE FROM `webapi_opener_tokens`")
-
         # The access token will be used by both CLI commands (which read
         # it directly from the database) and the frontend web client
         # (which fetches it from /open-control with a single-use opener
@@ -266,33 +255,5 @@ class WebPort(service.MultiService):
         api.putChild("v1", api_v1)
         self.root.putChild("api", api)
 
-    def startService(self):
-        service.MultiService.startService(self)
-
-        # now update the webport, if we started with port=0 . This is gross.
-        webport = str(self.node.get_node_config("webport"))
-        pieces = webport.split(":")
-        if pieces[0:2] == ["tcp", "0"]:
-            d = self.port_service._waitingForPort
-            def _ready(port):
-                try:
-                    got_port = port.getHost().port
-                    pieces[1] = str(got_port)
-                    new_webport = ":".join(pieces)
-                    self.node.set_node_config("webport", new_webport)
-                except:
-                    log.err()
-                return port
-            d.addCallback(_ready)
-
     def get_root(self):
         return self.root
-
-    def get_baseurl(self):
-        webhost = str(self.node.get_node_config("webhost"))
-        assert webhost
-        webport = str(self.node.get_node_config("webport"))
-        pieces = webport.split(":")
-        assert pieces[0] == "tcp"
-        assert int(pieces[1]) != 0
-        return "http://%s:%d/" % (webhost, int(pieces[1]))
