@@ -165,7 +165,7 @@ class Invitation:
         if not res:
             raise KeyError("no pending Invitation for '%d'" % iid)
         self.petname = res[0]
-        self.inviteID = res[1]
+        self.inviteID = str(res[1])
         self.inviteKey = SigningKey(res[2].decode("hex"))
         self.theirTempPubkey = None
         if res[3]:

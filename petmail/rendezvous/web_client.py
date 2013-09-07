@@ -57,6 +57,7 @@ class HTTPRendezvousClient(service.MultiService):
         log.msg("HTTP error polling %s: %s" % (channelID, f))
 
     def send(self, channelID, msg):
+        assert isinstance(channelID, str)
         assert channelID in self.subscriptions
         assert VALID_INVITEID.search(channelID), channelID
         assert VALID_MESSAGE.search(msg), msg
