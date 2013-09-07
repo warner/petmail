@@ -1,5 +1,5 @@
-
 import os, base64, hashlib
+from twisted.internet import tcp, protocol
 from .errors import BadSignatureError
 
 class BadPrefixError(Exception):
@@ -81,3 +81,26 @@ def verify_with_prefix(vk, sm, prefix):
     if not m.startswith(prefix):
         raise BadSignatureError("missing expected prefix")
     return m[len(prefix):]
+
+# fake Reactor (at least the clock portion), used by allocate_port()
+class FakeClock:
+    def callLater(self, delay, callback, *args):
+        callback(*args)
+    def addReader(self, _):
+        pass
+    def removeReader(self, _):
+        pass
+    def removeWriter(self, _):
+        pass
+
+def allocate_port():
+    p = tcp.Port(0, protocol.Factory(), reactor=FakeClock())
+    p.startListening()
+    port = p.getHost().port
+    # stopListening() schedules a cleanup function to run on a later reactor
+    # turn, and doesn't actually close the socket until then. I want this to
+    # be synchronous, so it uses the FakeClock that runs that turn right
+    # away. I believe this is safe (since we aren't actually connecting
+    # anything to this port, or sending any data), but I could be wrong.
+    p.stopListening() # ignore the Deferred
+    return port

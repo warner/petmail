@@ -1,5 +1,5 @@
 from twisted.trial import unittest
-
+from twisted.internet import tcp, protocol
 from nacl.signing import SigningKey
 from nacl.exceptions import CryptoError
 
@@ -34,3 +34,17 @@ class Signatures(unittest.TestCase):
                               util.verify_with_prefix, vk, sm2, prefix)
         self.failUnlessRaises(CryptoError,
                               util.verify_with_prefix, vk, sm3, prefix)
+
+class AllocatePort(unittest.TestCase):
+    def test_allocate(self):
+        port = util.allocate_port()
+        # and it should be possible to claim this port right away
+        p2 = tcp.Port(port, protocol.Factory())
+        p2.startListening()
+        port2 = p2.getHost().port
+        d = p2.stopListening()
+        def _stopped(res):
+            self.failUnlessEqual(port, port2)
+            return res
+        d.addBoth(_stopped)
+        return d
