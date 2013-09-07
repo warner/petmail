@@ -1,6 +1,5 @@
 import os.path, shutil
 from collections import defaultdict
-from twisted.internet.defer import succeed, DeferredList, maybeDeferred
 from twisted.application import service, internet
 from ..invitation import VALID_INVITEID, VALID_MESSAGE
 from nacl.signing import VerifyKey
@@ -50,8 +49,8 @@ class LocalDirectoryRendezvousClient(service.MultiService):
     def poll(self):
         #print "entering poll"
         # we may unsubscribe while in the loop, so copy self.subscriptions
-        return DeferredList([maybeDeferred(self.pollChannel, channelID)
-                             for channelID in list(self.subscriptions)])
+        for channelID in list(self.subscriptions):
+            self.pollChannel(channelID)
 
     def pollChannel(self, channelID):
         sdir = os.path.join(self.basedir, channelID)
@@ -128,4 +127,3 @@ class LocalDirectoryRendezvousClient(service.MultiService):
             #print "DESTROY CHANNEL", channelID
             shutil.rmtree(sdir)
             del self.destroyRequestsSeen[channelID]
-        return succeed(None)
