@@ -98,7 +98,7 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
 
         return nA, nB
 
-    def add_new_channel(self, nA, nB):
+    def add_new_channel_with_invitation(self, nA, nB):
         rclientA = list(nA.client.im)[0]
         rclientB = list(nB.client.im)[0]
         code = "code"
@@ -124,7 +124,10 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
     def make_connected_nodes(self, transport="test-return"):
         # skip Invitation, just populate the database directly
         nA, nB = self.make_nodes(transport)
+        entA, entB = self.add_new_channel(nA, nB)
+        return nA, nB, entA, entB
 
+    def add_new_channel(self, nA, nB):
         a_signkey = SigningKey.generate()
         a_chankey = PrivateKey.generate()
         a_CIDkey = os.urandom(32)
@@ -182,4 +185,4 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
 
         entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
         entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
-        return nA, nB, entA, entB
+        return entA, entB
