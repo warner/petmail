@@ -23,6 +23,14 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         w.enable_relay()
         w.setServiceParent(self.sparent)
 
+    def GET(self, url):
+        return getPage(url, method="GET",
+                       headers={"accept": "application/json"})
+    def POST(self, url, data):
+        return getPage(url, method="POST", postdata=data,
+                       headers={"accept": "application/json",
+                                "content-type": "application/json"})
+
     def test_channel(self):
         port = util.allocate_port()
         w = web.WebPort("tcp:%d:interface=127.0.0.1" % port, "token")
@@ -32,7 +40,6 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         sk = SigningKey.generate()
         channelid = sk.verify_key.encode().encode("hex")
         url = baseurl + "relay/" + channelid # must be hex
-        HEADERS = {"accept": "application/json"}
         msg1 = "r0:" + sk.sign("msg1").encode("hex")
         msg2 = "r0:" + sk.sign("msg2").encode("hex")
         destroy1 = "r0:" + sk.sign("i0:destroy:one").encode("hex")
@@ -41,24 +48,25 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         def lines(*messages):
             return "\n".join(messages)+"\n"
 
-        d = getPage(baseurl)
+        d = defer.succeed(None)
+        d.addCallback(lambda _: self.GET(baseurl))
         d.addCallback(lambda res: self.failUnlessEqual(res, "Hello\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res: self.failUnlessEqual(res, ""))
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
+        d.addCallback(lambda _: self.POST(url, msg1))
         d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1)))
         # duplicates are dismissed
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
+        d.addCallback(lambda _: self.POST(url, msg1))
         d.addCallback(lambda res: self.failUnlessEqual(res, "ignoring duplicate message\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1)))
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg2))
+        d.addCallback(lambda _: self.POST(url, msg2))
         d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1,msg2)))
 
         # now test the various error conditions
@@ -66,32 +74,29 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         d.addCallback(lambda _:
                       self.shouldFail(WebError, "400 Bad Request",
                                       "invalid channel id",
-                                      getPage, url+"NOTHEX"))
+                                      self.GET, url+"NOTHEX"))
         d.addCallback(lambda _:
                       self.shouldFail(WebError, "400 Bad Request",
                                       "unrecognized rendezvous message prefix",
-                                      getPage, url, method="POST",
-                                      postdata="r1:badversion"))
+                                      self.POST, url, "r1:badversion"))
         d.addCallback(lambda _:
                       self.shouldFail(WebError, "400 Bad Request",
                                       "invalid rendezvous message",
-                                      getPage, url, method="POST",
-                                      postdata="r0:NOTHEX"))
+                                      self.POST, url, "r0:NOTHEX"))
         d.addCallback(lambda _:
                       self.shouldFail(WebError, "400 Bad Request",
                                       "invalid rendezvous message signature",
-                                      getPage, url, method="POST",
-                                      postdata="r0:d00dbadfeede"))
+                                      self.POST, url, "r0:d00dbadfeede"))
 
         # and channel destruction
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy1))
+        d.addCallback(lambda _: self.POST(url, destroy1))
         d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res:
                       self.failUnlessEqual(res, lines(msg1,msg2,destroy1)))
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy2))
+        d.addCallback(lambda _: self.POST(url, destroy2))
         d.addCallback(lambda res: self.failUnlessEqual(res, "Destroyed\n"))
-        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda _: self.GET(url))
         d.addCallback(lambda res: self.failUnlessEqual(res, ""))
 
         return d
@@ -134,7 +139,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         a = Agent(reactor)
 
         d = defer.succeed(None)
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
+        d.addCallback(lambda _: self.POST(url, msg1))
         d.addCallback(lambda _:
                       a.request("GET", url,
                                 Headers({"accept": ["text/event-stream"]})))
@@ -155,7 +160,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
             self.failUnlessEqual(fields[1][1], msg1)
         d.addCallback(_then1)
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg2))
+        d.addCallback(lambda _: self.POST(url, msg2))
 
         d.addCallback(lambda _: self.poll(lambda: self.check_n(acc, 3)))
         def _then2(_):
@@ -165,8 +170,8 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
             self.failUnlessEqual(fields[2][1], msg2)
         d.addCallback(_then2)
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy1))
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy2))
+        d.addCallback(lambda _: self.POST(url, destroy1))
+        d.addCallback(lambda _: self.POST(url, destroy2))
         # the relay doesn't deliver the last destroy message: the channel is
         # destroyed before that can happen. So we expect 4 messages, not 5.
 
@@ -207,7 +212,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
             self.failUnlessEqual(len(acc.data), 0)
         d.addCallback(_connected)
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
+        d.addCallback(lambda _: self.POST(url, msg1))
 
         d.addCallback(lambda _: self.poll(lambda: self.check_n(acc, 2)))
         def _then1(_):
@@ -219,7 +224,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
             self.failUnlessEqual(fields[1][1], msg1)
         d.addCallback(_then1)
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=msg2))
+        d.addCallback(lambda _: self.POST(url, msg2))
 
         d.addCallback(lambda _: self.poll(lambda: self.check_n(acc, 3)))
         def _then2(_):
@@ -229,8 +234,8 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
             self.failUnlessEqual(fields[2][1], msg2)
         d.addCallback(_then2)
 
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy1))
-        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy2))
+        d.addCallback(lambda _: self.POST(url, destroy1))
+        d.addCallback(lambda _: self.POST(url, destroy2))
         # the relay doesn't deliver the last destroy message: the channel is
         # destroyed before that can happen. So we expect 4 messages, not 5.
 
