@@ -4,36 +4,37 @@ all:
 	@echo "This Makefile only contains some shortcuts for use during development"
 	exit 1
 
-.PHONY: n1 n2 relay stop bounce-all bounce rebuild
+BASEURL="`./bin/petmail -d relay print-baseurl`"
+
+.PHONY: relay n1 n2 stop bounce-all bounce rebuild
+relay:
+	-./bin/petmail stop relay
+	rm -rf relay
+	./bin/petmail create-relay relay
 n1:
 	-./bin/petmail stop n1
 	rm -rf n1
-	./bin/petmail create-node n1
+	./bin/petmail create-node -r $(BASEURL) n1
 n2:
 	-./bin/petmail stop n2
 	rm -rf n2
-	./bin/petmail create-node n2
-#relay:
-#	-./bin/petmail stop relay
-#	rm -rf relay
-#	./bin/petmail create-relay relay
+	./bin/petmail create-node -r $(BASEURL) n2
 
 stop:
 	-./bin/petmail stop n1
 	-./bin/petmail stop n2
-#	-./bin/petmail stop relay
+	-./bin/petmail stop relay
 bounce-all:
-#	-./bin/petmail restart relay
-#	sleep 1
+	-./bin/petmail restart relay
 	-./bin/petmail restart n1
 	-./bin/petmail restart n2
 bounce:
 	-./bin/petmail restart n1
 	-./bin/petmail restart n2
 
-rebuild: stop n1 n2
+rebuild: stop relay n1 n2
 	rm -rf .rendezvous
-	$(MAKE) bounce
+	$(MAKE) bounce-all
 
 # do this before 'connect'
 enable-local-mailbox:
