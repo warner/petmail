@@ -8,6 +8,9 @@ from ..invitation import VALID_INVITEID, VALID_MESSAGE
 # required to do so. It is not required to check version numbers ("r0:") or
 # signatures.
 
+class Marker:
+    pass
+
 class HTTPRendezvousClient(service.MultiService):
     """I talk to a remote HTTP-based rendezvous server."""
     # start with simple polling. TODO: EventSourceProtocol
@@ -19,7 +22,15 @@ class HTTPRendezvousClient(service.MultiService):
         self.baseurl = baseurl
         assert self.baseurl.endswith("/")
         self.subscriptions = set()
-        self._debug_pending = 0
+        self.pending_requests = set()
+        self.pending_sends = set()
+
+    def is_idle(self):
+        if self.pending_requests:
+            return False
+        if self.pending_sends:
+            return False
+        return True
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID
@@ -43,15 +54,17 @@ class HTTPRendezvousClient(service.MultiService):
         return defer.DeferredList(ds)
 
     def pollChannel(self, channelID):
+        if channelID in self.pending_requests:
+            return defer.succeed(None)
         url = self.baseurl + "relay/" + channelID
-        self._debug_pending += 1
+        self.pending_requests.add(channelID)
         d = client.getPage(url, headers={"accept": "application/json"})
         d.addCallback(self.http_response, channelID)
         d.addErrback(self.http_error, channelID)
         return d
 
     def http_response(self, data, channelID):
-        self._debug_pending -= 1
+        self.pending_requests.remove(channelID)
         # we expect a concatenated list of messages, each of which starts
         # with "r0:" followed by a hex-encoded signed message and a newline
         if not data:
@@ -60,7 +73,7 @@ class HTTPRendezvousClient(service.MultiService):
         self.parent.messagesReceived(channelID, set(messages))
 
     def http_error(self, f, channelID):
-        self._debug_pending -= 1
+        self.pending_requests.remove(channelID)
         log.msg("HTTP error polling %s: %s" % (channelID, f))
 
     def send(self, channelID, msg):
@@ -70,10 +83,11 @@ class HTTPRendezvousClient(service.MultiService):
         assert VALID_MESSAGE.search(msg), msg
 
         url = self.baseurl + "relay/" + channelID
-        self._debug_pending += 1
+        m = Marker()
+        self.pending_sends.add(m)
         d = client.getPage(url, method="POST", postdata=msg)
         def _done(res):
-            self._debug_pending -= 1
+            self.pending_sends.remove(m)
             return res
         d.addBoth(_done)
         def _sent(resp):

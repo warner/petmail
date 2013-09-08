@@ -27,7 +27,9 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         # destroyRequestsSeen maps channelID -> set(destroy messages)
         self.destroyRequestsSeen = defaultdict(set)
         self.verfkeys = {}
-        self._debug_pending = 0
+
+    def is_idle(self):
+        return True
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID

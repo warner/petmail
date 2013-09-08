@@ -51,7 +51,7 @@ class NodeRunnerMixin:
         list(n.client.im)[0].enable_polling = False
 
     def accelerate_polling(self, n):
-        list(n.client.im)[0].polling_interval = 0.5
+        list(n.client.im)[0].polling_interval = 0.01
 
 def fake_transport():
     privkey = PrivateKey.generate()
@@ -118,6 +118,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
 
     def add_new_channel_with_invitation(self, nA, nB):
         code = "code"
+        nA.client.im._debug_invitations_completed = 0
+        nB.client.im._debug_invitations_completed = 0
         nA.client.command_invite(u"petname-from-A", code,
                                  override_transports=self.tports1)
         nB.client.command_invite(u"petname-from-B", code,
@@ -127,8 +129,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         def check():
             return (nA.client.im._debug_invitations_completed
                     and nB.client.im._debug_invitations_completed
-                    and rclientA._debug_pending == 0
-                    and rclientB._debug_pending == 0
+                    and rclientA.is_idle()
+                    and rclientB.is_idle()
                     )
         d = self.poll(check)
         def _done(_):
