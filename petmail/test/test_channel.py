@@ -8,7 +8,7 @@ from ..mailbox.server import parseMsgA, parseMsgB
 
 class msgC(TwoNodeMixin, unittest.TestCase):
     def test_create_and_parse(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
 
         cidAB = entA["id"]
         c = channel.OutboundChannel(nA.db, cidAB)
@@ -43,7 +43,7 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         return c.fetchone()[0]
 
     def test_channel_dispatch(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
         entA2, entB2 = self.add_new_channel(nA, nB)
         entA3, entB3 = self.add_new_channel(nA, nB)
         self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 1)
@@ -94,7 +94,7 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 
 class Send(TwoNodeMixin, unittest.TestCase):
     def test_send(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
         d = nA.client.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             msgA = res[0][1]

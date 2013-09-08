@@ -8,14 +8,14 @@ from ..mailbox.server import parseMsgA, parseMsgB
 
 class Transports(TwoNodeMixin, unittest.TestCase):
     def test_create_from_channel(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
         c = channel.OutboundChannel(nA.db, entA["id"])
         transports = c.createTransports()
         self.failUnlessEqual(len(transports), 1)
         self.failUnless(isinstance(transports[0], ReturnTransport))
 
     def test_msgA(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
         msgC = "msgC"
 
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
@@ -34,14 +34,14 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         # so we can decrypt it here and make sure it matches
 
     def test_local(self):
-        nA, nB, entA, entB = self.make_nodes(transport="local")
+        nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         chanAB = json.loads(entA["their_channel_record_json"])
         transportsAB = chanAB["transports"]
         self.failUnlessEqual(len(transportsAB), 1)
         self.failUnlessEqual(transportsAB[0]["type"], "http")
 
     def test_send_local(self):
-        nA, nB, entA, entB = self.make_nodes(transport="local")
+        nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         #chanAB = json.loads(entA["their_channel_record_json"])
         messages = []
         def message_received(tid, msgC):
@@ -57,7 +57,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
 
 
     def test_send_local_payload(self):
-        nA, nB, entA, entB = self.make_nodes(transport="local")
+        nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         P1 = {"hi": "world"}
         P2 = {"hi": "2"}
 
@@ -93,7 +93,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_send_local_payload_stored(self):
-        nA, nB, entA, entB = self.make_nodes(transport="local")
+        nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         P1 = {"hi": "world"}
 
         d = nA.client.send_message(entA["id"], P1)

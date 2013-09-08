@@ -191,7 +191,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
 class Two(TwoNodeMixin, unittest.TestCase):
     def test_two(self):
-        nA, nB, entA, entB = self.make_nodes()
+        nA, nB, entA, entB = self.make_connected_nodes()
         self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
                              entA["id"])
         self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],

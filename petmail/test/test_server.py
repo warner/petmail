@@ -7,7 +7,7 @@ from ..mailbox.delivery import createMsgA
 
 class Transports(TwoNodeMixin, unittest.TestCase):
     def test_unknown_TID(self):
-        nA, nB, entA, entB = self.make_nodes(transport="local")
+        nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         msgC = "msgC"
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
         bad_trec = copy.deepcopy(trec)

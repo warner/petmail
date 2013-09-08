@@ -85,8 +85,7 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         else:
             raise KeyError("huh?")
 
-        entA, entB = self.add_new_channel(nA, nB)
-        return nA, nB, entA, entB
+        return nA, nB
 
     def add_new_channel(self, nA, nB):
         rclientA = list(nA.client.im)[0]
@@ -110,3 +109,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
 
         return entA, entB
+
+    def make_connected_nodes(self, transport="test-return"):
+        nA, nB = self.make_nodes(transport)
+        entA, entB = self.add_new_channel(nA, nB)
+        return nA, nB, entA, entB
