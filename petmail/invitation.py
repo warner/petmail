@@ -58,6 +58,7 @@ class InvitationManager(service.MultiService):
         service.MultiService.__init__(self)
         self.db = db
         self.client = client
+        self._debug_invitations_completed = 0
         # all my service children are Rendezvous services
 
     def startService(self):
@@ -227,7 +228,8 @@ class Invitation:
         newMessages = messages - self.myMessages - self.theirMessages
         #print " %d new messages" % len(newMessages)
         if not newMessages:
-            print " huh, no new messages, stupid rendezvous client"
+            #print " huh, no new messages, stupid rendezvous client"
+            pass
 
         # check signatures, extract bodies. invalid messages kill the channel
         # and the invitation. MAYBE TODO: lose the one channel, keep using
@@ -400,3 +402,4 @@ class Invitation:
         msg4 = "i0:destroy:"+os.urandom(16)
         self.send(msg4, persist=False)
         self.manager.unsubscribe(self.inviteID)
+        self.manager._debug_invitations_completed += 1

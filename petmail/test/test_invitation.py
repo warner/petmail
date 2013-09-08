@@ -194,8 +194,12 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
 class Two(TwoNodeMixin, unittest.TestCase):
     def test_two(self):
-        nA, nB, entA, entB = self.make_connected_nodes()
-        self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
-                             entA["id"])
-        self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
-                             entB["id"])
+        nA, nB = self.make_nodes()
+        d = self.add_new_channel_with_invitation(nA, nB)
+        def _done((entA,entB)):
+            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+                                 entA["id"])
+            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+                                 entB["id"])
+        d.addCallback(_done)
+        return d

@@ -6,6 +6,7 @@ from nacl.signing import SigningKey
 from ..scripts import runner, startstop
 from ..scripts.create_node import create_node
 from .. import rrid
+from .pollmixin import PollMixin
 
 class BasedirMixin:
     def make_basedir(self):
@@ -61,7 +62,7 @@ def fake_transport():
     return private, db_record
 
 
-class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
+class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
     def make_nodes(self, transport="test-return"):
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         self.createNode(basedirA)
@@ -99,27 +100,21 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         return nA, nB
 
     def add_new_channel_with_invitation(self, nA, nB):
-        rclientA = list(nA.client.im)[0]
-        rclientB = list(nB.client.im)[0]
         code = "code"
         nA.client.command_invite(u"petname-from-A", code,
                                  override_transports=self.tports1)
         nB.client.command_invite(u"petname-from-B", code,
                                  override_transports=self.tports2)
-
-        rclientA.poll()
-        rclientB.poll()
-
-        rclientA.poll()
-        rclientB.poll()
-
-        rclientA.poll()
-        rclientB.poll()
-
-        entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
-        entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
-
-        return entA, entB
+        def check():
+            return (nA.client.im._debug_invitations_completed
+                    and nB.client.im._debug_invitations_completed)
+        d = self.poll(check)
+        def _done(_):
+            entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
+            entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
+            return entA, entB
+        d.addCallback(_done)
+        return d
 
     def make_connected_nodes(self, transport="test-return"):
         # skip Invitation, just populate the database directly
