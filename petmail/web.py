@@ -1,9 +1,11 @@
 import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
+from nacl.signing import VerifyKey, BadSignatureError
 from .database import Notice
 from .util import equal
 from .errors import CommandError
+from .invitation import VALID_INVITEID, VALID_MESSAGE
 
 MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
 
@@ -226,10 +228,27 @@ class Channel(resource.Resource):
         self.channelid = channelid
         self.channels = channels
     def render_POST(self, request):
+        channel = self.channels[self.channelid]
         message = request.content.read()
-        # TODO: check signature
+        # reject junk
+        if not message.startswith("r0:"):
+            request.setResponseCode(http.BAD_REQUEST)
+            return "unrecognized rendezvous message prefix"
+        if not VALID_MESSAGE.search(message):
+            request.setResponseCode(http.BAD_REQUEST)
+            return "invalid rendezvous message"
+        # ignore dups
+        if message in channel:
+            return "ignoring duplicate message\n"
+        # check signature
+        try:
+            m = message[len("r0:"):].decode("hex")
+            VerifyKey(self.channelid.decode("hex")).verify(m)
+        except BadSignatureError:
+            request.setResponseCode(http.BAD_REQUEST)
+            return "invalid rendezvous message signature"
         # TODO: look for two valid deletion messages
-        self.channels[self.channelid].append(message)
+        channel.append(message)
         return "OK\n"
     def render_GET(self, request):
         if "text/event-stream" in request.headers.get("accept", ""):
@@ -245,6 +264,10 @@ class Relay(resource.Resource):
         resource.Resource.__init__(self)
         self.channels = collections.defaultdict(list)
     def getChild(self, path, request):
+        if not VALID_INVITEID.search(path):
+            return resource.ErrorPage(http.BAD_REQUEST,
+                                      "invalid channel id",
+                                      "invalid channel id")
         return Channel(path, self.channels)
 
 class Root(resource.Resource):
