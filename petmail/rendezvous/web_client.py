@@ -1,5 +1,4 @@
 from twisted.python import log, failure
-from twisted.internet import defer
 from twisted.application import service, internet
 from twisted.web import client
 from ..invitation import VALID_INVITEID, VALID_MESSAGE
@@ -54,7 +53,7 @@ class HTTPRendezvousClient(service.MultiService):
 
     def pollChannel(self, channelID):
         if channelID in self.pending_requests:
-            return defer.succeed(None)
+            return
         url = self.baseurl + "relay/" + channelID
         self.pending_requests.add(channelID)
 
