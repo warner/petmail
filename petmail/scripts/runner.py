@@ -115,6 +115,7 @@ class Options(usage.Options):
         ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
                    ("create-relay", None, CreateRelayOptions, "Create a relay"),
+                   ("print-baseurl", None, NoOptions, "Print the node's base URL"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
                    ("restart", None, RestartNodeOptions, "Restart a node"),
@@ -164,6 +165,10 @@ def create_node(*args):
 def create_relay(*args):
     from .create_node import create_node
     return create_node(*args, services=["relay"])
+
+def print_baseurl(*args):
+    from . import create_node
+    return create_node.print_baseurl(*args)
 
 def start(*args):
     from .startstop import start
@@ -239,6 +244,7 @@ def accept(*args):
 
 DISPATCH = {"create-node": create_node,
             "create-relay": create_relay,
+            "print-baseurl": print_baseurl,
             "start": start,
             "stop": stop,
             "restart": restart,

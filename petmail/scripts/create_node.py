@@ -53,3 +53,15 @@ def create_node(so, stdout, stderr, services):
     db.commit()
     print >>stdout, "node created in %s, URL is %s" % (basedir, baseurl)
     return 0
+
+def print_baseurl(so, stdout, stderr):
+    basedir = so["basedir"]
+    dbfile = os.path.join(basedir, "petmail.db")
+    if not (os.path.isdir(basedir) and os.path.exists(dbfile)):
+        print >>stderr, "'%s' doesn't look like a Petmail basedir, quitting" % basedir
+        return 1
+    db = database.get_db(dbfile, stderr)
+    row = db.execute("SELECT * FROM node").fetchone()
+    baseurl = str(row["baseurl"])
+    print >>stdout, baseurl
+    return 0
