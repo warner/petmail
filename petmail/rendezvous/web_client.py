@@ -15,7 +15,7 @@ class HTTPRendezvousClient(service.MultiService):
     """I talk to a remote HTTP-based rendezvous server."""
     # start with simple polling. TODO: EventSourceProtocol
     enable_polling = True # disabled by some unit tests
-    polling_interval = 60
+    polling_interval = 2
 
     def __init__(self, baseurl):
         service.MultiService.__init__(self)
