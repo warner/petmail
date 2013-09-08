@@ -28,12 +28,13 @@ def create_node(so, stdout, stderr, services):
     if "relay" in services:
         db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
     if "client" in services:
-        db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
-                   (json.dumps({"type": "localdir"}),))
         if so["relay-url"]:
             desc = json.dumps({"type": "http", "url": so["relay-url"]})
             db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
                        (desc,))
+        else:
+            db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
+                       (json.dumps({"type": "localdir"}),))
         db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
         db.execute("INSERT INTO `client_profile`"
                    " (`name`, `icon_data`) VALUES (?,?)",
