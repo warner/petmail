@@ -34,13 +34,11 @@ class NodeRunnerMixin:
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
-    def startNode(self, basedir, beforeStart=None):
+    def startNode(self, basedir):
         so = runner.StartNodeOptions()
         so.parseOptions([basedir])
         p = startstop.MyPlugin(basedir, os.path.join(basedir, "petmail.db"))
         n = p.makeService(so)
-        if beforeStart:
-            beforeStart(n)
         n.setServiceParent(self.sparent)
         return n
 
@@ -67,11 +65,11 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
     def make_nodes(self, transport="test-return"):
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         self.createNode(basedirA)
-        nA = self.startNode(basedirA, beforeStart=self.disable_polling)
+        nA = self.startNode(basedirA)
 
         basedirB = os.path.join(self.make_basedir(), "nodeB")
         self.createNode(basedirB)
-        nB = self.startNode(basedirB, beforeStart=self.disable_polling)
+        nB = self.startNode(basedirB)
 
         if transport == "test-return":
             self.tport1 = fake_transport()

@@ -43,7 +43,8 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
-        n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
+        n1 = self.startNode(basedir1)
+        self.disable_polling(n1)
         rclient1 = list(n1.client.im)[0]
         tport1 = fake_transport()
         tports1 = {0: tport1[1]}
@@ -68,7 +69,8 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # now we add a peer (node2) for them to talk to
         basedir2 = os.path.join(self.make_basedir(), "node2")
         self.createNode(basedir2)
-        n2 = self.startNode(basedir2, beforeStart=self.disable_polling)
+        n2 = self.startNode(basedir2)
+        self.disable_polling(n2)
         tport2 = fake_transport()
         tports2 = {0: tport2[1]}
         n2.client.command_invite(u"petname-from-2", code,
@@ -179,7 +181,8 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def test_duplicate_code(self):
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
-        n1 = self.startNode(basedir1, beforeStart=self.disable_polling)
+        n1 = self.startNode(basedir1)
+        self.disable_polling(n1)
         code = "code"
         tport = fake_transport()
         tports = {0: tport[1]}

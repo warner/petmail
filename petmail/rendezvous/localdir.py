@@ -14,6 +14,8 @@ class LocalDirectoryRendezvousClient(service.MultiService):
     machine, to talk to each other without a network. I add files into the
     directory for 'writes', and poll the directory for reads.
     """
+    enable_polling = True # disabled by some unit tests
+    polling_interval = 0.1
 
     def __init__(self, basedir):
         service.MultiService.__init__(self)
@@ -25,7 +27,6 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         # destroyRequestsSeen maps channelID -> set(destroy messages)
         self.destroyRequestsSeen = defaultdict(set)
         self.verfkeys = {}
-        self.enable_polling = True # disabled by some unit tests
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID
@@ -35,7 +36,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
             os.mkdir(sdir)
         self.subscriptions[channelID] = set()
         if len(self.subscriptions) == 1 and self.enable_polling:
-            self.ts = internet.TimerService(01.1, self.poll)
+            self.ts = internet.TimerService(self.polling_interval, self.poll)
             self.ts.setServiceParent(self)
 
     def unsubscribe(self, channelID):

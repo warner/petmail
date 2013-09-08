@@ -11,13 +11,13 @@ from ..invitation import VALID_INVITEID, VALID_MESSAGE
 class HTTPRendezvousClient(service.MultiService):
     """I talk to a remote HTTP-based rendezvous server."""
     # start with simple polling. TODO: EventSourceProtocol
+    enable_polling = True # disabled by some unit tests
 
     def __init__(self, baseurl):
         service.MultiService.__init__(self)
         self.baseurl = baseurl
         assert self.baseurl.endswith("/")
         self.subscriptions = set()
-        self.enable_polling = True # disabled by some unit tests
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID
