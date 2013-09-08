@@ -1,7 +1,8 @@
-import os
+import os, json
 from twisted.application import service
 from StringIO import StringIO
 from nacl.public import PrivateKey
+from nacl.signing import SigningKey
 from ..scripts import runner, startstop
 from ..scripts.create_node import create_node
 from .. import rrid
@@ -75,8 +76,20 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         if transport == "test-return":
             self.tport1 = fake_transport()
             self.tports1 = {0: self.tport1[1]}
+            nA.db.execute("INSERT INTO mailboxes"
+                          " (sender_descriptor_json, private_descriptor_json)"
+                          " VALUES (?,?)",
+                          (json.dumps(self.tport1[1]["for_sender"]),
+                           json.dumps(self.tport1[1]["for_recipient"])))
+            nA.db.commit()
             self.tport2 = fake_transport()
             self.tports2 = {0: self.tport2[1]}
+            nB.db.execute("INSERT INTO mailboxes"
+                          " (sender_descriptor_json, private_descriptor_json)"
+                          " VALUES (?,?)",
+                          (json.dumps(self.tport2[1]["for_sender"]),
+                           json.dumps(self.tport2[1]["for_recipient"])))
+            nB.db.commit()
         elif transport == "local":
             nA.client.command_enable_local_mailbox()
             nB.client.command_enable_local_mailbox()
@@ -111,6 +124,64 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin):
         return entA, entB
 
     def make_connected_nodes(self, transport="test-return"):
+        # skip Invitation, just populate the database directly
         nA, nB = self.make_nodes(transport)
-        entA, entB = self.add_new_channel(nA, nB)
+
+        a_signkey = SigningKey.generate()
+        a_chankey = PrivateKey.generate()
+        a_CIDkey = os.urandom(32)
+        a_transports = nA.client.individualize_transports(nA.client.get_transports())
+
+        b_signkey = SigningKey.generate()
+        b_chankey = PrivateKey.generate()
+        b_CIDkey = os.urandom(32)
+        b_transports = nB.client.individualize_transports(nB.client.get_transports())
+
+        a_rec = { "channel_pubkey": a_chankey.public_key.encode().encode("hex"),
+                  "CID_key": a_CIDkey.encode("hex"),
+                  "transports": a_transports.values(),
+                  }
+
+        b_rec = { "channel_pubkey": b_chankey.public_key.encode().encode("hex"),
+                  "CID_key": b_CIDkey.encode("hex"),
+                  "transports": b_transports.values(),
+                  }
+
+        q = ("INSERT INTO addressbook"
+             " (petname, acked, next_outbound_seqnum,"
+             "  my_signkey,"
+             "  their_channel_record_json,"
+             "  my_CID_key, next_CID_token,"
+             "  highest_inbound_seqnum,"
+             "  my_old_channel_privkey, my_new_channel_privkey,"
+             "  they_used_new_channel_key, their_verfkey)"
+             " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")
+
+        vA=("petname-from-A", 1, 1,
+            a_signkey.encode().encode("hex"),
+            json.dumps(b_rec),
+            a_CIDkey.encode("hex"), None,
+            0,
+            a_chankey.encode().encode("hex"),
+            a_chankey.encode().encode("hex"),
+            0, b_signkey.verify_key.encode().encode("hex"),
+            )
+
+        vB=("petname-from-A", 1, 1,
+            b_signkey.encode().encode("hex"),
+            json.dumps(a_rec),
+            b_CIDkey.encode("hex"), None,
+            0,
+            b_chankey.encode().encode("hex"),
+            b_chankey.encode().encode("hex"),
+            0, a_signkey.verify_key.encode().encode("hex"),
+            )
+
+        nA.db.execute(q, vA)
+        nA.db.commit()
+        nB.db.execute(q, vB)
+        nA.db.commit()
+
+        entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
+        entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
         return nA, nB, entA, entB
