@@ -1,6 +1,6 @@
-
 import re, os, json, hmac
 from hashlib import sha256
+from twisted.python import log
 from twisted.application import service
 from .hkdf import HKDF
 from .errors import CommandError
@@ -397,9 +397,9 @@ class Invitation:
                        "addressbook", cid )
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
-
         # we no longer care about the channel
         msg4 = "i0:destroy:"+os.urandom(16)
         self.send(msg4, persist=False)
         self.manager.unsubscribe(self.inviteID)
         self.manager._debug_invitations_completed += 1
+        log.msg("addressbook entry added for petname=%r" % self.petname)
