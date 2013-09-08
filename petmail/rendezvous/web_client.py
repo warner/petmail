@@ -12,18 +12,20 @@ class HTTPRendezvousClient(service.MultiService):
     """I talk to a remote HTTP-based rendezvous server."""
     # start with simple polling. TODO: EventSourceProtocol
     enable_polling = True # disabled by some unit tests
+    polling_interval = 60
 
     def __init__(self, baseurl):
         service.MultiService.__init__(self)
         self.baseurl = baseurl
         assert self.baseurl.endswith("/")
         self.subscriptions = set()
+        self._debug_pending = 0
 
     def subscribe(self, channelID):
         assert VALID_INVITEID.search(channelID), channelID
         self.subscriptions.add(channelID)
         if len(self.subscriptions) == 1 and self.enable_polling:
-            self.ts = internet.TimerService(2, self.poll)
+            self.ts = internet.TimerService(self.polling_interval, self.poll)
             self.ts.setServiceParent(self)
 
     def unsubscribe(self, channelID):
@@ -42,12 +44,14 @@ class HTTPRendezvousClient(service.MultiService):
 
     def pollChannel(self, channelID):
         url = self.baseurl + "relay/" + channelID
+        self._debug_pending += 1
         d = client.getPage(url, headers={"accept": "application/json"})
         d.addCallback(self.http_response, channelID)
         d.addErrback(self.http_error, channelID)
         return d
 
     def http_response(self, data, channelID):
+        self._debug_pending -= 1
         # we expect a concatenated list of messages, each of which starts
         # with "r0:" followed by a hex-encoded signed message and a newline
         if not data:
@@ -56,6 +60,7 @@ class HTTPRendezvousClient(service.MultiService):
         self.parent.messagesReceived(channelID, set(messages))
 
     def http_error(self, f, channelID):
+        self._debug_pending -= 1
         log.msg("HTTP error polling %s: %s" % (channelID, f))
 
     def send(self, channelID, msg):
@@ -65,8 +70,15 @@ class HTTPRendezvousClient(service.MultiService):
         assert VALID_MESSAGE.search(msg), msg
 
         url = self.baseurl + "relay/" + channelID
+        self._debug_pending += 1
         d = client.getPage(url, method="POST", postdata=msg)
-        d.addCallback(lambda resp: log.msg("HTTP POST to %s happy: %s" %
-                                           (channelID, resp)))
-        d.addErrback(log.err)
+        def _done(res):
+            self._debug_pending -= 1
+            return res
+        d.addBoth(_done)
+        def _sent(resp):
+            log.msg("HTTP POST to %s happy: %s" % (channelID, resp))
+        def _err(f):
+            log.err(f)
+        d.addCallbacks(_sent, _err)
         return d

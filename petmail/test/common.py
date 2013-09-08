@@ -27,11 +27,15 @@ class NodeRunnerMixin:
     def tearDown(self):
         return self.sparent.stopService()
 
-    def createNode(self, basedir):
+    def createNode(self, basedir, type="client", relayurl=None):
         so = runner.CreateNodeOptions()
-        so.parseOptions([basedir])
+        args = []
+        if relayurl:
+            args.extend(["--relay-url", relayurl])
+        args.append(basedir)
+        so.parseOptions(args)
         out,err = StringIO(), StringIO()
-        rc = create_node(so, out, err, ["client"])
+        rc = create_node(so, out, err, [type])
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
@@ -45,6 +49,9 @@ class NodeRunnerMixin:
 
     def disable_polling(self, n):
         list(n.client.im)[0].enable_polling = False
+
+    def accelerate_polling(self, n):
+        list(n.client.im)[0].polling_interval = 0.5
 
 def fake_transport():
     privkey = PrivateKey.generate()
@@ -63,14 +70,24 @@ def fake_transport():
 
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
-    def make_nodes(self, transport="test-return"):
+    def make_nodes(self, transport="test-return", relay="localdir"):
+        relayurl = None
+        if relay == "http":
+            basedirR = os.path.join(self.make_basedir(), "relay")
+            self.createNode(basedirR, "relay")
+            nR = self.startNode(basedirR)
+            row = nR.db.execute("SELECT baseurl FROM node").fetchone()
+            relayurl = row["baseurl"]
+
         basedirA = os.path.join(self.make_basedir(), "nodeA")
-        self.createNode(basedirA)
+        self.createNode(basedirA, relayurl=relayurl)
         nA = self.startNode(basedirA)
+        self.accelerate_polling(nA)
 
         basedirB = os.path.join(self.make_basedir(), "nodeB")
-        self.createNode(basedirB)
+        self.createNode(basedirB, relayurl=relayurl)
         nB = self.startNode(basedirB)
+        self.accelerate_polling(nB)
 
         if transport == "test-return":
             self.tport1 = fake_transport()
@@ -105,9 +122,14 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
                                  override_transports=self.tports1)
         nB.client.command_invite(u"petname-from-B", code,
                                  override_transports=self.tports2)
+        rclientA = list(nA.client.im)[0]
+        rclientB = list(nB.client.im)[0]
         def check():
             return (nA.client.im._debug_invitations_completed
-                    and nB.client.im._debug_invitations_completed)
+                    and nB.client.im._debug_invitations_completed
+                    and rclientA._debug_pending == 0
+                    and rclientB._debug_pending == 0
+                    )
         d = self.poll(check)
         def _done(_):
             entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
