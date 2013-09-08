@@ -16,7 +16,7 @@ def read_media(fn):
     f.close()
     return data
 
-class DBEventsProtocol:
+class EventsProtocol:
     def __init__(self, request, renderer):
         self.request = request
         self.renderer = renderer
@@ -25,7 +25,14 @@ class DBEventsProtocol:
         # TODO: set name=table and have the control page use exactly one
         # EventSource (add APIs to subscribe/unsubscribe various tables as
         # those panels are displayed). (or just deliver everything always).
-        self.sendEvent(json.dumps(self.renderer(notice)))
+        self.sendEvent(self.renderer(notice))
+
+    def sendComment(self, comment):
+        # this is ignored by clients, but can keep the connection open in the
+        # face of firewall/NAT timeouts. It also helps unit tests, since
+        # apparently twisted.web.client.Agent doesn't consider the connection
+        # to be established until it sees the first byte of the reponse body.
+        self.request.write(": %s\n\n" % comment)
 
     def sendEvent(self, data, name=None, id=None, retry=None):
         if name:
@@ -38,6 +45,9 @@ class DBEventsProtocol:
             self.request.write("data: %s\n" % line.encode("utf-8"))
         self.request.write("\n")
 
+    def stop(self):
+        self.request.finish()
+
 class BaseEvents(resource.Resource):
     def __init__(self, db, client):
         resource.Resource.__init__(self)
@@ -46,7 +56,7 @@ class BaseEvents(resource.Resource):
 
     def render_GET(self, request):
         request.setHeader("content-type", "text/event-stream")
-        p = DBEventsProtocol(request, self.render_event)
+        p = EventsProtocol(request, self.render_event)
         c = self.db.execute("SELECT * FROM `%s`" % self.table)
         for row in c.fetchall():
             p.notify(Notice(self.table, "insert", row["id"], row))
@@ -62,10 +72,10 @@ def serialize_row(row):
 class MessageEvents(BaseEvents):
     table = "inbound_messages"
     def render_event(self, notice):
-        return { "action": notice.action,
-                 "id": notice.id,
-                 "new_value": serialize_row(notice.new_value),
-                }
+        return json.dumps({ "action": notice.action,
+                            "id": notice.id,
+                            "new_value": serialize_row(notice.new_value),
+                            })
 
 class EventDispatcher(resource.Resource):
     def __init__(self, db, client):
@@ -223,11 +233,14 @@ class Control(resource.Resource):
 
 
 class Channel(resource.Resource):
-    def __init__(self, channelid, channels, destroy_messages):
+    enable_eventsource = True # disable to test polling
+
+    def __init__(self, channelid, channels, destroy_messages, subscribers):
         resource.Resource.__init__(self)
         self.channelid = channelid
         self.channels = channels
         self.destroy_messages = destroy_messages
+        self.subscribers = subscribers
 
     def render_POST(self, request):
         channel = self.channels[self.channelid]
@@ -258,13 +271,24 @@ class Channel(resource.Resource):
             del self.destroy_messages[self.channelid]
             return "Destroyed\n"
         channel.append(message)
+        for p in self.subscribers[self.channelid]:
+            p.notify(message)
         return "OK\n"
 
     def render_GET(self, request):
-        if "text/event-stream" in request.headers.get("accept", ""):
-            #request.setHeader("content-type", "text/event-stream")
-            # TODO: EventSource
-            pass
+        if ("text/event-stream" in (request.getHeader("accept") or "")
+            and self.enable_eventsource):
+            # EventSource protocol
+            request.setHeader("content-type", "text/event-stream")
+            p = EventsProtocol(request, lambda m: m)
+            p.sendComment("beginning Relay event stream")
+            for m in self.channels[self.channelid]:
+                p.notify(m)
+            self.subscribers[self.channelid].add(p)
+            def _done(_):
+                self.subscribers[self.channelid].remove(p)
+            request.notifyFinish().addErrback(_done)
+            return server.NOT_DONE_YET
         if not self.channelid in self.channels:
             return ""
         return "\n".join(self.channels[self.channelid])+"\n"
@@ -274,12 +298,21 @@ class Relay(resource.Resource):
         resource.Resource.__init__(self)
         self.channels = collections.defaultdict(list)
         self.destroy_messages = collections.defaultdict(set)
+        self.subscribers = collections.defaultdict(set)
+
     def getChild(self, path, request):
         if not VALID_INVITEID.search(path):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
                                       "invalid channel id")
-        return Channel(path, self.channels, self.destroy_messages)
+        return Channel(path, self.channels, self.destroy_messages,
+                       self.subscribers)
+
+    def unsubscribe_all(self):
+        # for tests
+        for eps in self.subscribers.values():
+            for ep in eps:
+                ep.stop()
 
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
