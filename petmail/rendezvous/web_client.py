@@ -1,8 +1,9 @@
-from twisted.python import log
+from twisted.python import log, failure
 from twisted.internet import defer
 from twisted.application import service, internet
 from twisted.web import client
 from ..invitation import VALID_INVITEID, VALID_MESSAGE
+from .. import eventsource
 
 # this is allowed to do seen-message-stripping as an optimization, but is not
 # required to do so. It is not required to check version numbers ("r0:") or
@@ -48,33 +49,38 @@ class HTTPRendezvousClient(service.MultiService):
     def poll(self):
         #print "entering poll"
         # we may unsubscribe while in the loop, so copy self.subscriptions
-        ds = []
         for channelID in list(self.subscriptions):
-            ds.append(self.pollChannel(channelID))
-        return defer.DeferredList(ds)
+            self.pollChannel(channelID)
 
     def pollChannel(self, channelID):
         if channelID in self.pending_requests:
             return defer.succeed(None)
         url = self.baseurl + "relay/" + channelID
         self.pending_requests.add(channelID)
-        d = client.getPage(url, headers={"accept": "application/json"})
-        d.addCallback(self.http_response, channelID)
-        d.addErrback(self.http_error, channelID)
-        return d
 
-    def http_response(self, data, channelID):
-        self.pending_requests.remove(channelID)
-        # we expect a concatenated list of messages, each of which starts
-        # with "r0:" followed by a hex-encoded signed message and a newline
-        if not data:
-            return
-        messages = data.strip().split("\n")
-        self.parent.messagesReceived(channelID, set(messages))
+        # create a watcher for this channel
+        def _handler(name, data):
+            if name == "data":
+                # we expect the value to start with "r0:" followed by a
+                # hex-encoded signed message
+                self.parent.messagesReceived(channelID, set([data]))
+        d = eventsource.get_events(url, _handler)
+        # If the relay can do EventSource, the handler will be fed with
+        # incoming events, and the Deferred won't fire until they hang up. If
+        # it can't, get_events() will do a regular GET, and the handler will
+        # be fed, and the Deferred will fire. If an error occurs, it will
+        # fire with a Failure.
 
-    def http_error(self, f, channelID):
+        # so if we're still subscribed when the Deferred fires, we should
+        # reschedule for later.
+        d.addBoth(self._http_done, channelID)
+
+    def _http_done(self, res, channelID):
         self.pending_requests.remove(channelID)
-        log.msg("HTTP error polling %s: %s" % (channelID, f))
+        if isinstance(res, failure.Failure):
+            log.msg("HTTP error polling %s: %s" % (channelID, res))
+        # if we're still subscribed, the poller will trigger again later. no
+        # need to do anything now.
 
     def send(self, channelID, msg):
         assert isinstance(channelID, str)

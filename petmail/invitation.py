@@ -221,9 +221,9 @@ class Invitation:
         # Send anything that didn't make it to the server. This covers the
         # case where we commit our outbound message in send() but crash
         # before finishing delivery.
-        for m in self.myMessages - messages:
-            #print "resending", m
-            self.manager.sendToAll(self.inviteID, m)
+        #for m in self.myMessages - messages:
+        #    #print "resending", m
+        #    self.manager.sendToAll(self.inviteID, m)
 
         newMessages = messages - self.myMessages - self.theirMessages
         #print " %d new messages" % len(newMessages)

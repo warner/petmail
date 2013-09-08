@@ -233,14 +233,14 @@ class Control(resource.Resource):
 
 
 class Channel(resource.Resource):
-    enable_eventsource = True # disable to test polling
-
-    def __init__(self, channelid, channels, destroy_messages, subscribers):
+    def __init__(self, channelid, channels, destroy_messages, subscribers,
+                 enable_eventsource=True):
         resource.Resource.__init__(self)
         self.channelid = channelid
         self.channels = channels
         self.destroy_messages = destroy_messages
         self.subscribers = subscribers
+        self.enable_eventsource = enable_eventsource
 
     def render_POST(self, request):
         channel = self.channels[self.channelid]
@@ -291,9 +291,12 @@ class Channel(resource.Resource):
             return server.NOT_DONE_YET
         if not self.channelid in self.channels:
             return ""
-        return "\n".join(self.channels[self.channelid])+"\n"
+        return "".join(["data: %s\n\n" % msg
+                        for msg in self.channels[self.channelid]])
 
 class Relay(resource.Resource):
+    enable_eventsource = True # disabled for certain tests
+
     def __init__(self):
         resource.Resource.__init__(self)
         self.channels = collections.defaultdict(list)
@@ -306,7 +309,7 @@ class Relay(resource.Resource):
                                       "invalid channel id",
                                       "invalid channel id")
         return Channel(path, self.channels, self.destroy_messages,
-                       self.subscribers)
+                       self.subscribers, self.enable_eventsource)
 
     def unsubscribe_all(self):
         # for tests

@@ -215,3 +215,16 @@ class Two(TwoNodeMixin, unittest.TestCase):
             self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
         d.addCallback(_then)
         return d
+
+    def test_two_http_polling(self):
+        nA, nB = self.make_nodes(relay="http")
+        self.relay.web.relay.enable_eventsource = False
+        d = self.add_new_channel_with_invitation(nA, nB)
+        def _then((entA,entB)):
+            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+                                 entA["id"])
+            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+                                 entB["id"])
+            self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
+        d.addCallback(_then)
+        return d

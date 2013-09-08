@@ -1,11 +1,20 @@
 from twisted.trial import unittest
 from twisted.internet import defer
+from twisted.application import service
 from twisted.web.client import getPage
 from twisted.web.error import Error as WebError
 from nacl.signing import SigningKey
 from .. import web, util, eventsource
+from ..rendezvous import web_client
 from .common import NodeRunnerMixin, ShouldFailMixin
 from .pollmixin import PollMixin
+
+class Accumulator(service.MultiService):
+    def __init__(self):
+        service.MultiService.__init__(self)
+        self.messages = []
+    def messagesReceived(self, channelID, messages):
+        self.messages.append( (channelID, messages) )
 
 class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
     def test_basic(self):
@@ -37,7 +46,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         destroy2 = "r0:" + sk.sign("i0:destroy:two").encode("hex")
 
         def lines(*messages):
-            return "\n".join(messages)+"\n"
+            return "".join(["data: %s\n\n" % msg for msg in messages])
 
         d = defer.succeed(None)
         d.addCallback(lambda _: self.GET(baseurl))
@@ -219,5 +228,47 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         def _stop(_):
             w.relay.unsubscribe_all()
             return client_done
+        d.addCallback(_stop)
+        return d
+
+    def test_client(self):
+        port = util.allocate_port()
+        w = web.WebPort("tcp:%d:interface=127.0.0.1" % port, "token")
+        w.enable_relay()
+        w.setServiceParent(self.sparent)
+        baseurl = "http://localhost:%d/" % port
+        sk = SigningKey.generate()
+        channelid = sk.verify_key.encode().encode("hex")
+        url = baseurl + "relay/" + channelid # must be hex
+        msg1 = "r0:" + sk.sign("msg1").encode("hex")
+        msg2 = "r0:" + sk.sign("msg2").encode("hex")
+        destroy1 = "r0:" + sk.sign("i0:destroy:one").encode("hex")
+        destroy2 = "r0:" + sk.sign("i0:destroy:two").encode("hex")
+
+        a = Accumulator()
+        a.setServiceParent(self.sparent)
+        c = web_client.HTTPRendezvousClient(baseurl)
+        c.setServiceParent(a)
+
+        c.subscribe(channelid)
+        d = self.POST(url, msg1)
+        def _then1(_):
+            self.failUnlessEqual(len(a.messages), 1)
+            self.failUnlessEqual(a.messages[0], (channelid, set([msg1])))
+            return self.POST(url, msg2)
+        d.addCallback(_then1)
+        def _then2(_):
+            self.failUnlessEqual(len(a.messages), 2)
+            self.failUnlessEqual(a.messages[1], (channelid, set([msg2])))
+        d.addCallback(_then2)
+        d.addCallback(lambda _: self.POST(url, destroy1))
+        d.addCallback(lambda _: self.POST(url, destroy2))
+        def _then3(_):
+            self.failUnlessEqual(len(a.messages), 3)
+            self.failUnlessEqual(a.messages[2], (channelid, set([destroy1])))
+        d.addCallback(_then3)
+
+        def _stop(_):
+            w.relay.unsubscribe_all()
         d.addCallback(_stop)
         return d
