@@ -103,6 +103,7 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
             basedirR = os.path.join(self.make_basedir(), "relay")
             self.createNode(basedirR, "relay")
             nR = self.startNode(basedirR)
+            self.relay = nR
             row = nR.db.execute("SELECT baseurl FROM node").fetchone()
             relayurl = row["baseurl"]
 

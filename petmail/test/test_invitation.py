@@ -212,5 +212,6 @@ class Two(TwoNodeMixin, unittest.TestCase):
                                  entA["id"])
             self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
                                  entB["id"])
+            self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
         d.addCallback(_then)
         return d

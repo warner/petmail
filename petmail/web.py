@@ -223,12 +223,15 @@ class Control(resource.Resource):
 
 
 class Channel(resource.Resource):
-    def __init__(self, channelid, channels):
+    def __init__(self, channelid, channels, destroy_messages):
         resource.Resource.__init__(self)
         self.channelid = channelid
         self.channels = channels
+        self.destroy_messages = destroy_messages
+
     def render_POST(self, request):
         channel = self.channels[self.channelid]
+        destroy_messages = self.destroy_messages[self.channelid]
         message = request.content.read()
         # reject junk
         if not message.startswith("r0:"):
@@ -243,13 +246,20 @@ class Channel(resource.Resource):
         # check signature
         try:
             m = message[len("r0:"):].decode("hex")
-            VerifyKey(self.channelid.decode("hex")).verify(m)
+            i0 = VerifyKey(self.channelid.decode("hex")).verify(m)
         except BadSignatureError:
             request.setResponseCode(http.BAD_REQUEST)
             return "invalid rendezvous message signature"
-        # TODO: look for two valid deletion messages
+        # look for two valid deletion messages
+        if i0.startswith("i0:destroy:"):
+            destroy_messages.add(i0)
+        if len(destroy_messages) >= 2:
+            del self.channels[self.channelid]
+            del self.destroy_messages[self.channelid]
+            return "Destroyed\n"
         channel.append(message)
         return "OK\n"
+
     def render_GET(self, request):
         if "text/event-stream" in request.headers.get("accept", ""):
             #request.setHeader("content-type", "text/event-stream")
@@ -263,12 +273,13 @@ class Relay(resource.Resource):
     def __init__(self):
         resource.Resource.__init__(self)
         self.channels = collections.defaultdict(list)
+        self.destroy_messages = collections.defaultdict(set)
     def getChild(self, path, request):
         if not VALID_INVITEID.search(path):
             return resource.ErrorPage(http.BAD_REQUEST,
                                       "invalid channel id",
                                       "invalid channel id")
-        return Channel(path, self.channels)
+        return Channel(path, self.channels, self.destroy_messages)
 
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
@@ -296,7 +307,8 @@ class WebPort(service.MultiService):
         api.putChild("v1", API(token, db, client)) # /api/v1
 
     def enable_relay(self):
-        self.root.putChild("relay", Relay())
+        self.relay = Relay() # for tests
+        self.root.putChild("relay", self.relay)
 
     def get_root(self):
         return self.root

@@ -24,7 +24,11 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, unittest.TestCase):
         HEADERS = {"accept": "application/json"}
         msg1 = "r0:" + sk.sign("msg1").encode("hex")
         msg2 = "r0:" + sk.sign("msg2").encode("hex")
+        destroy1 = "r0:" + sk.sign("i0:destroy:one").encode("hex")
+        destroy2 = "r0:" + sk.sign("i0:destroy:two").encode("hex")
 
+        def lines(*messages):
+            return "\n".join(messages)+"\n"
 
         d = getPage(baseurl)
         d.addCallback(lambda res: self.failUnlessEqual(res, "Hello\n"))
@@ -34,18 +38,17 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, unittest.TestCase):
         d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
         d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
         d.addCallback(lambda _: getPage(url, headers=HEADERS))
-        d.addCallback(lambda res: self.failUnlessEqual(res, msg1+"\n"))
+        d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1)))
         # duplicates are dismissed
         d.addCallback(lambda _: getPage(url, method="POST", postdata=msg1))
         d.addCallback(lambda res: self.failUnlessEqual(res, "ignoring duplicate message\n"))
         d.addCallback(lambda _: getPage(url, headers=HEADERS))
-        d.addCallback(lambda res: self.failUnlessEqual(res, msg1+"\n"))
+        d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1)))
 
         d.addCallback(lambda _: getPage(url, method="POST", postdata=msg2))
         d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
         d.addCallback(lambda _: getPage(url, headers=HEADERS))
-        d.addCallback(lambda res: self.failUnlessEqual(res,
-                                                       msg1+"\n"+msg2+"\n"))
+        d.addCallback(lambda res: self.failUnlessEqual(res, lines(msg1,msg2)))
 
         # now test the various error conditions
         # invalid channel
@@ -68,4 +71,16 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, unittest.TestCase):
                                       "invalid rendezvous message signature",
                                       getPage, url, method="POST",
                                       postdata="r0:d00dbadfeede"))
+
+        # and channel destruction
+        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy1))
+        d.addCallback(lambda res: self.failUnlessEqual(res, "OK\n"))
+        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda res:
+                      self.failUnlessEqual(res, lines(msg1,msg2,destroy1)))
+        d.addCallback(lambda _: getPage(url, method="POST", postdata=destroy2))
+        d.addCallback(lambda res: self.failUnlessEqual(res, "Destroyed\n"))
+        d.addCallback(lambda _: getPage(url, headers=HEADERS))
+        d.addCallback(lambda res: self.failUnlessEqual(res, ""))
+
         return d
