@@ -1,4 +1,6 @@
 import os, json
+from twisted.python import failure
+from twisted.internet import defer
 from twisted.application import service
 from StringIO import StringIO
 from nacl.public import PrivateKey
@@ -7,6 +9,31 @@ from ..scripts import runner, startstop
 from ..scripts.create_node import create_node
 from .. import rrid
 from .pollmixin import PollMixin
+
+class ShouldFailMixin:
+    def shouldFail(self, expected_failure, substring,
+                   response_substring,
+                   callable, *args, **kwargs):
+        assert substring is None or isinstance(substring, str)
+        assert response_substring is None or isinstance(response_substring, str)
+        d = defer.maybeDeferred(callable, *args, **kwargs)
+        def done(res):
+            if isinstance(res, failure.Failure):
+                res.trap(expected_failure)
+                if substring:
+                    self.failUnlessIn(substring, str(res),
+                                      "'%s' not in '%s' (response is '%s')" %
+                                      (substring, str(res),
+                                       getattr(res.value, "response", "")))
+                if response_substring:
+                    self.failUnlessIn(response_substring, res.value.response,
+                                      "'%s' not in '%s'" %
+                                      (response_substring, res.value.response))
+            else:
+                self.fail("was supposed to raise %s, not get '%s'" %
+                          (expected_failure, res))
+        d.addBoth(done)
+        return d
 
 class BasedirMixin:
     def make_basedir(self):
