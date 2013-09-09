@@ -234,13 +234,14 @@ class Control(resource.Resource):
 
 class Channel(resource.Resource):
     def __init__(self, channelid, channels, destroy_messages, subscribers,
-                 enable_eventsource=True):
+                 enable_eventsource=True, reverse_messages=False):
         resource.Resource.__init__(self)
         self.channelid = channelid
         self.channels = channels
         self.destroy_messages = destroy_messages
         self.subscribers = subscribers
         self.enable_eventsource = enable_eventsource
+        self._test_reverse_messages = reverse_messages
 
     def render_POST(self, request):
         channel = self.channels[self.channelid]
@@ -291,11 +292,14 @@ class Channel(resource.Resource):
             return server.NOT_DONE_YET
         if not self.channelid in self.channels:
             return ""
-        return "".join(["data: %s\n\n" % msg
-                        for msg in self.channels[self.channelid]])
+        messages = self.channels[self.channelid]
+        if self._test_reverse_messages:
+            messages = reversed(messages)
+        return "".join(["data: %s\n\n" % msg for msg in messages])
 
 class Relay(resource.Resource):
     enable_eventsource = True # disabled for certain tests
+    reverse_messages = False # enabled for certain tests
 
     def __init__(self):
         resource.Resource.__init__(self)
@@ -309,7 +313,8 @@ class Relay(resource.Resource):
                                       "invalid channel id",
                                       "invalid channel id")
         return Channel(path, self.channels, self.destroy_messages,
-                       self.subscribers, self.enable_eventsource)
+                       self.subscribers, self.enable_eventsource,
+                       self.reverse_messages)
 
     def unsubscribe_all(self):
         # for tests

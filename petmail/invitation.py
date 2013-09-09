@@ -234,16 +234,19 @@ class Invitation:
         # check signatures, extract bodies. invalid messages kill the channel
         # and the invitation. MAYBE TODO: lose the one channel, keep using
         # the others.
-        bodies = set()
+        messages_to_ignore = set()
+        valid_bodies = {}
         for m in newMessages:
-            #print " new inbound message", m
             try:
                 if not m.startswith("r0:"):
                     print "unrecognized rendezvous message prefix"
+                    messages_to_ignore.add(m) # ignore it next time
+                    continue
                 if not VALID_MESSAGE.search(m):
                     raise CorruptChannelError()
-                m = m[len("r0:"):].decode("hex")
-                bodies.add(self.inviteKey.verify_key.verify(m))
+                decoded = m[len("r0:"):].decode("hex")
+                body = self.inviteKey.verify_key.verify(decoded)
+                valid_bodies[body] = m
             except (BadSignatureError, CorruptChannelError) as e:
                 print "channel %s is corrupt" % self.inviteID
                 if isinstance(e, BadSignatureError):
@@ -252,18 +255,23 @@ class Invitation:
                 # TODO: mark invitation as failed, destroy it
                 return
 
-        #print " new inbound bodies:", ", ".join([repr(b[:10])+" ..." for b in bodies])
-
         # these handlers will update self.myMessages with sent messages, and
         # will increment self.nextExpectedMessage. We can handle multiple
         # (sequential) messages in a single pass.
+        def call_if_prefixed(prefix, handler):
+            for b in valid_bodies:
+                if b.startswith(prefix):
+                    messages_to_ignore.add(valid_bodies[b])
+                    handler(b[len(prefix):])
+                    return
+
         if self.nextExpectedMessage == 1:
-            self.findPrefixAndCall("i0:m1:", bodies, self.processM1)
-            # no elif here: self.nextExpectedMessage may have incremented
+            call_if_prefixed("i0:m1:", self.processM1)
+        # no elif here: self.nextExpectedMessage may have incremented
         if self.nextExpectedMessage == 2:
-            self.findPrefixAndCall("i0:m2:", bodies, self.processM2)
+            call_if_prefixed("i0:m2:", self.processM2)
         if self.nextExpectedMessage == 3:
-            self.findPrefixAndCall("i0:m3:", bodies, self.processM3)
+            call_if_prefixed("i0:m3:", self.processM3)
 
         self.db.update("UPDATE invitations SET"
                        "  myMessages=?,"
@@ -271,18 +279,12 @@ class Invitation:
                        "  nextExpectedMessage=?"
                        " WHERE id=?",
                        (",".join(self.myMessages),
-                        ",".join(self.theirMessages | newMessages),
+                        ",".join(self.theirMessages | messages_to_ignore),
                         self.nextExpectedMessage,
                         self.iid),
                        "invitations", self.iid)
         #print " db.commit"
         self.db.commit()
-
-    def findPrefixAndCall(self, prefix, bodies, handler):
-        for msg in bodies:
-            if msg.startswith(prefix):
-                return handler(msg[len(prefix):])
-        return None
 
     def send(self, msg, persist=True):
         #print "send", repr(msg[:10]), "..."
