@@ -129,7 +129,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
         d = defer.succeed(None)
         d.addCallback(lambda _: self.POST(url, msg1))
         def _connect(_):
-            d1 = eventsource.get_events(url, handler)
+            d1 = eventsource.EventSource(url, handler).start()
             client_done.append(d1)
         d.addCallback(_connect)
 
@@ -192,7 +192,7 @@ class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):
 
         # this doesn't fire until the event stream has closed. We'll wait it
         # at the end of the test
-        client_done = eventsource.get_events(url, handler)
+        client_done = eventsource.EventSource(url, handler).start()
 
         d = defer.succeed(None)
         d.addCallback(lambda _: self.POST(url, msg1))

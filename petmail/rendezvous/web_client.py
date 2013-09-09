@@ -49,7 +49,9 @@ class ChannelWatcher(service.MultiService):
                 # we expect the value to start with "r0:" followed by a
                 # hex-encoded signed message
                 self.rclient.messagesReceived(self.channelID, set([data]))
-        d = eventsource.get_events(self.url, _handler)
+        self.pending_request = eventsource.EventSource(self.url, _handler)
+        d = self.pending_request.start()
+
         # If the relay can do EventSource, the handler will be fed with
         # incoming events, and the Deferred won't fire until they hang up. If
         # it can't, get_events() will do a regular GET, and the handler will
