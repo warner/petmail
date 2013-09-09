@@ -10,7 +10,7 @@ class PollComplete(Exception):
 class PollMixin:
     _poll_should_ignore_these_errors = []
 
-    def poll(self, check_f, pollinterval=0.01, timeout=1000):
+    def poll(self, check_f, pollinterval=0.01, timeout=60):
         # Return a Deferred, then call check_f periodically until it returns
         # True, at which point the Deferred will fire.. If check_f raises an
         # exception, the Deferred will errback. If the check_f does not
