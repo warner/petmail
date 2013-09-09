@@ -4,6 +4,9 @@ all:
 	@echo "This Makefile only contains some shortcuts for use during development"
 	exit 1
 
+# this python knows to look in deps-venv for our dependencies
+PYTHON=deps-venv/bin/python
+
 BASEURL="`./bin/petmail -d relay print-baseurl`"
 
 .PHONY: relay n1 n2 stop bounce-all bounce rebuild
@@ -49,7 +52,6 @@ dump-n1:
 	sqlite3 n1/petmail.db .dump
 dump-n2:
 	sqlite3 n2/petmail.db .dump
-PYTHON=deps-venv/bin/python
 dump-ren:
 	$(PYTHON) petmail/dump-messages.py .rendezvous
 pyflakes:
@@ -77,17 +79,3 @@ open-coverage:
 # and you'll want to load misc/coverage.el in your emacs.
 .coverage.el: .coverage misc/coverage2el.py
 	python misc/coverage2el.py
-
-# TODO: use virtualenv.create_bootstrap_script(extra_text) to create a new
-# modified virtualenv.py . Define an after_install(options,home_dir) function
-# to edit home_dir/bin/activate to append lines to set and export CFLAGS and
-# LDFLAGS. Bonus points for editing bin/activate to unset them in
-# deactivate().
-
-# patch-activate is a quick hack to patch activate, without unset/deactivate
-patch-activate:
-	echo >> deps-venv/bin/activate
-	echo "CFLAGS=-I/usr/local/stow/libsodium-0.4.2/include" >>deps-venv/bin/activate
-	echo "export CFLAGS" >>deps-venv/bin/activate
-	echo "LDFLAGS=-L/usr/local/stow/libsodium-0.4.2/lib" >>deps-venv/bin/activate
-	echo "export LDFLAGS" >>deps-venv/bin/activate
