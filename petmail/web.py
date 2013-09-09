@@ -270,6 +270,9 @@ class Channel(resource.Resource):
         if len(destroy_messages) >= 2:
             del self.channels[self.channelid]
             del self.destroy_messages[self.channelid]
+            for p in self.subscribers[self.channelid]:
+                p.stop()
+            del self.subscribers[self.channelid]
             return "Destroyed\n"
         channel.append(message)
         for p in self.subscribers[self.channelid]:
