@@ -49,26 +49,25 @@ dump-n1:
 	sqlite3 n1/petmail.db .dump
 dump-n2:
 	sqlite3 n2/petmail.db .dump
+PYTHON=deps-venv/bin/python
 dump-ren:
-	deps-venv/bin/python petmail/dump-messages.py .rendezvous
+	$(PYTHON) petmail/dump-messages.py .rendezvous
 pyflakes:
 	pyflakes petmail
 
-# 1st: in libsodium-0.4.2: ./configure --prefix=/usr/local/stow/libsodium-0.4.2
-#      make, make check, make install
-WLS1=CFLAGS=-I/usr/local/stow/libsodium-0.4.2/include LDFLAGS=-L/usr/local/stow/libsodium-0.4.2/lib
-#WLS2=LD_LIBRARY_PATH=/usr/local/stow/libsodium-0.4.2/lib
+# this is temporary, until there's an upstream release of pynacl that is
+# pip-installable (without a system-wide libsodium)
 install-pynacl:
-	$(WLS1) deps-venv/bin/pip install PyNaCl
-PYTHON=deps-venv/bin/python
+	deps-venv/bin/pip install "https://github.com/warner/pynacl-1/zipball/embed4"
+
 test-pynacl:
-	$(WLS1) $(PYTHON) -c "from nacl.public import PrivateKey; print PrivateKey.generate().encode().encode('hex');"
+	$(PYTHON) -c "from nacl.public import PrivateKey; print PrivateKey.generate().encode().encode('hex');"
 test:
-	$(WLS1) ./bin/petmail test $(TEST)
+	./bin/petmail test $(TEST)
 
 .PHONY: test-coverage coverage-html open-coverage
 test-coverage:
-	$(WLS1) coverage run ./bin/petmail test $(TEST)
+	coverage run ./bin/petmail test $(TEST)
 coverage-html:
 	rm -rf .coverage-html
 	coverage html -d .coverage-html --include="petmail/*"
