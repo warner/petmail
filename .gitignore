@@ -3,6 +3,7 @@
 /deps-venv/
 /support/deps/
 .rendezvous
+/_trial_temp/
 /.coverage
 /.coverage.el
 /.coverage-html/
