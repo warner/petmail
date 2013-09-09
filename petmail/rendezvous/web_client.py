@@ -18,9 +18,10 @@ class ChannelWatcher(service.MultiService):
         self.rclient = rclient
         self.channelID = channelID
         self.url = url
-        self.pending_request = False
+        self.pending_request = None
         self.pending_send = False
         self.outbound_queue = []
+        self.subscribed = True
         self.ts = None
         if enable_polling:
             self.ts = internet.TimerService(polling_interval, self.poll)
@@ -33,18 +34,23 @@ class ChannelWatcher(service.MultiService):
         self.disownServiceParent()
 
     def unsubscribe(self):
+        self.subscribed = False
         if self.ts:
             self.ts.disownServiceParent() # stop any polling
             del self.ts
+        if self.pending_request:
+            # trigger disconnect, will hit http_done()
+            self.pending_request.cancel()
         self.maybeDisown()
 
     def poll(self):
         if self.pending_request:
             return # we're busy, call again later
-        self.pending_request = True
 
         # create a watcher for this channel
         def _handler(name, data):
+            if not self.subscribed:
+                return # too late
             if name == "data":
                 # we expect the value to start with "r0:" followed by a
                 # hex-encoded signed message
@@ -63,14 +69,16 @@ class ChannelWatcher(service.MultiService):
         d.addBoth(self._http_done)
 
     def _http_done(self, res):
-        self.pending_request = False
+        self.pending_request = None
         if isinstance(res, failure.Failure):
             log.msg("HTTP error polling %s: %s" % (self.channelID, res))
         # if we're still subscribed, the poller will trigger again later. no
         # need to do anything now.
-        self.maybeDisown()
+        if not self.subscribed:
+            self.maybeDisown()
 
     def send(self, msg):
+        assert self.subscribed
         d = defer.Deferred()
         self.outbound_queue.append((msg,d))
         self.maybeSend()
@@ -78,6 +86,8 @@ class ChannelWatcher(service.MultiService):
 
     def maybeSend(self):
         if not self.outbound_queue:
+            if not self.subscribed:
+                self.maybeDisown()
             return
         if self.pending_send:
             return
@@ -98,7 +108,6 @@ class ChannelWatcher(service.MultiService):
 
 class HTTPRendezvousClient(service.MultiService):
     """I talk to a remote HTTP-based rendezvous server."""
-    # start with simple polling. TODO: EventSourceProtocol
     enable_polling = True # disabled by some unit tests
     polling_interval = 2
 
@@ -121,8 +130,6 @@ class HTTPRendezvousClient(service.MultiService):
         c.setServiceParent(self)
 
     def messagesReceived(self, channelID, messages):
-        if channelID not in self.subscriptions:
-            return # too late
         self.parent.messagesReceived(channelID, messages)
 
     def unsubscribe(self, channelID):
