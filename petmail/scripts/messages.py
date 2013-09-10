@@ -3,8 +3,8 @@ from .webwait import follow_events
 
 def render_message(msg):
     lines = []
-    lines.append('== %d: from (cid=%d #%d):' % (
-        msg["id"], msg["cid"], msg["seqnum"]))
+    lines.append('== %d: from %s (cid=%d #%d):' % (
+        msg["id"], msg["petname"], msg["cid"], msg["seqnum"]))
     payload = json.loads(msg["payload_json"])
     if "basic" in payload:
         lines.append(" basic: " + payload["basic"])

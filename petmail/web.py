@@ -48,36 +48,53 @@ class EventsProtocol:
     def stop(self):
         self.request.finish()
 
-class BaseEvents(resource.Resource):
+class BaseView(resource.Resource):
     def __init__(self, db, client):
         resource.Resource.__init__(self)
         self.db = db
         self.client = client
 
-    def render_GET(self, request):
-        request.setHeader("content-type", "text/event-stream")
-        p = EventsProtocol(request, self.render_event)
+    # subclasses must define render_event(), which accepts a Notice and
+    # returns a JSON-serializable object
+
+    def catchup(self, each):
         c = self.db.execute("SELECT * FROM `%s`" % self.table)
         for row in c.fetchall():
-            p.notify(Notice(self.table, "insert", row["id"], row))
-        self.client.subscribe(self.table, p.notify)
-        def _done(_):
-            self.client.unsubscribe(self.table, p.notify)
-        request.notifyFinish().addErrback(_done)
-        return server.NOT_DONE_YET
+            each(Notice(self.table, "insert", row["id"], row))
+
+    def render_GET(self, request):
+        if "text/event-stream" in (request.getHeader("accept") or ""):
+            request.setHeader("content-type", "text/event-stream")
+            p = EventsProtocol(request, self.render_event)
+            self.catchup(p.notify)
+            self.client.subscribe(self.table, p.notify)
+            def _done(_):
+                self.client.unsubscribe(self.table, p.notify)
+            request.notifyFinish().addErrback(_done)
+            return server.NOT_DONE_YET
+        # no event-stream, deliver the non-streaming equivalent
+        results = []
+        self.catchup(lambda notice: results.append(self.render_event(notice)))
+        request.setResponseCode(http.OK, "OK")
+        request.setHeader("content-type", "application/json; charset=utf-8")
+        return json.dumps(results).encode("utf-8")
 
 def serialize_row(row):
     return dict([(key, row[key]) for key in row.keys()])
 
-class MessageEvents(BaseEvents):
+class MessageView(BaseView):
     table = "inbound_messages"
     def render_event(self, notice):
+        new_value = serialize_row(notice.new_value)
+        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                            (notice.new_value["cid"],))
+        new_value["petname"] = c.fetchone()["petname"]
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
-                            "new_value": serialize_row(notice.new_value),
+                            "new_value": new_value,
                             })
 
-class EventDispatcher(resource.Resource):
+class ViewDispatcher(resource.Resource):
     def __init__(self, db, client):
         resource.Resource.__init__(self)
         self.db = db
@@ -85,7 +102,7 @@ class EventDispatcher(resource.Resource):
 
     def getChild(self, path, request):
         if path == "messages":
-            return MessageEvents(self.db, self.client)
+            return MessageView(self.db, self.client)
         request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
         return "Unknown Event Type"
 
@@ -177,12 +194,12 @@ class API(resource.Resource):
 
     def getChild(self, path, request):
         # everything requires a token, check it here
-        if path == "events":
+        if path == "views":
             # Server-Sent Events use a GET, token must live in queryargs
             if not equal(request.args["token"][0], self.access_token):
                 request.setResponseCode(http.UNAUTHORIZED, "bad token")
                 return "Invalid token"
-            return EventDispatcher(self.db, self.client)
+            return ViewDispatcher(self.db, self.client)
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
             request.setResponseCode(http.UNAUTHORIZED, "bad token")

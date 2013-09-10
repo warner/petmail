@@ -156,7 +156,7 @@ def follow_events(basedir, command, args={}, err=sys.stderr):
     baseurl, token = get_url_and_token(basedir, err)
     if not baseurl:
         return False, {"err": "Error, node is not yet running"}
-    url = baseurl + "api/v1/events/%s" % command
+    url = baseurl + "api/v1/views/%s" % command
     url += "?token=%s" % token
     if args:
         url += "&" + urllib.urlencode(args).encode("utf-8")
