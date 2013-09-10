@@ -104,7 +104,6 @@ class HTTPMailboxServer(BaseServer):
         assert baseurl.endswith("/")
         pubkey = self.privkey.public_key
         return { "type": "http",
-                 # TODO: we must learn our local ipaddr and the webport
                  "url": baseurl + "mailbox",
                  "transport_pubkey": pubkey.encode().encode("hex"),
                  }
@@ -115,7 +114,7 @@ class HTTPMailboxServer(BaseServer):
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
         msgB = Box(self.privkey, PublicKey(pubkey1_s)).decrypt(boxed)
-        # this ends the observable errors
+        # this ends the sender-observable errors
         eventually(self.handle_msgB, msgB)
 
     def handle_msgB(self, msgB):
