@@ -37,17 +37,16 @@ def get_field(r):
 
 
 def follow_messages(so, stdout, stderr):
-    resp = follow_events(so["basedir"], "messages")
-    if resp.status == 200:
+    try:
+        resp = follow_events(so["basedir"], "messages")
+        if resp.status != 200:
+            print >>stderr, "Error:", resp.status, resp.reason
+            return 1
         # httplib is not really built to read a stream of lines
-        try:
-            while True:
-                fieldname, data = get_field(resp)
-                if fieldname == "data":
-                    stdout.write(render_message(json.loads(data)["new_value"]))
-                    stdout.flush()
-        except EOFError:
-            return 0
-    else:
-        print >>stderr, "Error:", resp.status, resp.reason
-        return 1
+        while True:
+            fieldname, data = get_field(resp)
+            if fieldname == "data":
+                stdout.write(render_message(json.loads(data)["new_value"]))
+                stdout.flush()
+    except (KeyboardInterrupt, EOFError):
+        return 0
