@@ -29,7 +29,10 @@ def create_node(so, stdout, stderr, services):
         db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
     if "client" in services:
         if so["relay-url"]:
-            desc = json.dumps({"type": "http", "url": so["relay-url"]})
+            relay_url = so["relay-url"]
+            if not relay_url.endswith("/"):
+                relay_url += "/"
+            desc = json.dumps({"type": "http", "url": relay_url})
             db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
                        (desc,))
         else:

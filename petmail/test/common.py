@@ -66,11 +66,15 @@ class NodeRunnerMixin:
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
-    def startNode(self, basedir):
+    def buildNode(self, basedir):
         so = runner.StartNodeOptions()
         so.parseOptions([basedir])
         p = startstop.MyPlugin(basedir, os.path.join(basedir, "petmail.db"))
         n = p.makeService(so)
+        return n
+
+    def startNode(self, basedir):
+        n = self.buildNode(basedir)
         n.setServiceParent(self.sparent)
         return n
 

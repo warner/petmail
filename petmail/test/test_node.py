@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, json
 from StringIO import StringIO
 from twisted.trial import unittest
 from twisted.python import failure
@@ -104,6 +104,30 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         d = self.cliMustSucceed("create-node",
                                 "--relay-url", "http://localhost:1234/",
                                 basedir)
+        def _check(out):
+            n = self.buildNode(basedir)
+            rows = n.db.execute("SELECT * FROM relay_servers").fetchall()
+            self.failUnlessEqual(len(rows), 1)
+            desc = json.loads(rows[0]["descriptor_json"])
+            self.failUnlessEqual(str(desc["type"]), "http")
+            self.failUnlessEqual(str(desc["url"]), "http://localhost:1234/")
+        d.addCallback(_check)
+        return d
+
+    def test_create_node_with_relay_no_slash(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node",
+                                "--relay-url", "http://localhost:1234",
+                                basedir)
+        def _check(out):
+            n = self.buildNode(basedir)
+            rows = n.db.execute("SELECT * FROM relay_servers").fetchall()
+            self.failUnlessEqual(len(rows), 1)
+            desc = json.loads(rows[0]["descriptor_json"])
+            self.failUnlessEqual(str(desc["type"]), "http")
+            # create-node should add the missing slash
+            self.failUnlessEqual(str(desc["url"]), "http://localhost:1234/")
+        d.addCallback(_check)
         return d
 
     def test_create_relay(self):
