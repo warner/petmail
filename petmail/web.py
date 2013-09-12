@@ -79,16 +79,30 @@ class BaseView(resource.Resource):
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps(results).encode("utf-8")
 
-def serialize_row(row):
-    return dict([(key, row[key]) for key in row.keys()])
+def serialize_row(row, keys=None):
+    if not row:
+        return None
+    if not keys:
+        keys = row.keys()
+    return dict([(key, row[key]) for key in keys])
 
 class MessageView(BaseView):
     table = "inbound_messages"
     def render_event(self, notice):
         new_value = serialize_row(notice.new_value)
-        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
-                            (notice.new_value["cid"],))
-        new_value["petname"] = c.fetchone()["petname"]
+        if new_value:
+            c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                                (notice.new_value["cid"],))
+            new_value["petname"] = c.fetchone()["petname"]
+        return json.dumps({ "action": notice.action,
+                            "id": notice.id,
+                            "new_value": new_value,
+                            })
+
+class AddressBookView(BaseView):
+    table = "addressbook"
+    def render_event(self, notice):
+        new_value = serialize_row(notice.new_value, ["id", "petname", "acked"])
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,
@@ -103,6 +117,8 @@ class ViewDispatcher(resource.Resource):
     def getChild(self, path, request):
         if path == "messages":
             return MessageView(self.db, self.client)
+        if path == "addressbook":
+            return AddressBookView(self.db, self.client)
         request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
         return "Unknown Event Type"
 
