@@ -76,3 +76,8 @@
     padding-left: 10px;
     clear: left;
 }
+
+#tabs-messages {
+    width: 500px;
+    border: 1px solid blue;
+}
