@@ -53,6 +53,17 @@ function main() {
     s.exit().remove();
   };
 
+  d3.select("#send-message-go")[0][0].onclick = function(e) {
+    var msg = d3.select("#send-message-body")[0][0].value;
+    console.log("sending", msg);
+    req = {"token": token, "args": {"cid": 1, "message": msg}};
+    d3.json("/api/v1/send-basic").post(JSON.stringify(req),
+                                       function(err, r) {
+                                         console.log("sent", r.ok);
+                                       });
+    d3.select("#send-message-body")[0][0].value = "";
+  };
+  console.log("setup done");
 }
 
 
