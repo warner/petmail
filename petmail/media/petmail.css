@@ -1,3 +1,38 @@
+div#one {
+    height: 80%;
+    width: 200px;
+    border: 2px solid orange;
+    padding: 5px;
+    position: absolute;
+    left: 20px;
+}
+
+div#invite {
+    border: 2px solid blue;
+    padding: 2px;
+    position: relative;
+    bottom: 5px;
+}
+
+div#address-book-sidebar {
+    overflow: scroll;
+}
+
+div#two {
+    height: 80%;
+    width: 400px;
+    padding: 5px;
+    border: 2px solid red;
+    position: absolute;
+    left: 240px;
+}
+
+div#send-message {
+    padding: 5px;
+    border: 2px solid blue;
+    bottom: 10px;
+}
+
 
 .reload-form {
  right: 20px;
@@ -20,64 +55,4 @@
 
 .hidden {
     display: none;
-}
-
-.profile-icon-drop {
-    height: 125px;
-    width: 125px;
-    padding: 5px;
-    border: 2px solid gray;
-}
-
-#address-book-controls, #address-book-main {
-    width: 768px;
-    /*margin: auto;*/
-}
-
-#address-book-controls {
-    display: none;
-}
-
-#address-book-main {
-    height: 60%;
-    /*overflow: auto;*/
-    border: 1px solid yellow;
-}
-
-#address-book-sidebar {
-    height: 100%;
-    /*padding-left: 5px;*/
-    margin-right: 608px;
-    border: 1px solid red;
-    overflow: scroll;
-}
-
-#address-book-body {
-    float: right;
-    width: 598px;
-    border: 1px solid orange;
-}
-
-#address-book-icon {
-    float: left;
-    max-width: 125px;
-    max-height: 125px;
-}
-
-.address-book-icon-right {
-    padding-left: 10px;
-    padding-top: 0px;
-    margin-top: 0px;
-    /*padding-bottom: auto;*/
-}
-
-.address-book-attributes {
-    padding-top: 10px;
-    padding-left: 10px;
-    clear: left;
-}
-
-#tabs-messages {
-    width: 500px;
-    border: 1px solid blue;
 }

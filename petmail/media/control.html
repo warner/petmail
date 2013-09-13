@@ -8,7 +8,6 @@
 </head>
 
 <body>
- <h1>Petmail Control Panel</h1>
  <script>
    var token = "%(token)s";
  </script>
@@ -18,75 +17,30 @@
   <input type="submit" value="Reload Control Panel" name="submit">
  </form>
 
-<div id="tabs">
-  <div id="tabs-address-book">
-    <h3>Address Book</h3>
-
-    <div id="address-book-controls">
-      <h3 id="toggle-pending-invitations" class="hidden"><a href="#">Pending Invitations
-      (<span id="count-pending-invitations">?</span>)</a></h3>
-      <div id="pending-invitations" class="hidden"><ul/></div>
-
-      <h3 id="invite"><input type="submit" value="Invite a Friend"/></h3>
-      <div id="invite-prepare-invitation" class="hidden">
-        <p>prepare to invite someone here</p>
-          <ul>
-            <li>Name: <input id="invite-to" type="text"/>
-            <input id="send-invitation"  type="submit" value="Send!"/>
-            <a id="invite-cancel" class="small" href="#">cancel</a>
-            </li>
-          </ul>
-      </div>
-    </div>
-
-    <div id="address-book-main">
-      <div id="address-book-body">
-        <div>
-          <img id="address-book-icon" src="">
-          <span class="address-book-icon-right">
-            <span class="gray">Petname:</span>
-            <span id="address-book-petname"></span>
-          </span>
-        </div>
-        <div class="address-book-attributes">
-          <div><span class="gray">Selfname:</span>
-            <span id="address-book-selfname"></span>
-          </div>
-          <div><span class="gray">Their Pubkey:</span>
-            <span id="address-book-their-pubkey"></span>
-          </div>
-        </div>
-      </div>
-      <div id="address-book-sidebar">
-        <ul id="address-book"></ul>
-      </div>
-    </div>
-
+<div id="one">
+  <h3>Address Book</h3>
+  <div id="invite">
+    <div><b><center>Invitation</center></b></div>
+    <div>Petname: <input id="invite-petname" type="text"/></div>
+    <div>Code: <input id="invite-code" type="text"/></div>
   </div>
-
-  <div id="tabs-messages">
-    <h3>Messages</h3>
-    <ul id="messages"></ul>
+  <div id="address-book-sidebar">
+    <ul id="address-book"></ul>
   </div>
+</div>
 
-  </div>
-
+<div id="two">
+  <h3>Messages</h3>
   <div id="send-message">
     <h3>Send Message</h3>
     <p>(always to the first contact)</p>
     <p>Message: <input id="send-message-body" type="text"/>
-                <input id="send-message-go"  type="submit" value="Send!"/>
+    <input id="send-message-go"  type="submit" value="Send!"/>
     </p>
-   </div>
-
-<!-- templates -->
-<div id="templates" class="hidden">
-  <li class="address-book-entry">
-    <img class="icon" src=""></img>
-    <span class="name"></span>
-    <a href="#" class="delete small">delete</a>
-  </li>
+  </div>
+  <ul id="messages"></ul>
 </div>
+
 
 </body>
 </html>
