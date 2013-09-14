@@ -1,10 +1,20 @@
 
 console.log("control.js loaded");
 
+var messages = {}; // indexed by cid
+var addressbook = {}; // indexed by cid
+var current_cid = null;
+
+function set_current_addressbook(e) {
+  current_cid = e.id;
+  console.log("current_cid", current_cid);
+  d3.select("#send-message-to").text(addressbook[current_cid].petname
+                                     + " [" + current_cid + "]");
+}
+
 function main() {
   console.log("onload");
 
-  var messages = {}; // indexed by cid
   var ev = new EventSource("/api/v1/views/messages?token="+token);
   ev.onmessage = function(e) {
     var data = JSON.parse(e.data); // .action, .id, .new_value
@@ -33,7 +43,6 @@ function main() {
     s.exit().remove();
   };
 
-  var addressbook = {}; // indexed by cid
   ev = new EventSource("/api/v1/views/addressbook?token="+token);
   ev.onmessage = function(e) {
     var data = JSON.parse(e.data); // .action, .id, .new_value
@@ -47,9 +56,16 @@ function main() {
       entries.push(addressbook[id]);
     var s = d3.select("#address-book").selectAll("li")
       .data(entries, function(e) { return e.id; })
-      .text(function(e) {return e.petname;});
+      .text(function(e) {return e.petname;})
+      .attr("class", function(e) { return "cid-"+e.id; })
+      .on("click", set_current_addressbook)
+    ;
+
     s.enter().append("li")
-      .text(function(e) {return e.petname;});
+      .text(function(e) {return e.petname;})
+      .attr("class", function(e) { return "cid-"+e.id; })
+      .on("click", set_current_addressbook)
+    ;
     s.exit().remove();
   };
 
@@ -68,8 +84,8 @@ function main() {
 
   d3.select("#send-message-go")[0][0].onclick = function(e) {
     var msg = d3.select("#send-message-body")[0][0].value;
-    console.log("sending", msg);
-    req = {"token": token, "args": {"cid": 1, "message": msg}};
+    console.log("sending", msg, "to", current_cid);
+    req = {"token": token, "args": {"cid": current_cid, "message": msg}};
     d3.json("/api/v1/send-basic").post(JSON.stringify(req),
                                        function(err, r) {
                                          console.log("sent", r.ok);
