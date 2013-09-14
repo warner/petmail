@@ -9,7 +9,7 @@ PYTHON=deps-venv/bin/python
 
 BASEURL="`./bin/petmail -d relay print-baseurl`"
 
-.PHONY: relay n1 n2 stop bounce-all bounce rebuild
+.PHONY: relay n1 n2 n3 stop bounce-all bounce rebuild
 relay:
 	-./bin/petmail stop relay
 	rm -rf relay
@@ -22,20 +22,27 @@ n2:
 	-./bin/petmail stop n2
 	rm -rf n2
 	./bin/petmail create-node -r $(BASEURL) n2
+n3:
+	-./bin/petmail stop n3
+	rm -rf n3
+	./bin/petmail create-node -r $(BASEURL) n3
 
 stop:
 	-./bin/petmail stop n1
 	-./bin/petmail stop n2
+	-./bin/petmail stop n3
 	-./bin/petmail stop relay
 bounce-all:
 	-./bin/petmail restart relay
 	-./bin/petmail restart n1
 	-./bin/petmail restart n2
+	-./bin/petmail restart n3
 bounce:
 	-./bin/petmail restart n1
 	-./bin/petmail restart n2
+	-./bin/petmail restart n3
 
-rebuild: stop relay n1 n2
+rebuild: stop relay n1 n2 n3
 	rm -rf .rendezvous
 	$(MAKE) bounce-all
 
@@ -43,10 +50,15 @@ rebuild: stop relay n1 n2
 enable-local-mailbox:
 	./bin/petmail enable-local-mailbox -d n1
 	./bin/petmail enable-local-mailbox -d n2
+	./bin/petmail enable-local-mailbox -d n3
 
 connect:
-	./bin/petmail invite -d n1 -n Bob code
-	./bin/petmail invite -d n2 -n Alice code
+	./bin/petmail invite -d n1 -n Bob code1
+	./bin/petmail invite -d n2 -n Alice code1
+	./bin/petmail invite -d n1 -n Carol code2
+	./bin/petmail invite -d n3 -n Alice code2
+	./bin/petmail invite -d n2 -n Carol code3
+	./bin/petmail invite -d n3 -n Bob code3
 
 dump-n1:
 	sqlite3 n1/petmail.db .dump
