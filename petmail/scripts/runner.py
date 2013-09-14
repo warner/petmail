@@ -265,7 +265,7 @@ DISPATCH = {"create-node": create_node,
             "accept": accept,
             }
 
-def run(args, stdout, stderr):
+def run(args, stdout, stderr, petmail=None):
     config = Options()
     try:
         config.parseOptions(args)
@@ -278,6 +278,7 @@ def run(args, stdout, stderr):
         return 1
     command = config.subCommand
     so = config.subOptions
+    so["petmail-executable"] = petmail
     try:
         rc = DISPATCH[command](so, stdout, stderr)
         return rc

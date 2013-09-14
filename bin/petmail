@@ -22,5 +22,5 @@ from petmail.scripts.runner import run
 # Delegate everything else off to scripts.runner, which must be careful to
 # not import too much unless the command specifically asks for it.
 
-rc = run(sys.argv[1:], sys.stdout, sys.stderr)
+rc = run(sys.argv[1:], sys.stdout, sys.stderr, petmail=sys.argv[0])
 sys.exit(rc)

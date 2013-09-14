@@ -55,6 +55,17 @@ def create_node(so, stdout, stderr, services):
                    (json.dumps(server_desc), 0))
     db.commit()
     print >>stdout, "node created in %s, URL is %s" % (basedir, baseurl)
+
+    petmail = so.get("petmail-executable")
+    if petmail:
+        pe_fn = os.path.join(basedir, "petmail")
+        pe = open(pe_fn, "w")
+        pe.write("#!/bin/sh\n")
+        pe.write("%s -d %s $*\n" % (os.path.abspath(petmail),
+                                    os.path.abspath(basedir)))
+        pe.close()
+        os.chmod(pe_fn, 0755)
+
     return 0
 
 def print_baseurl(so, stdout, stderr):
