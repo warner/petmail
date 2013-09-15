@@ -11,7 +11,8 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         msgC = "msgC"
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
         bad_trec = copy.deepcopy(trec)
-        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        TID_privkey, TID_pubkey = rrid.create_keypair()
+        TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
         bad_STID = rrid.randomize(TID_token0)
         bad_trec["STID"] = bad_STID.encode("hex")
         msgA = createMsgA(bad_trec, msgC)

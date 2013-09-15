@@ -27,6 +27,11 @@
 # token0: pubkey+M (rerandomizable, safe when each sender gets a unique token)
 # token[N]: pubkey+enc(M) (to prevent senders from comparing tokens)
 
+# privkey,pubkey = rrid.create_keypair()
+# tokenid,token1 = rrid.create_token(pubkey)
+# token2 = rrid.randomize(token1)
+# tokenid = rrid.decrypt(privkey, token)
+
 import os
 from hashlib import sha256
 from .util import split_into
@@ -35,17 +40,20 @@ TOKEN_LENGTH = 32+32+32
 
 # actual crypto is stubbed out for now
 
-def create():
+def create_keypair():
+    privkey = "\x11"*32
+    pubkey = "\x22"*32
+    return privkey, pubkey
+
+def create_token(pubkey):
+    message = os.urandom(32)
+    tokenid = sha256(message).digest()
     IDENTITY_ELEMENT = "\x00"*32
     # encrypting with r=0 gives (IDENTITY_ELEMENT,m), which is suitable for
     # the first token (which is not encrypted), and can also be fed into
     # rerandomize().
-    message = os.urandom(32)
-    tokenid = sha256(message).digest()
-    privkey = "\x11"*32
-    pubkey = "\x22"*32
     nullencrypted_token = pubkey + IDENTITY_ELEMENT + message
-    return tokenid, privkey, nullencrypted_token
+    return tokenid, nullencrypted_token
 
 def decrypt(privkey, token):
     assert len(privkey) == 32

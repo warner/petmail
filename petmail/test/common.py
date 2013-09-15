@@ -87,7 +87,8 @@ class NodeRunnerMixin:
 def fake_transport():
     privkey = PrivateKey.generate()
     pubkey_hex = privkey.public_key.encode().encode("hex")
-    TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+    TID_privkey, TID_pubkey = rrid.create_keypair()
+    TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
     private = {"privkey": privkey,
                "TID": (TID_tokenid, TID_privkey, TID_token0) }
     # this is what lives in our database. All channels that share the same

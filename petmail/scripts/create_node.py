@@ -43,9 +43,11 @@ def create_node(so, stdout, stderr, services):
                    " (`name`, `icon_data`) VALUES (?,?)",
                    ("",""))
         privkey = PrivateKey.generate()
-        TID_tokenid, TID_privkey, TID_token0 = rrid.create()
+        TID_privkey,TID_pubkey = rrid.create_keypair()
+        TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
         server_desc = { "transport_privkey": privkey.encode().encode("hex"),
                         "TID_private_key": TID_privkey.encode("hex"),
+                        "TID_public_key": TID_pubkey.encode("hex"),
                         "local_TID0": TID_token0.encode("hex"),
                         "local_TID_tokenid": TID_tokenid.encode("hex"),
                         }

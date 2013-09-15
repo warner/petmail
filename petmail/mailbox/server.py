@@ -77,6 +77,7 @@ class HTTPMailboxServer(BaseServer):
         self.baseurl = baseurl
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         self.TID_privkey = desc["TID_private_key"].decode("hex")
+        self.TID_pubkey = desc["TID_public_key"].decode("hex")
 
         # If we feed a local transport, it will have just one TID. If we
         # queue messages for any other transports, they'll each have their
