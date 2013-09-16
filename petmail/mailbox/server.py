@@ -3,9 +3,11 @@
 # petmail.mailbox.delivery.http . I define a ServerResource which accepts the
 # POSTs and delivers their msgA to a Mailbox.
 
+import os, struct
 from twisted.application import service
 from twisted.web import resource
 from nacl.public import PrivateKey, PublicKey, Box
+from nacl.secret import SecretBox
 from .. import rrid
 from ..eventual import eventually
 from ..util import remove_prefix, split_into
@@ -131,3 +133,30 @@ class HTTPMailboxServer(BaseServer):
         # this can be overridden by unit tests
         raise KeyError("unrecognized transport identifier")
 
+def decrypt_list_request_1(req):
+    (timestamp, tmppub) = struct.unpack(">L32s", req[:4+32])
+    boxed0 = req[4+32:]
+    return timestamp, tmppub, boxed0
+
+def decrypt_list_request_2(tmppub, boxed0, serverprivkey):
+    TID = Box(serverprivkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
+    return TID
+
+assert struct.calcsize(">Q") == 8
+
+def create_list_entry(symkey, tmppub, length,
+                      nonce=None, fetch_token=None, delete_token=None):
+    assert len(tmppub) == 32
+    fetch_token = fetch_token or os.urandom(32)
+    delete_token = delete_token or os.urandom(32)
+    msg = "list:" + struct.pack(">32s32s32sQ",
+                                tmppub, fetch_token, delete_token, length)
+    nonce = nonce or os.urandom(24)
+    sbox = SecretBox(symkey)
+    return sbox.encrypt(msg, nonce)
+
+def encrypt_fetch_response(symkey, fetch_token, msgC, nonce=None):
+    assert len(fetch_token) == 32
+    msg = "fetch:" + fetch_token + msgC
+    nonce = nonce or os.urandom(24)
+    return SecretBox(symkey).encrypt(msg, nonce)
