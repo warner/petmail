@@ -1,8 +1,6 @@
 from twisted.trial import unittest
 from .. import rrid
-
-def flip_bit(s):
-    return s[:-1] + chr(ord(s[-1]) ^ 0x01)
+from .common import flip_bit
 
 class RRID(unittest.TestCase):
     def test_create(self):

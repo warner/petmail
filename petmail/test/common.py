@@ -238,3 +238,6 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
         entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
         return entA, entB
+
+def flip_bit(s):
+    return s[:-1] + chr(ord(s[-1]) ^ 0x01)
