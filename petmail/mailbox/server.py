@@ -3,9 +3,9 @@
 # petmail.mailbox.delivery.http . I define a ServerResource which accepts the
 # POSTs and delivers their msgA to a Mailbox.
 
-import os, struct
+import os, struct, time, base64
 from twisted.application import service
-from twisted.web import resource
+from twisted.web import resource, http
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.secret import SecretBox
 from .. import rrid
@@ -90,9 +90,13 @@ class HTTPMailboxServer(BaseServer):
         # this is how we get messages from senders
         web.get_root().putChild("mailbox", ServerResource(self.handle_msgA))
 
-        if enable_retrieval:
+        self.accept_nonlocal = enable_retrieval
+        if self.accept_nonlocal:
             # add a second resource for clients to retrieve messages
-            raise NotImplementedError()
+            r = resource.Resource()
+            r.putChild("list", RetrievalListResource(self.db))
+            r.putChild("fetch", RetrievalFetchResource(self.db))
+            r.putChild("delete", RetrievalDeleteResource(self.db))
 
     def get_retrieval_descriptor(self):
         return { "type": "local",
@@ -124,10 +128,20 @@ class HTTPMailboxServer(BaseServer):
         MSTID, msgC = parseMsgB(msgB)
         TID = rrid.decrypt(self.TID_privkey, MSTID)
         if TID == self.local_TID_tokenid:
-            self.local_transport_handler(msgC)
-        else:
-            # TODO: look up registered transports, queue message
-            self.signal_unrecognized_TID(TID)
+            return self.local_transport_handler(msgC)
+        if self.accept_nonlocal:
+            # look up registered transports, queue message
+            c = self.db.execute("SELECT * FROM mailbox_server_transports"
+                                " WHERE TID=?", (TID.encode("hex"),))
+            row = c.fetchone()
+            if row:
+                self.db.execute("INSERT INTO mailbox_server_messages"
+                                " (tid, length, msgC) VALUES (?,?,?)",
+                                (row["id"], len(msgC), msgC.encode("hex")))
+                self.db.commit()
+                return
+        # unknown
+        self.signal_unrecognized_TID(TID)
 
     def signal_unrecognized_TID(self, TID):
         # this can be overridden by unit tests
@@ -153,10 +167,115 @@ def create_list_entry(symkey, tmppub, length,
                                 tmppub, fetch_token, delete_token, length)
     nonce = nonce or os.urandom(24)
     sbox = SecretBox(symkey)
-    return sbox.encrypt(msg, nonce)
+    return sbox.encrypt(msg, nonce), fetch_token, delete_token
 
 def encrypt_fetch_response(symkey, fetch_token, msgC, nonce=None):
     assert len(fetch_token) == 32
     msg = "fetch:" + fetch_token + msgC
     nonce = nonce or os.urandom(24)
     return SecretBox(symkey).encrypt(msg, nonce)
+
+class RetrievalListResource(resource.Resource):
+    CLOCK_WINDOW = 5*60 # the window is "now" plus/minus this value
+
+    def __init__(self, db):
+        resource.Resource.__init__(self)
+        self.db = db
+        self.old_requests = {} # maps tmppub to timestamp
+
+    def prune_old_requests(self, now=None):
+        old = (now or time.time()) - self.CLOCK_WINDOW
+        old_tmppubs = []
+        for tmppub, ts in self.old_requests.items():
+            if ts < old:
+                old_tmppubs.append(tmppub)
+        for tmppub in old_tmppubs:
+            del self.old_requests[tmppub]
+
+    def render_GET(self, request):
+        msg = base64.urlsafe_b64decode(request.args["t"][0])
+        ts, tmppub, boxed0 = decrypt_list_request_1(msg)
+        now = time.time()
+        if ts < now-self.CLOCK_WINDOW or ts > now+self.CLOCK_WINDOW:
+            request.setResponseCode(http.BAD_REQUEST, "too much clock skew")
+            return "Too much clock skew"
+        if tmppub in self.old_requests:
+            request.setResponseCode(http.BAD_REQUEST, "Replay")
+            return "Replay"
+        TID = decrypt_list_request_2(tmppub, boxed0, self.privkey)
+        tid, symkey = self.check_TID(TID)
+        # If check_TID() didn't throw KeyError, this is a new request, for a
+        # known TID. It's worth preventing a replay.
+        self.old_requests[tmppub] = ts
+
+        # TODO: subscribe, render messages
+        if ("text/event-stream" in (request.getHeader("accept") or "")
+            and self.enable_eventsource):
+            # EventSource protocol
+            request.setHeader("content-type", "text/event-stream")
+
+    def check_TID(self, TID):
+        c = self.db.execute("SELECT * FROM mailbox_server_transports"
+                            " WHERE TID=?", (TID.encode("hex"),))
+        row = c.fetchone()
+        if row:
+            return (row["id"], row["symkey"].decode("hex"))
+        raise KeyError("no such TID")
+
+    def prepare_message_list(self, tid, symkey, tmppub):
+        entries = []
+        c = self.db.execute("SELECT id,length FROM mailbox_server_messages"
+                            " WHERE tid=?", (tid,))
+        for row in c.fetchall():
+            entry, fetch_token, delete_token = create_list_entry(symkey, tmppub,
+                                                                 c["length"])
+            self.db.execute("UPDATE mailbox_server_messages"
+                            " SET fetch_token=?, delete_token=?"
+                            " WHERE id=?",
+                            (fetch_token.encode("hex"),
+                             delete_token.encode("hex"),
+                             c["id"]))
+            entries.append(entry)
+        self.db.commit()
+        return entry
+
+
+class RetrievalFetchResource(resource.Resource):
+    def __init__(self, db):
+        resource.Resource.__init__(self)
+        self.db = db
+
+    def render_GET(self, request):
+        fetch_token = base64.urlsafe_b64decode(request.args["t"][0])
+        c = self.db.execute("SELECT * FROM mailbox_server_messages"
+                            " WHERE fetch_token=?",
+                            (fetch_token.encode("hex"),))
+        row = c.fetchone()
+        if row:
+            c2 = self.db.execute("SELECT symkey"
+                                 " FROM mailbox_server_transports"
+                                 " WHERE id=?", (c["tid"],))
+            symkey = c2.fetchone()["symkey"].decode("hex")
+            self.db.execute("UPDATE mailbox_server_messages"
+                            " SET fetch_token=NULL"
+                            " WHERE id=?",
+                            (c["id"],))
+            self.db.commit()
+            return encrypt_fetch_response(symkey, fetch_token,
+                                          row["msgC"].decode("hex")
+                                          ).encode("hex")
+        request.setResponseCode(http.NOT_FOUND, "unknown fetch_token")
+        return ""
+
+class RetrievalDeleteResource(resource.Resource):
+    def __init__(self, db):
+        resource.Resource.__init__(self)
+        self.db = db
+
+    def render_POST(self, request):
+        delete_token = base64.urlsafe_b64decode(request.args["t"][0])
+        self.db.execute("DELETE FROM mailbox_server_messages"
+                        " WHERE delete_token=?",
+                        (delete_token.encode("hex"),))
+        self.db.commit()
+        return ""

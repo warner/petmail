@@ -40,6 +40,34 @@ CREATE TABLE `mailbox_server_config` -- contains exactly one row
  `enable_retrieval` INT -- for public servers
 );
 
+CREATE TABLE `mailbox_server_transports` -- one row per user we support
+(
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `TID` STRING,
+ `symkey` STRING
+);
+
+CREATE TABLE `mailbox_server_messages`
+(
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `tid` INTEGER,
+ `fetch_token` STRING,
+ `delete_token` STRING,
+ `length` INTEGER,
+ `msgC` STRING
+);
+CREATE INDEX `tid_token` ON `mailbox_server_messages` (`tid`);
+CREATE UNIQUE INDEX `fetch_token` ON `mailbox_server_messages` (`fetch_token`);
+CREATE UNIQUE INDEX `delete_token` ON `mailbox_server_messages` (`delete_token`);
+
+CREATE TABLE `retrieval_replay_tokens`
+(
+ `timestamp` INT,
+ `pubkey` STRING
+);
+CREATE UNIQUE INDEX `timestamp` ON `retrieval_replay_tokens` (`timestamp`);
+CREATE UNIQUE INDEX `token` ON `retrieval_replay_tokens` (`timestamp`, `pubkey`);
+
 CREATE TABLE `mailboxes` -- one per mailbox
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,

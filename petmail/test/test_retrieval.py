@@ -19,8 +19,10 @@ class Roundtrip(unittest.TestCase):
         symkey = os.urandom(32)
         tmppriv = PrivateKey.generate()
         tmppub = tmppriv.public_key.encode()
-        entry = server.create_list_entry(symkey, tmppub, 1234)
-        fetch_token, delete_token, length = retrieval.decrypt_list_entry(entry, symkey, tmppub)
+        entry, fetch_token, delete_token = server.create_list_entry(symkey, tmppub, 1234)
+        got_fetch_token, got_delete_token, length = retrieval.decrypt_list_entry(entry, symkey, tmppub)
+        self.failUnlessEqual(fetch_token, got_fetch_token)
+        self.failUnlessEqual(delete_token, got_delete_token)
         self.failUnlessEqual(length, 1234)
 
     def test_fetch_response(self):
@@ -61,9 +63,10 @@ class More(unittest.TestCase):
         nonce = "\x44"*24
         fetch_token = "\x55"*32
         delete_token = "\x66"*32
-        entry = server.create_list_entry(symkey, tmppub, 1234,
-                                         nonce=nonce, fetch_token=fetch_token,
-                                         delete_token=delete_token)
+        entry, _, _ = server.create_list_entry(symkey, tmppub, 1234,
+                                               nonce=nonce,
+                                               fetch_token=fetch_token,
+                                               delete_token=delete_token)
         self.failUnlessEqual(entry.encode("hex"),
                              "44444444444444444444444444444444444444444444444493bfe7ca844892fd16591ae4b33f7456de7e8c325b574bd3358cf86b79487b78c80e1d69dcd6324386821875ec8a60d9d3955d3fed0ab66882d0b7e956fe740b3f0329da39b19c0ca1cd9e38aa54be499bb36217ea7afba1d808c5afb85ddcd9e1f2193f32fc08e6f9fec1557403ba18c42ae6f4d18ba608ceb4e485de")
 
