@@ -5,9 +5,10 @@ from .errors import BadSignatureError
 class BadPrefixError(Exception):
     pass
 
-def remove_prefix(s_bytes, prefix):
+def remove_prefix(s_bytes, prefix, errortype=None):
     if not s_bytes.startswith(prefix):
-        raise BadPrefixError("did not see expected '%s' prefix" % (prefix,))
+        errortype = errortype or BadPrefixError
+        raise errortype("did not see expected '%s' prefix" % (prefix,))
     return s_bytes[len(prefix):]
 
 def to_ascii(s_bytes, prefix="", encoding="base64"):
