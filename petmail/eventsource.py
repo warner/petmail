@@ -1,5 +1,5 @@
 from twisted.python import log
-from twisted.internet import reactor, defer, protocol
+from twisted.internet import reactor, defer
 from twisted.protocols import basic
 from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
@@ -46,17 +46,15 @@ class EventSourceParser(basic.LineOnlyReceiver):
     def fieldReceived(self, name, data):
         self.handler(name, data)
 
-class EventSourceFactory(protocol.ReconnectingClientFactory):
-    pass
-
 # es = EventSource(url, handler)
 # d = es.start()
 # es.cancel()
 
 class EventSource: # TODO: service.Service
-    def __init__(self, url, handler):
+    def __init__(self, url, handler, when_connected=None):
         self.url = url
         self.handler = handler
+        self.when_connected = when_connected
         self.started = False
         self.proto = EventSourceParser(self.handler)
 
@@ -71,6 +69,8 @@ class EventSource: # TODO: service.Service
 
     def _connected(self, resp):
         assert resp.code == 200, resp # TODO: return some error instead
+        if self.when_connected:
+            self.when_connected()
         #if resp.headers.getRawHeaders("content-type") == ["text/event-stream"]:
         resp.deliverBody(self.proto)
         return self.proto.done_deferred
