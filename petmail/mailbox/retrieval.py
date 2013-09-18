@@ -6,7 +6,7 @@ from nacl.secret import SecretBox
 from nacl.public import PrivateKey, PublicKey, Box
 from ..eventual import eventually
 from ..util import equal, remove_prefix
-from ..eventsource import EventSource
+from ..eventsource import EventSourceClient
 
 class LocalRetriever(service.MultiService):
     """I can 'retrieve' messages from an in-process HTTPMailboxServer. This
@@ -66,6 +66,13 @@ def decrypt_fetch_response(symkey, fetch_token, boxed):
     msgC = msg[32:]
     return msgC
 
+class MessageLister(EventSourceCient):
+    def make_url(self):
+        req, tmppub = encrypt_list_request(self.server_pubkey, self.TID,
+                                           offset=self.clock_offset)
+        url = self.baseurl + "list?t=%s" % base64.urlsafe_b64encode(req)
+        self.url = url
+
 class HTTPRetriever(service.MultiService):
     """I provide a retriever that fetches messages from an HTTP server
     defined in mailbox.server.RetrievalResource. I can either poll or use
@@ -82,15 +89,11 @@ class HTTPRetriever(service.MultiService):
         self.TID = descriptor["TID"].decode("hex")
         self.got_msgC = got_msgC
         self.clock_offset = 0
-        #self.ts = internet.TimerService(10*60, self.poll)
-        #if ENABLE_POLLING:
-        #    self.ts.setServiceParent(self)
+        self.lister = MessageLister(self.baseurl, self.got_listing)
+        self.lister.setServiceParent(self)
 
     def connect(self):
         # each time we start the EventSource, we must establish a new URL.
-        req, tmppub = encrypt_list_request(self.server_pubkey, self.TID,
-                                           offset=self.clock_offset)
-        url = self.baseurl + "list?t=%s" % base64.urlsafe_b64encode(req)
         self.es = EventSource(url, self.handle_SSE)
         self.es.start()
 
