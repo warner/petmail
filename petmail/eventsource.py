@@ -1,5 +1,5 @@
 from twisted.python import log
-from twisted.internet import reactor, defer
+from twisted.internet import reactor, defer, protocol
 from twisted.protocols import basic
 from twisted.web.client import Agent, ResponseDone
 from twisted.web.http_headers import Headers
@@ -46,11 +46,14 @@ class EventSourceParser(basic.LineOnlyReceiver):
     def fieldReceived(self, name, data):
         self.handler(name, data)
 
+class EventSourceFactory(protocol.ReconnectingClientFactory):
+    pass
+
 # es = EventSource(url, handler)
 # d = es.start()
 # es.cancel()
 
-class EventSource:
+class EventSource: # TODO: service.Service
     def __init__(self, url, handler):
         self.url = url
         self.handler = handler
@@ -89,3 +92,4 @@ class EventSource:
         except AttributeError as e:
             log.err(e, "get_events: unable to stop connection")
             # oh well
+
