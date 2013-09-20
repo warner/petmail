@@ -4,14 +4,15 @@
 # POSTs and delivers their msgA to a Mailbox.
 
 import os, struct, time, base64
-from twisted.application import service
-from twisted.web import resource, http
+from twisted.application import service, internet
+from twisted.web import server, resource, http
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.secret import SecretBox
 from .. import rrid
 from ..eventual import eventually
 from ..util import remove_prefix, split_into
 from ..netstring import split_netstrings_and_trailer
+from ..web import EventsProtocol
 
 def parseMsgA(msgA):
     key_and_boxed = remove_prefix(msgA, "a0:")
@@ -94,9 +95,16 @@ class HTTPMailboxServer(BaseServer):
         if self.accept_nonlocal:
             # add a second resource for clients to retrieve messages
             r = resource.Resource()
-            r.putChild("list", RetrievalListResource(self.db))
+            self.listres = RetrievalListResource(self.db)
+            r.putChild("list", self.listres)
+            ts = internet.TimerService(self.listres.CLOCK_WINDOW*3,
+                                       self.prune_old_requests)
+            ts.setServiceParent(self)
             r.putChild("fetch", RetrievalFetchResource(self.db))
             r.putChild("delete", RetrievalDeleteResource(self.db))
+
+    def prune_old_requests(self):
+        self.listres.prune_old_requests()
 
     def get_retrieval_descriptor(self):
         return { "type": "local",
@@ -177,11 +185,25 @@ def encrypt_fetch_response(symkey, fetch_token, msgC, nonce=None):
 
 class RetrievalListResource(resource.Resource):
     CLOCK_WINDOW = 5*60 # the window is "now" plus/minus this value
+    MAX_MESSAGES_PER_ENTRY = 10
 
     def __init__(self, db):
         resource.Resource.__init__(self)
         self.db = db
         self.old_requests = {} # maps tmppub to timestamp
+        self.db.subscribe("mailbox_server_messages", self.new_message)
+        # tid -> (EventsProtocol,symkey,tmppub) . only one per tid.
+        self.subscribers = {}
+
+    def new_message(self, notice):
+        if notice.action != "insert":
+            return
+        v = notice.new_value
+        if v["tid"] not in self.subscribers:
+            return
+        (p, symkey, tmppub) = self.subscribers[v["tid"]]
+        entry = self.prepare_entry(symkey, tmppub, v)
+        p.sendEvent(entry)
 
     def prune_old_requests(self, now=None):
         old = (now or time.time()) - self.CLOCK_WINDOW
@@ -208,11 +230,34 @@ class RetrievalListResource(resource.Resource):
         # known TID. It's worth preventing a replay.
         self.old_requests[tmppub] = ts
 
-        # TODO: subscribe, render messages
+        all_messages = self.prepare_message_list(tid, symkey, tmppub)
+        groups = [all_messages[i:i+self.MAX_MESSAGES_PER_ENTRY]
+                  for i in range(0, len(all_messages),
+                                 self.MAX_MESSAGES_PER_ENTRY)]
+        entries = [" ".join([base64.b64encode(e) for e in group])
+                   for group in groups]
         if ("text/event-stream" in (request.getHeader("accept") or "")
             and self.enable_eventsource):
             # EventSource protocol
+            if tid in self.subscribers:
+                # close the EventsProtocol when a new GET occurs (since
+                # that will reset the tokens anyways)
+                self.subscribers[tid].stop()
             request.setHeader("content-type", "text/event-stream")
+            p = EventsProtocol(request, lambda m: m)
+            p.sendComment("beginning Message List event stream")
+            for e in entries:
+                p.sendEvent(e)
+            self.subscribers[tid] = (p, symkey, tmppub)
+            # unsubscribe when the EventsProtocol is closed
+            def _done(_):
+                if tid in self.subscribers and self.subscribers[tid][0] is p:
+                    del self.subscribers[tid]
+            request.notifyFinish().addErrback(_done)
+            return server.NOT_DONE_YET
+        for e in entries:
+            request.write("data: %s\n\n" % e)
+        return ""
 
     def check_TID(self, TID):
         c = self.db.execute("SELECT * FROM mailbox_server_transports"
@@ -227,18 +272,21 @@ class RetrievalListResource(resource.Resource):
         c = self.db.execute("SELECT id,length FROM mailbox_server_messages"
                             " WHERE tid=?", (tid,))
         for row in c.fetchall():
-            entry, fetch_token, delete_token = create_list_entry(symkey, tmppub,
-                                                                 c["length"])
-            self.db.execute("UPDATE mailbox_server_messages"
-                            " SET fetch_token=?, delete_token=?"
-                            " WHERE id=?",
-                            (fetch_token.encode("hex"),
-                             delete_token.encode("hex"),
-                             c["id"]))
+            entry = self.prepare_entry(symkey, tmppub, c)
             entries.append(entry)
         self.db.commit()
-        return entry
+        return entries
 
+    def prepare_entry(self, symkey, tmppub, c):
+        entry, fetch_token, delete_token = create_list_entry(symkey, tmppub,
+                                                             c["length"])
+        self.db.execute("UPDATE mailbox_server_messages"
+                        " SET fetch_token=?, delete_token=?"
+                        " WHERE id=?",
+                        (fetch_token.encode("hex"),
+                         delete_token.encode("hex"),
+                         c["id"]))
+        return entry
 
 class RetrievalFetchResource(resource.Resource):
     def __init__(self, db):
