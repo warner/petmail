@@ -45,15 +45,15 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir1)
         n1 = self.startNode(basedir1)
         self.disable_polling(n1)
-        rclient1 = list(n1.client.im)[0]
+        rclient1 = list(n1.agent.im)[0]
         tport1 = fake_transport()
         tports1 = {0: tport1[1]}
 
         nA_notices = []
-        n1.client.subscribe("addressbook", nA_notices.append)
+        n1.agent.subscribe("addressbook", nA_notices.append)
 
-        n1.client.command_invite(u"petname-from-1", code,
-                                 override_transports=tports1)
+        n1.agent.command_invite(u"petname-from-1", code,
+                                override_transports=tports1)
         inviteID = rclient1.subscriptions.keys()[0]
         rdir = os.path.join(rclient1.basedir, inviteID)
         self.failUnless(os.path.exists(rdir))
@@ -73,9 +73,9 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.disable_polling(n2)
         tport2 = fake_transport()
         tports2 = {0: tport2[1]}
-        n2.client.command_invite(u"petname-from-2", code,
-                                 override_transports=tports2)
-        rclient2 = list(n2.client.im)[0]
+        n2.agent.command_invite(u"petname-from-2", code,
+                                override_transports=tports2)
+        rclient2 = list(n2.agent.im)[0]
         # messages: node1-M1, node2-M1
 
         # node2 should have sent one message. node1 should not have noticed
@@ -150,10 +150,10 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # finally check that the channel has been destroyed
         self.failIf(os.path.exists(rdir))
 
-        # look at some client command handlers too
-        a1 = n1.client.command_list_addressbook()
+        # look at some agent command handlers too
+        a1 = n1.agent.command_list_addressbook()
         self.failUnlessEqual(len(a1), 1)
-        a2 = n2.client.command_list_addressbook()
+        a2 = n2.agent.command_list_addressbook()
         self.failUnlessEqual(len(a2), 1)
         self.failUnlessEqual(a1[0]["my_verfkey"], a2[0]["their_verfkey"])
         self.failUnlessEqual(a2[0]["my_verfkey"], a1[0]["their_verfkey"])
@@ -174,7 +174,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
             self.failUnlessEqual(nA_notices[1].new_value["petname"],
                                  "petname-from-1")
-            n1.client.unsubscribe("addressbook", nA_notices.append)
+            n1.agent.unsubscribe("addressbook", nA_notices.append)
         d.addCallback(_then)
         return d
 
@@ -186,10 +186,10 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         code = "code"
         tport = fake_transport()
         tports = {0: tport[1]}
-        n1.client.command_invite(u"petname-from-1", code,
-                                 override_transports=tports)
+        n1.agent.command_invite(u"petname-from-1", code,
+                                override_transports=tports)
         self.failUnlessRaises(CommandError,
-                              n1.client.command_invite, u"new-petname", code)
+                              n1.agent.command_invite, u"new-petname", code)
 
 
 class Two(TwoNodeMixin, unittest.TestCase):
@@ -197,9 +197,9 @@ class Two(TwoNodeMixin, unittest.TestCase):
         nA, nB = self.make_nodes()
         d = self.add_new_channel_with_invitation(nA, nB)
         def _done((entA,entB)):
-            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
-            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
                                  entB["id"])
         d.addCallback(_done)
         return d
@@ -208,9 +208,9 @@ class Two(TwoNodeMixin, unittest.TestCase):
         nA, nB = self.make_nodes(relay="http")
         d = self.add_new_channel_with_invitation(nA, nB)
         def _then((entA,entB)):
-            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
-            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
                                  entB["id"])
             self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
         d.addCallback(_then)
@@ -221,9 +221,9 @@ class Two(TwoNodeMixin, unittest.TestCase):
         self.relay.web.relay.enable_eventsource = False
         d = self.add_new_channel_with_invitation(nA, nB)
         def _then((entA,entB)):
-            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
-            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
                                  entB["id"])
             self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
         d.addCallback(_then)
@@ -236,9 +236,9 @@ class Two(TwoNodeMixin, unittest.TestCase):
         self.relay.web.relay.reverse_messages = True
         d = self.add_new_channel_with_invitation(nA, nB)
         def _then((entA,entB)):
-            self.failUnlessEqual(nA.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
-            self.failUnlessEqual(nB.client.command_list_addressbook()[0]["cid"],
+            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
                                  entB["id"])
             self.failUnlessEqual(len(self.relay.web.relay.channels), 0)
         d.addCallback(_then)

@@ -160,7 +160,7 @@ class Options(usage.Options):
 
 def create_node(*args):
     from .create_node import create_node
-    return create_node(*args, services=["client"])
+    return create_node(*args, services=["agent"])
 
 def create_relay(*args):
     from .create_node import create_node

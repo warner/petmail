@@ -54,7 +54,7 @@ class NodeRunnerMixin:
     def tearDown(self):
         return self.sparent.stopService()
 
-    def createNode(self, basedir, type="client", relayurl=None):
+    def createNode(self, basedir, type="agent", relayurl=None):
         so = runner.CreateNodeOptions()
         args = []
         if relayurl:
@@ -79,10 +79,10 @@ class NodeRunnerMixin:
         return n
 
     def disable_polling(self, n):
-        list(n.client.im)[0].enable_polling = False
+        list(n.agent.im)[0].enable_polling = False
 
     def accelerate_polling(self, n):
-        list(n.client.im)[0].polling_interval = 0.01
+        list(n.agent.im)[0].polling_interval = 0.01
 
 def fake_transport():
     privkey = PrivateKey.generate()
@@ -121,8 +121,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         tA = self.buildNode(basedirA)
         tB = self.buildNode(basedirB)
         if transport == "local":
-            tA.client.command_enable_local_mailbox()
-            tB.client.command_enable_local_mailbox()
+            tA.agent.command_enable_local_mailbox()
+            tB.agent.command_enable_local_mailbox()
             self.tports1 = None
             self.tports2 = None
             tA.db.execute("UPDATE mailbox_server_config SET enable_retrieval=1")
@@ -160,17 +160,17 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
 
     def add_new_channel_with_invitation(self, nA, nB):
         code = "code"
-        nA.client.im._debug_invitations_completed = 0
-        nB.client.im._debug_invitations_completed = 0
-        nA.client.command_invite(u"petname-from-A", code,
-                                 override_transports=self.tports1)
-        nB.client.command_invite(u"petname-from-B", code,
-                                 override_transports=self.tports2)
-        rclientA = list(nA.client.im)[0]
-        rclientB = list(nB.client.im)[0]
+        nA.agent.im._debug_invitations_completed = 0
+        nB.agent.im._debug_invitations_completed = 0
+        nA.agent.command_invite(u"petname-from-A", code,
+                                override_transports=self.tports1)
+        nB.agent.command_invite(u"petname-from-B", code,
+                                override_transports=self.tports2)
+        rclientA = list(nA.agent.im)[0]
+        rclientB = list(nB.agent.im)[0]
         def check():
-            return (nA.client.im._debug_invitations_completed
-                    and nB.client.im._debug_invitations_completed
+            return (nA.agent.im._debug_invitations_completed
+                    and nB.agent.im._debug_invitations_completed
                     and rclientA.is_idle()
                     and rclientB.is_idle()
                     )
@@ -192,12 +192,12 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         a_signkey = SigningKey.generate()
         a_chankey = PrivateKey.generate()
         a_CIDkey = os.urandom(32)
-        a_transports = nA.client.individualize_transports(nA.client.get_transports())
+        a_transports = nA.agent.individualize_transports(nA.agent.get_transports())
 
         b_signkey = SigningKey.generate()
         b_chankey = PrivateKey.generate()
         b_CIDkey = os.urandom(32)
-        b_transports = nB.client.individualize_transports(nB.client.get_transports())
+        b_transports = nB.agent.individualize_transports(nB.agent.get_transports())
 
         a_rec = { "channel_pubkey": a_chankey.public_key.encode().encode("hex"),
                   "CID_key": a_CIDkey.encode("hex"),

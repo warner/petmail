@@ -23,7 +23,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         msgA = delivery.createMsgA(bad_trec, msgC)
 
         unknowns = []
-        server = nB.client.mailbox_server
+        server = nB.agent.mailbox_server
         server.signal_unrecognized_TID = unknowns.append
         server.handle_msgA(msgA)
         d = flushEventualQueue()
@@ -40,7 +40,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         msgC = "msgC"
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
         msgA = delivery.createMsgA(trec, msgC)
-        server = nB.client.mailbox_server
+        server = nB.agent.mailbox_server
         local_messages = []
         server.local_transport_handler = local_messages.append
         server.handle_msgA(msgA)
@@ -57,7 +57,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
     def test_nonlocal_TID(self):
         n = self.make_nodes(transport="local")[1]
         msgC = "msgC"
-        server = n.client.mailbox_server
+        server = n.agent.mailbox_server
 
         tid, trec = self.add_recipient(n)
         msgA = delivery.createMsgA(trec, msgC)

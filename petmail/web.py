@@ -49,10 +49,10 @@ class EventsProtocol:
         self.request.finish()
 
 class BaseView(resource.Resource):
-    def __init__(self, db, client):
+    def __init__(self, db, agent):
         resource.Resource.__init__(self)
         self.db = db
-        self.client = client
+        self.agent = agent
 
     # subclasses must define render_event(), which accepts a Notice and
     # returns a JSON-serializable object
@@ -67,9 +67,9 @@ class BaseView(resource.Resource):
             request.setHeader("content-type", "text/event-stream")
             p = EventsProtocol(request, self.render_event)
             self.catchup(p.notify)
-            self.client.subscribe(self.table, p.notify)
+            self.agent.subscribe(self.table, p.notify)
             def _done(_):
-                self.client.unsubscribe(self.table, p.notify)
+                self.agent.unsubscribe(self.table, p.notify)
             request.notifyFinish().addErrback(_done)
             return server.NOT_DONE_YET
         # no event-stream, deliver the non-streaming equivalent
@@ -109,26 +109,26 @@ class AddressBookView(BaseView):
                             })
 
 class ViewDispatcher(resource.Resource):
-    def __init__(self, db, client):
+    def __init__(self, db, agent):
         resource.Resource.__init__(self)
         self.db = db
-        self.client = client
+        self.agent = agent
 
     def getChild(self, path, request):
         if path == "messages":
-            return MessageView(self.db, self.client)
+            return MessageView(self.db, self.agent)
         if path == "addressbook":
-            return AddressBookView(self.db, self.client)
+            return AddressBookView(self.db, self.agent)
         request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
         return "Unknown Event Type"
 
 handlers = {}
 
 class BaseHandler(resource.Resource):
-    def __init__(self, db, client, payload):
+    def __init__(self, db, agent, payload):
         resource.Resource.__init__(self)
         self.db = db
-        self.client = client
+        self.agent = agent
         self.payload = payload
     def render_POST(self, request):
         err = None
@@ -153,7 +153,7 @@ class SampleError(Exception):
 
 class Sample(BaseHandler):
     def handle(self, payload):
-        self.client._debug_sample = payload["data"]
+        self.agent._debug_sample = payload["data"]
         if payload.get("error"):
             raise CommandError("sample error text")
         if payload.get("server-error"):
@@ -167,24 +167,24 @@ class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
         code = str(payload["code"])
-        return self.client.command_invite(petname, code)
+        return self.agent.command_invite(petname, code)
 handlers["invite"] = Invite
 
 class ListAddressbook(BaseHandler):
     def handle(self, payload):
         return {"ok": "ok",
-                "addressbook": self.client.command_list_addressbook()}
+                "addressbook": self.agent.command_list_addressbook()}
 handlers["list-addressbook"] = ListAddressbook
 
 class AddMailbox(BaseHandler):
     def handle(self, payload):
-        self.client.command_add_mailbox(str(payload["descriptor"]))
+        self.agent.command_add_mailbox(str(payload["descriptor"]))
         return {"ok": "ok"}
 handlers["add-mailbox"] = AddMailbox
 
 class EnableLocalMailbox(BaseHandler):
     def handle(self, payload):
-        self.client.command_enable_local_mailbox()
+        self.agent.command_enable_local_mailbox()
         return {"ok": "ok"}
 handlers["enable-local-mailbox"] = EnableLocalMailbox
 
@@ -192,21 +192,21 @@ class SendBasic(BaseHandler):
     def handle(self, payload):
         cid = int(payload["cid"])
         message = payload["message"]
-        return self.client.command_send_basic_message(cid, message)
+        return self.agent.command_send_basic_message(cid, message)
 handlers["send-basic"] = SendBasic
 
 class FetchMessages(BaseHandler):
     def handle(self, payload):
         return {"ok": "ok",
-                "messages": self.client.command_fetch_all_messages()}
+                "messages": self.agent.command_fetch_all_messages()}
 handlers["fetch-messages"] = FetchMessages
 
 class API(resource.Resource):
-    def __init__(self, access_token, db, client):
+    def __init__(self, access_token, db, agent):
         resource.Resource.__init__(self)
         self.access_token = access_token
         self.db = db
-        self.client = client
+        self.agent = agent
 
     def getChild(self, path, request):
         # everything requires a token, check it here
@@ -215,7 +215,7 @@ class API(resource.Resource):
             if not equal(request.args["token"][0], self.access_token):
                 request.setResponseCode(http.UNAUTHORIZED, "bad token")
                 return "Invalid token"
-            return ViewDispatcher(self.db, self.client)
+            return ViewDispatcher(self.db, self.agent)
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
             request.setResponseCode(http.UNAUTHORIZED, "bad token")
@@ -224,7 +224,7 @@ class API(resource.Resource):
         if not rclass:
             request.setResponseCode(http.NOT_FOUND, "unknown method")
             return "Unknown method"
-        r = rclass(self.db, self.client, payload)
+        r = rclass(self.db, self.agent, payload)
         return r
 
 class ControlOpener(resource.Resource):
@@ -375,13 +375,13 @@ class WebPort(service.MultiService):
         self.port_service.setServiceParent(self)
         self.access_token = access_token
 
-    def enable_client(self, client, db):
+    def enable_agent(self, agent, db):
         token = self.access_token
         self.root.putChild("open-control", ControlOpener(db, token))
         self.root.putChild("control", Control(token))
         api = resource.Resource() # /api
         self.root.putChild("api", api)
-        api.putChild("v1", API(token, db, client)) # /api/v1
+        api.putChild("v1", API(token, db, agent)) # /api/v1
 
     def enable_relay(self):
         self.relay = Relay() # for tests

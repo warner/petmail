@@ -11,5 +11,5 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         n1 = self.startNode(basedir1)
         pub_bogus = priv_bogus = {"type": "bogus"}
         self.failUnlessRaises(CommandError,
-                              n1.client.command_add_mailbox,
+                              n1.agent.command_add_mailbox,
                               pub_bogus, priv_bogus)

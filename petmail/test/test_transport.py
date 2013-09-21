@@ -46,8 +46,8 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         messages = []
         def message_received(tid, msgC):
             messages.append((tid,msgC))
-        nB.client.msgC_received = message_received
-        d = nA.client.send_message(entA["id"], {"hi": "world"})
+        nB.agent.msgC_received = message_received
+        d = nA.agent.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             self.failUnlessEqual(len(messages), 1)
             self.failUnlessEqual(messages[0][0], entB["id"])
@@ -64,8 +64,8 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         payloads = []
         def payload_received(tid, seqnum, payload_json):
             payloads.append((tid,seqnum,payload_json))
-        nB.client.payload_received = payload_received
-        d = nA.client.send_message(entA["id"], P1)
+        nB.agent.payload_received = payload_received
+        d = nA.agent.send_message(entA["id"], P1)
         def _sent(res):
             self.failUnlessEqual(len(payloads), 1)
             tid,seqnum,payload_json = payloads[0]
@@ -79,9 +79,9 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         d.addCallback(lambda _: nB.disownServiceParent())
         d.addCallback(lambda _: self.startNode(nB.basedir))
         def _new_nodeB(new_nB):
-            new_nB.client.payload_received = payload_received
+            new_nB.agent.payload_received = payload_received
         d.addCallback(_new_nodeB)
-        d.addCallback(lambda _: nA.client.send_message(entA["id"], P2))
+        d.addCallback(lambda _: nA.agent.send_message(entA["id"], P2))
         def _sent2(res):
             self.failUnlessEqual(len(payloads), 2)
             tid,seqnum,payload_json = payloads[1]
@@ -96,7 +96,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         P1 = {"hi": "world"}
 
-        d = nA.client.send_message(entA["id"], P1)
+        d = nA.agent.send_message(entA["id"], P1)
         def _sent(res):
             c = nB.db.execute("SELECT * FROM inbound_messages")
             rows = c.fetchall()
@@ -106,7 +106,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
             self.failUnlessEqual(rows[0]["seqnum"], 1)
             self.failUnlessEqual(json.loads(rows[0]["payload_json"]), P1)
         d.addCallback(_sent)
-        d.addCallback(lambda _: nB.client.command_fetch_all_messages())
+        d.addCallback(lambda _: nB.agent.command_fetch_all_messages())
         def _fetched(messages):
             self.failUnlessEqual(len(messages), 1)
             self.failUnlessEqual(messages[0]["id"], 1)

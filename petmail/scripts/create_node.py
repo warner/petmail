@@ -27,7 +27,7 @@ def create_node(so, stdout, stderr, services):
                (listenport, baseurl))
     if "relay" in services:
         db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
-    if "client" in services:
+    if "agent" in services:
         if so["relay-url"]:
             relay_url = so["relay-url"]
             if not relay_url.endswith("/"):
@@ -38,8 +38,8 @@ def create_node(so, stdout, stderr, services):
         else:
             db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
                        (json.dumps({"type": "localdir"}),))
-        db.execute("INSERT INTO services (name) VALUES (?)", ("client",))
-        db.execute("INSERT INTO `client_profile`"
+        db.execute("INSERT INTO services (name) VALUES (?)", ("agent",))
+        db.execute("INSERT INTO `agent_profile`"
                    " (`name`, `icon_data`) VALUES (?,?)",
                    ("",""))
         privkey = PrivateKey.generate()

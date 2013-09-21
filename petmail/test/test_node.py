@@ -183,12 +183,12 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         # test "petmail sample -d BASEDIR"
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir))
         d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok\n"))
-        d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
+        d.addCallback(lambda _: self.failUnlessEqual(n.agent._debug_sample,
                                                      "no data"))
         d.addCallback(lambda _: self.cliMustSucceed("sample", "-d", basedir,
                                                     "-o", "other data"))
         d.addCallback(lambda res: self.failUnlessEqual(res, "sample ok object\n"))
-        d.addCallback(lambda _: self.failUnlessEqual(n.client._debug_sample,
+        d.addCallback(lambda _: self.failUnlessEqual(n.agent._debug_sample,
                                                      "other data"))
         d.addCallback(lambda _: self.cli("sample", "-d", basedir, "--error"))
         def _fail1((out,err,rc)):

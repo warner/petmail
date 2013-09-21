@@ -10,14 +10,14 @@ class Node(service.MultiService):
 
         self.db = database.make_observable_db(dbfile)
         self.init_webport()
-        self.client = None
+        self.agent = None
         c = self.db.execute("SELECT name FROM services")
         for (name,) in c.fetchall():
             name = str(name)
-            if name == "client":
+            if name == "agent":
                 self.init_mailbox_server(self.baseurl)
-                self.init_client()
-                self.web.enable_client(self.client, self.db)
+                self.init_agent()
+                self.web.enable_agent(self.agent, self.db)
             elif name == "relay":
                 self.web.enable_relay()
             else:
@@ -71,7 +71,7 @@ class Node(service.MultiService):
         s.setServiceParent(self)
         self.mailbox_server = s
 
-    def init_client(self):
+    def init_agent(self):
         from . import agent
-        self.client = agent.Agent(self.db, self.basedir, self.mailbox_server)
-        self.client.setServiceParent(self)
+        self.agent = agent.Agent(self.db, self.basedir, self.mailbox_server)
+        self.agent.setServiceParent(self)

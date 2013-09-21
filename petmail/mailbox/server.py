@@ -28,7 +28,7 @@ def parseMsgB(msgB):
 
 # the Transport queues the message somewhere, maybe on disk.
 
-# an HTTP "RetrievalResource" is used by remote clients to pull their
+# an HTTP "RetrievalResource" is used by remote agents to pull their
 # messages from the Transport. It offers polling and subscription. The
 # corresponding client code lives in mailbox.retrieval.from_http_server .
 
@@ -53,7 +53,7 @@ class ServerResource(resource.Resource):
 
 
 class BaseServer(service.MultiService):
-    """I am a base Petmail Mailbox Server. I accept messages from clients
+    """I am a base Petmail Mailbox Server. I accept messages from agents
     over some sort of transport (perhaps HTTP), identify which transport
     (e.g. recipient) they are aimed at, decrypt the outer msgA, and queue the
     inner msgB. Later, the recipient will come along and collect their
@@ -72,7 +72,7 @@ class HTTPMailboxServer(BaseServer):
     persist anything myself, but expect my creator to provide me with our
     persistent state. I can deliver messages to a local transport (endpoints
     inside our same process), or write messages to disk for later retrieval
-    by remote clients.
+    by remote agents.
     """
 
     def __init__(self, db, web, baseurl, enable_retrieval, desc):
@@ -94,7 +94,7 @@ class HTTPMailboxServer(BaseServer):
 
         self.accept_nonlocal = enable_retrieval
         if self.accept_nonlocal:
-            # add a second resource for clients to retrieve messages
+            # add a second resource for agents to retrieve messages
             r = resource.Resource()
             self.listres = RetrievalListResource(self.db, self.privkey)
             r.putChild("list", self.listres)

@@ -54,10 +54,10 @@ class InvitationManager(service.MultiService):
     """I manage all invitations, as well as connections to the rendezvous
     servers
     """
-    def __init__(self, db, client):
+    def __init__(self, db, agent):
         service.MultiService.__init__(self)
         self.db = db
-        self.client = client
+        self.agent = agent
         self._debug_invitations_completed = 0
         # all my service children are Rendezvous services
 

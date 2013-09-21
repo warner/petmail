@@ -80,7 +80,7 @@ CREATE TABLE `mailboxes` -- one per mailbox
  `private_descriptor_json` STRING
 );
 
-CREATE TABLE `client_profile` -- contains one row
+CREATE TABLE `agent_profile` -- contains one row
 (
  `name` STRING,
  `icon_data` STRING

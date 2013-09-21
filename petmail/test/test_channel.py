@@ -75,7 +75,7 @@ class msgC(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 2)
         self.failUnlessEqual(self.get_inbound_seqnum(nB.db, entB2["id"]), 0)
 
-        # but other clients should not recognize this CIDBox
+        # but other agents should not recognize this CIDBox
         cid,which_key = channel.find_channel_from_CIDBox(nA.db, CIDBox)
         self.failUnlessEqual(cid, None)
         self.failUnlessEqual(which_key, None)
@@ -97,7 +97,7 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 class Send(TwoNodeMixin, unittest.TestCase):
     def test_send(self):
         nA, nB, entA, entB = self.make_connected_nodes()
-        d = nA.client.send_message(entA["id"], {"hi": "world"})
+        d = nA.agent.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             msgA = res[0][1]
             self.failUnless(msgA.startswith("a0:"))
