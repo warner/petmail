@@ -103,6 +103,7 @@ def fake_transport():
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
     def make_nodes(self, transport="test-return", relay="localdir"):
+        assert transport in ["test-return", "local"]
         relayurl = None
         if relay == "http":
             basedirR = os.path.join(self.make_basedir(), "relay")
@@ -114,15 +115,28 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
 
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         self.createNode(basedirA, relayurl=relayurl)
-        nA = self.startNode(basedirA)
-        self.accelerate_polling(nA)
-
         basedirB = os.path.join(self.make_basedir(), "nodeB")
         self.createNode(basedirB, relayurl=relayurl)
+
+        tA = self.buildNode(basedirA)
+        tB = self.buildNode(basedirB)
+        if transport == "local":
+            tA.client.command_enable_local_mailbox()
+            tB.client.command_enable_local_mailbox()
+            self.tports1 = None
+            self.tports2 = None
+            tA.db.execute("UPDATE mailbox_server_config SET enable_retrieval=1")
+            tA.db.commit()
+            tB.db.execute("UPDATE mailbox_server_config SET enable_retrieval=1")
+            tB.db.commit()
+
+        nA = self.startNode(basedirA)
         nB = self.startNode(basedirB)
-        self.accelerate_polling(nB)
 
         if transport == "test-return":
+            # TODO: the fake_transport() doesn't persist well, so create it
+            # on the real (live) nodes instead of the temporary setup ones.
+            # This should be fixed.
             self.tport1 = fake_transport()
             self.tports1 = {0: self.tport1[1]}
             nA.db.execute("INSERT INTO mailboxes"
@@ -139,14 +153,9 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
                           (json.dumps(self.tport2[1]["for_sender"]),
                            json.dumps(self.tport2[1]["for_recipient"])))
             nB.db.commit()
-        elif transport == "local":
-            nA.client.command_enable_local_mailbox()
-            nB.client.command_enable_local_mailbox()
-            self.tports1 = None
-            self.tports2 = None
-        else:
-            raise KeyError("huh?")
 
+        self.accelerate_polling(nA)
+        self.accelerate_polling(nB)
         return nA, nB
 
     def add_new_channel_with_invitation(self, nA, nB):

@@ -1,12 +1,7 @@
-import os, collections
+import os
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin
 from ..errors import CommandError
-
-MROW = collections.namedtuple("Row", ["my", "theirs", "next"])
-AddressbookRow = collections.namedtuple("AddressbookEntry",
-                                        ["petname", "their_verfkey",
-                                         "their_tport", "acked"])
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 

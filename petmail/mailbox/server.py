@@ -75,8 +75,9 @@ class HTTPMailboxServer(BaseServer):
     by remote clients.
     """
 
-    def __init__(self, web, baseurl, enable_retrieval, desc):
+    def __init__(self, db, web, baseurl, enable_retrieval, desc):
         BaseServer.__init__(self)
+        self.db = db
         self.baseurl = baseurl
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         self.TID_privkey = desc["TID_private_key"].decode("hex")
@@ -126,6 +127,14 @@ class HTTPMailboxServer(BaseServer):
     def register_local_transport_handler(self, handler):
         self.local_transport_handler = handler
 
+    def add_TID(self, TID, symkey):
+        tid = self.db.insert("INSERT INTO mailbox_server_transports"
+                             " (TID, symkey) VALUES (?,?)",
+                             (TID.encode("hex"), symkey.encode("hex")),
+                             "mailbox_server_transports")
+        self.db.commit()
+        return tid
+
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
         msgB = Box(self.privkey, PublicKey(pubkey1_s)).decrypt(boxed)
@@ -143,9 +152,10 @@ class HTTPMailboxServer(BaseServer):
                                 " WHERE TID=?", (TID.encode("hex"),))
             row = c.fetchone()
             if row:
-                self.db.execute("INSERT INTO mailbox_server_messages"
-                                " (tid, length, msgC) VALUES (?,?,?)",
-                                (row["id"], len(msgC), msgC.encode("hex")))
+                self.db.insert("INSERT INTO mailbox_server_messages"
+                               " (tid, length, msgC) VALUES (?,?,?)",
+                               (row["id"], len(msgC), msgC.encode("hex")),
+                               "mailbox_server_messages")
                 self.db.commit()
                 return
         # unknown

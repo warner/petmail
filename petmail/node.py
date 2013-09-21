@@ -65,7 +65,7 @@ class Node(service.MultiService):
         # TODO: learn/be-told our IP addr/hostname
         c = self.db.execute("SELECT * FROM mailbox_server_config")
         row = c.fetchone()
-        s = HTTPMailboxServer(self.web, baseurl,
+        s = HTTPMailboxServer(self.db, self.web, baseurl,
                               bool(row["enable_retrieval"]),
                               json.loads(row["private_descriptor_json"]))
         s.setServiceParent(self)
