@@ -12,13 +12,17 @@ class Agent(service.MultiService):
         self.db = db
         self.mailbox_server = mailbox_server
 
-        self.local_server = None
-        self.mailboxClients = set()
-        c = self.db.execute("SELECT id, private_descriptor_json FROM mailboxes")
+        self.mailbox_retrievers = set()
+        local_tid = mailbox_server.get_local_transport()
+        local_mbrec = mailbox_server.get_mailbox_record(local_tid)
+        mboxes = {"local": local_mbrec["retrieval"]}
+        c = self.db.execute("SELECT * FROM mailboxes")
         for row in c.fetchall():
-            privdesc = json.loads(row["private_descriptor_json"])
-            rc = self.buildRetrievalClient(row["id"], privdesc)
-            self.subscribeToMailbox(rc)
+            mbrec = json.loads(row["mailbox_record_json"])
+            mboxes[row["id"]] = mbrec["retrieval"]
+        for mbid, rrec in mboxes.items():
+            rc = self.build_retriever(mbid, rrec)
+            self.subscribe_to_mailbox(rc)
 
         self.im = invitation.InvitationManager(db, self)
         c = self.db.execute("SELECT * FROM relay_servers")
@@ -40,61 +44,39 @@ class Agent(service.MultiService):
     def unsubscribe(self, table, observer):
         self.db.unsubscribe(table, observer)
 
-    def buildRetrievalClient(self, tid, private_descriptor):
+    def build_retriever(self, mbid, rrec):
         # parse descriptor, import correct module and constructor
-        extra_args = {}
-        retrieval_type = private_descriptor["type"]
+        def got_msgC(msgC):
+            self.msgC_received(mbid, msgC)
+        retrieval_type = rrec["type"]
         if retrieval_type == "http":
-            retrieval_class = retrieval.HTTPRetriever
+            return retrieval.HTTPRetriever(rrec, got_msgC)
         elif retrieval_type == "local":
-            retrieval_class = retrieval.LocalRetriever
-            assert self.mailbox_server
-            extra_args["server"] = self.mailbox_server
+            return retrieval.LocalRetriever(rrec, got_msgC, self.mailbox_server)
         else:
             raise CommandError("unrecognized mailbox-retrieval protocol '%s'"
                                % retrieval_type)
-        def got_msgC(msgC):
-            self.msgC_received(tid, msgC)
-        rc = retrieval_class(private_descriptor, got_msgC, **extra_args)
-        return rc
 
-    def subscribeToMailbox(self, rc):
-        self.mailboxClients.add(rc)
+    def subscribe_to_mailbox(self, rc):
+        self.mailbox_retrievers.add(rc)
         # the retrieval client gets to make network connections, etc, as soon
         # as it starts. If we are "running" when we add it as a service
         # child, that happens here.
         rc.setServiceParent(self)
 
-    def command_add_mailbox(self, sender_descriptor, private_descriptor):
-        # it'd be nice to make sure we can build it, before committing it to
-        # the DB. But we need the tid first, which comes from the DB. The
-        # commit-after-build below might accomplish this anyways.
-        tid = self.db.insert("INSERT INTO mailboxes"
-                             " (sender_descriptor_json,private_descriptor_json)"
-                             " VALUES (?,?)",
-                             (json.dumps(sender_descriptor),
-                              json.dumps(private_descriptor)),
-                             "mailboxes")
-        rc = self.buildRetrievalClient(tid, private_descriptor)
+    def command_add_mailbox(self, mbrec):
+        # TODO: (is this still accurate?) it'd be nice to make sure we can
+        # build it, before committing it to the DB. But we need the tid
+        # first, which comes from the DB. The commit-after-build below might
+        # accomplish this anyways.
+        mbid = self.db.insert("INSERT INTO mailboxes"
+                              " (mailbox_record_json)"
+                              " VALUES (?)",
+                              (json.dumps(mbrec),),
+                              "mailboxes")
+        rc = self.build_retriever(mbid, mbrec["retrieval"])
         self.db.commit()
-        self.subscribeToMailbox(rc)
-
-    def command_enable_local_mailbox(self):
-        # create the persistent state needed to run a mailbox from our webapi
-        # port. Then activate it. This should only be called once.
-        for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
-            privdesc = json.loads(row["private_descriptor_json"])
-            if privdesc["type"] == "local":
-                raise CommandError("local server already activated")
-        server = self.mailbox_server
-        self.command_add_mailbox(server.get_sender_descriptor(),
-                                 server.get_retrieval_descriptor())
-        # that will build a Retriever that connects to the local mailbox
-        # server, with persistence for later runs
-
-        # TODO: consider telling the server, here, to start accepting TTs for
-        # the local client (and not accepting such TTs by default) (and
-        # persist that state for later)
+        self.subscribe_to_mailbox(rc)
 
     def msgC_received(self, tid, msgC):
         assert msgC.startswith("c0:")
@@ -130,23 +112,22 @@ class Agent(service.MultiService):
         return c.send(payload)
 
     def get_transports(self):
-        # returns dict of tid->pubrecord . These will be individualized
+        # returns dict of mbid->pubrecord . These will be individualized
         # before delivery to the peer.
-        transports = {}
+        local_tid = self.mailbox_server.get_local_transport()
+        local_mbrec = self.mailbox_server.get_mailbox_record(local_tid)
+        transports = {"local": local_mbrec}
         for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
-            transports[row["id"]] = {
-                "for_sender": json.loads(row["sender_descriptor_json"]),
-                "for_recipient": json.loads(row["private_descriptor_json"]),
-                }
+            transports[row["id"]] = json.loads(row["mailbox_record_json"])
         return transports
 
     def individualize_transports(self, base_transports):
         transports = {}
-        for tid, base in base_transports.items():
-            t = base["for_sender"].copy()
-            TT0 = base["for_recipient"]["TT0"].decode("hex")
+        for mbid, base in base_transports.items():
+            t = base["transport"]["generic"].copy()
+            TT0 = base["transport"]["sender"]["TT0"].decode("hex")
             t["STT"] = rrid.randomize(TT0).encode("hex")
-            transports[tid] = t
+            transports[mbid] = t
         return transports
 
     def command_list_addressbook(self):

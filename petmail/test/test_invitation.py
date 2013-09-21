@@ -46,8 +46,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         n1 = self.startNode(basedir1)
         self.disable_polling(n1)
         rclient1 = list(n1.agent.im)[0]
-        tport1 = fake_transport()
-        tports1 = {0: tport1[1]}
+        tports1 = {"local": fake_transport()}
 
         nA_notices = []
         n1.agent.subscribe("addressbook", nA_notices.append)
@@ -71,8 +70,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir2)
         n2 = self.startNode(basedir2)
         self.disable_polling(n2)
-        tport2 = fake_transport()
-        tports2 = {0: tport2[1]}
+        tports2 = {"local": fake_transport()}
         n2.agent.command_invite(u"petname-from-2", code,
                                 override_transports=tports2)
         rclient2 = list(n2.agent.im)[0]
@@ -184,8 +182,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         n1 = self.startNode(basedir1)
         self.disable_polling(n1)
         code = "code"
-        tport = fake_transport()
-        tports = {0: tport[1]}
+        tports = {"local": fake_transport()}
         n1.agent.command_invite(u"petname-from-1", code,
                                 override_transports=tports)
         self.failUnlessRaises(CommandError,

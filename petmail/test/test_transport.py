@@ -1,9 +1,9 @@
 import json
 from twisted.trial import unittest
-from nacl.public import PublicKey, Box
+from nacl.public import PrivateKey, PublicKey, Box
 from .common import TwoNodeMixin
 from ..mailbox import channel
-from ..mailbox.delivery import createMsgA, ReturnTransport
+from ..mailbox.delivery import createMsgA, ReturnTransport, OutboundHTTPTransport
 from ..mailbox.server import parseMsgA, parseMsgB
 
 class Transports(TwoNodeMixin, unittest.TestCase):
@@ -11,7 +11,10 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         nA, nB, entA, entB = self.make_connected_nodes()
         c = channel.OutboundChannel(nA.db, entA["id"])
         transports = c.createTransports()
-        self.failUnlessEqual(len(transports), 1)
+        self.failUnlessEqual(len(transports), 2)
+        classes = set([t.__class__ for t in transports])
+        self.failUnlessEqual(classes, set([ReturnTransport,
+                                           OutboundHTTPTransport]))
         self.failUnless(isinstance(transports[0], ReturnTransport))
 
     def test_msgA(self):
@@ -22,7 +25,8 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         msgA = createMsgA(trec, msgC)
 
         pubkey1_s, boxed = parseMsgA(msgA)
-        tpriv = self.tport2[0]["privkey"]
+        tpriv_hex = self.tports2["local"]["retrieval"]["privkey"]
+        tpriv = PrivateKey(tpriv_hex.decode("hex"))
         b = Box(tpriv, PublicKey(pubkey1_s))
         msgB = b.decrypt(boxed)
 
@@ -44,13 +48,13 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         #chanAB = json.loads(entA["their_channel_record_json"])
         messages = []
-        def message_received(tid, msgC):
-            messages.append((tid,msgC))
+        def message_received(mbid, msgC):
+            messages.append((mbid,msgC))
         nB.agent.msgC_received = message_received
         d = nA.agent.send_message(entA["id"], {"hi": "world"})
         def _sent(res):
             self.failUnlessEqual(len(messages), 1)
-            self.failUnlessEqual(messages[0][0], entB["id"])
+            self.failUnlessEqual(messages[0][0], "local")
         d.addCallback(_sent)
         return d
 

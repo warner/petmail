@@ -10,7 +10,7 @@ from nacl.public import PrivateKey, PublicKey, Box
 from nacl.secret import SecretBox
 from .. import rrid
 from ..eventual import eventually
-from ..util import remove_prefix, split_into
+from ..util import remove_prefix, split_into, hex_or_none, unhex_or_none
 from ..netstring import split_netstrings_and_trailer
 from ..web import EventsProtocol
 
@@ -75,90 +75,115 @@ class HTTPMailboxServer(BaseServer):
     by remote agents.
     """
 
-    def __init__(self, db, web, baseurl, enable_retrieval, desc):
+    def __init__(self, db, web, baseurl, desc):
         BaseServer.__init__(self)
         self.db = db
+        assert baseurl.endswith("/")
         self.baseurl = baseurl
-        self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
+        self.transport_privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
         self.TT_privkey = desc["TT_private_key"].decode("hex")
         self.TT_pubkey = desc["TT_public_key"].decode("hex")
-
-        # If we feed a local transport, it will have just one TT. If we queue
-        # messages for any other transports, they'll each have their own TT
-        # and handler (e.g. a queue and some retrieval credentials).
-        self.local_TT0 = desc["local_TT0"].decode("hex")
-        self.local_TTID = desc["local_TTID"].decode("hex")
+        self.retrieval_privkey = PrivateKey(desc["retrieval_privkey"].decode("hex"))
 
         # this is how we get messages from senders
         web.get_root().putChild("mailbox", ServerResource(self.handle_msgA))
 
-        self.accept_nonlocal = enable_retrieval
-        if self.accept_nonlocal:
-            # add a second resource for agents to retrieve messages
-            r = resource.Resource()
-            self.listres = RetrievalListResource(self.db, self.privkey)
-            r.putChild("list", self.listres)
-            ts = internet.TimerService(self.listres.CLOCK_WINDOW*3,
-                                       self.prune_old_requests)
-            ts.setServiceParent(self)
-            r.putChild("fetch", RetrievalFetchResource(self.db))
-            r.putChild("delete", RetrievalDeleteResource(self.db))
-            web.get_root().putChild("retrieval", r)
+        # add a second resource for agents to retrieve messages
+        r = resource.Resource()
+        # TODO: retrieval should use a different key than delivery
+        self.listres = RetrievalListResource(self.db, self.retrieval_privkey)
+        r.putChild("list", self.listres)
+        ts = internet.TimerService(self.listres.CLOCK_WINDOW*3,
+                                   self.prune_old_requests)
+        ts.setServiceParent(self)
+        r.putChild("fetch", RetrievalFetchResource(self.db))
+        r.putChild("delete", RetrievalDeleteResource(self.db))
+        web.get_root().putChild("retrieval", r)
 
-    def prune_old_requests(self):
-        self.listres.prune_old_requests()
+    def allocate_transport(self, remote=True):
+        # return a MailboxRecord, which includes retrieval information, and
+        # data which can be turned into a TransportRecord for senders
+        symkey = None
+        if remote:
+            symkey = os.urandom(32)
+        RT = os.urandom(16) # retrieval token
+        TTID, TT0 = rrid.create_token(self.TT_pubkey)
+        return self.add_transport(TTID, TT0, RT, symkey)
 
-    def get_retrieval_descriptor(self):
-        return { "type": "local",
-                 "transport_privkey": self.privkey.encode().encode("hex"),
-                 "TT_private_key": self.TT_privkey.encode("hex"),
-                 "TT0": self.local_TT0.encode("hex"),
-                 "TTID": self.local_TTID.encode("hex"),
-                 }
-
-    def get_sender_descriptor(self):
-        baseurl = self.baseurl
-        assert baseurl.endswith("/")
-        pubkey = self.privkey.public_key
-        return { "type": "http",
-                 "url": baseurl + "mailbox",
-                 "transport_pubkey": pubkey.encode().encode("hex"),
-                 }
-
-    def register_local_transport_handler(self, handler):
-        self.local_transport_handler = handler
-
-    def add_transport(self, TTID, symkey):
+    def add_transport(self, TTID, TT0, RT, symkey):
         tid = self.db.insert("INSERT INTO mailbox_server_transports"
-                             " (TTID, symkey) VALUES (?,?)",
-                             (TTID.encode("hex"), symkey.encode("hex")),
+                             " (TTID, TT0, RT, symkey) VALUES (?,?,?,?)",
+                             (TTID.encode("hex"), TT0.encode("hex"),
+                              hex_or_none(RT), hex_or_none(symkey)),
                              "mailbox_server_transports")
         self.db.commit()
         return tid
+
+    def get_local_transport(self):
+        row = self.db.execute("SELECT * FROM mailbox_server_transports"
+                              " WHERE symkey = NULL").fetchone()
+        if not row:
+            return self.allocate_transport(False)
+        return row["id"]
 
     def get_tid_data(self, tid):
         c = self.db.execute("SELECT * FROM mailbox_server_transports"
                              " WHERE id=?", (tid,))
         row = c.fetchone()
-        return (row["TTID"].decode("hex"), row["symkey"].decode("hex"))
+        return (row["TTID"].decode("hex"), row["TT0"].decode("hex"),
+                unhex_or_none(row["RT"]), unhex_or_none(row["symkey"]))
+
+    def get_mailbox_record(self, tid):
+        # The mailbox record goes to the recipient who owns this transport.
+        # It contains both retrieval information (to collect their queued
+        # messages) and data to generate transport records (to give to
+        # senders).
+        (TTID, TT0, RT, symkey) = self.get_tid_data(tid)
+        if symkey:
+            rpubkey = self.retrieval_privkey.public_key.encode()
+            retrieval = {"type": "http",
+                         "url": self.baseurl+"retrieval/",
+                         "retrieval_pubkey": rpubkey.encode("hex"),
+                         "RT": RT.encode("hex"),
+                         "symkey": symkey.encode("hex"),
+                         }
+        else:
+            retrieval = {"type": "local",
+                         "RT": RT.encode("hex")}
+        tpubkey = self.transport_privkey.public_key.encode()
+        transport_generic = {"type": "http",
+                             "url": self.baseurl+"mailbox",
+                             "transport_pubkey": tpubkey.encode("hex")
+                             }
+        transport_sender = {"TT0": TT0.encode("hex")}
+        return {"retrieval": retrieval,
+                "transport": {"generic": transport_generic,
+                              "sender": transport_sender}}
+
+
+    def prune_old_requests(self):
+        self.listres.prune_old_requests()
+
+    def register_local_transport_handler(self, handler):
+        self.local_transport_handler = handler
 
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
-        msgB = Box(self.privkey, PublicKey(pubkey1_s)).decrypt(boxed)
+        msgB = Box(self.transport_privkey, PublicKey(pubkey1_s)).decrypt(boxed)
         # this ends the sender-observable errors
         eventually(self.handle_msgB, msgB)
 
     def handle_msgB(self, msgB):
         MSTT, msgC = parseMsgB(msgB)
         TTID = rrid.decrypt(self.TT_privkey, MSTT)
-        if TTID == self.local_TTID:
-            return self.local_transport_handler(msgC)
-        if self.accept_nonlocal:
-            # look up registered transports, queue message
-            c = self.db.execute("SELECT * FROM mailbox_server_transports"
-                                " WHERE TTID=?", (TTID.encode("hex"),))
-            row = c.fetchone()
-            if row:
+        # look up registered transports, queue message or deliver locally
+        c = self.db.execute("SELECT * FROM mailbox_server_transports"
+                            " WHERE TTID=?", (TTID.encode("hex"),))
+        row = c.fetchone()
+        if row:
+            if row["symkey"] is None:
+                return self.local_transport_handler(msgC)
+            else:
                 return self.insert_msgC(row["id"], msgC)
         # unknown
         self.signal_unrecognized_TTID(TTID)
@@ -179,8 +204,8 @@ def decrypt_list_request_1(req):
     boxed0 = req[4+32:]
     return timestamp, tmppub, boxed0
 
-def decrypt_list_request_2(tmppub, boxed0, serverprivkey):
-    TTID = Box(serverprivkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
+def decrypt_list_request_2(tmppub, boxed0, retrieval_privkey):
+    TTID = Box(retrieval_privkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
     return TTID
 
 assert struct.calcsize(">Q") == 8
@@ -207,10 +232,10 @@ class RetrievalListResource(resource.Resource):
     MAX_MESSAGES_PER_ENTRY = 10
     ENABLE_EVENTSOURCE = True
 
-    def __init__(self, db, privkey):
+    def __init__(self, db, retrieval_privkey):
         resource.Resource.__init__(self)
         self.db = db
-        self.privkey = privkey
+        self.retrieval_privkey = retrieval_privkey
         self.old_requests = {} # maps tmppub to timestamp
         self.db.subscribe("mailbox_server_messages", self.new_message)
         # tid -> (EventsProtocol,symkey,tmppub) . only one per tid.
@@ -245,7 +270,7 @@ class RetrievalListResource(resource.Resource):
         if tmppub in self.old_requests:
             request.setResponseCode(http.BAD_REQUEST, "Replay")
             return "Replay"
-        TTID = decrypt_list_request_2(tmppub, boxed0, self.privkey)
+        TTID = decrypt_list_request_2(tmppub, boxed0, self.retrieval_privkey)
         try:
             tid, symkey = self.check_TTID(TTID)
         except KeyError:

@@ -66,8 +66,7 @@ class Node(service.MultiService):
         c = self.db.execute("SELECT * FROM mailbox_server_config")
         row = c.fetchone()
         s = HTTPMailboxServer(self.db, self.web, baseurl,
-                              bool(row["enable_retrieval"]),
-                              json.loads(row["private_descriptor_json"]))
+                              json.loads(row["mailbox_config_json"]))
         s.setServiceParent(self)
         self.mailbox_server = s
 

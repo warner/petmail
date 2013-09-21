@@ -105,3 +105,13 @@ def allocate_port():
     # anything to this port, or sending any data), but I could be wrong.
     p.stopListening() # ignore the Deferred
     return port
+
+def hex_or_none(s):
+    if s:
+        return s.encode("hex")
+    return s
+
+def unhex_or_none(hex):
+    if hex:
+        return hex.decode("hex")
+    return hex

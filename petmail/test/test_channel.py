@@ -102,7 +102,8 @@ class Send(TwoNodeMixin, unittest.TestCase):
             msgA = res[0][1]
             self.failUnless(msgA.startswith("a0:"))
             pubkey1_s, boxed = parseMsgA(msgA)
-            tpriv = self.tport2[0]["privkey"]
+            tpriv_hex = self.tports2["local"]["retrieval"]["privkey"]
+            tpriv = PrivateKey(tpriv_hex.decode("hex"))
             b = Box(tpriv, PublicKey(pubkey1_s))
             msgB = b.decrypt(boxed)
             MSTT, msgC = parseMsgB(msgB)

@@ -42,19 +42,18 @@ def create_node(so, stdout, stderr, services):
         db.execute("INSERT INTO `agent_profile`"
                    " (`name`, `icon_data`) VALUES (?,?)",
                    ("",""))
-        privkey = PrivateKey.generate()
+        transport_privkey = PrivateKey.generate().encode()
+        retrieval_privkey = PrivateKey.generate().encode()
         TT_privkey,TT_pubkey = rrid.create_keypair()
-        TTID, TT0 = rrid.create_token(TT_pubkey)
-        server_desc = { "transport_privkey": privkey.encode().encode("hex"),
+        server_desc = { "transport_privkey": transport_privkey.encode("hex"),
+                        "retrieval_privkey": retrieval_privkey.encode("hex"),
                         "TT_private_key": TT_privkey.encode("hex"),
                         "TT_public_key": TT_pubkey.encode("hex"),
-                        "local_TT0": TT0.encode("hex"),
-                        "local_TTID": TTID.encode("hex"),
                         }
         db.execute("INSERT INTO mailbox_server_config"
-                   " (private_descriptor_json, enable_retrieval)"
-                   " VALUES (?,?)",
-                   (json.dumps(server_desc), 0))
+                   " (mailbox_config_json)"
+                   " VALUES (?)",
+                   (json.dumps(server_desc),))
     db.commit()
     print >>stdout, "node created in %s, URL is %s" % (basedir, baseurl)
 

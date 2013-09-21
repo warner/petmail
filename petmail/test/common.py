@@ -89,16 +89,18 @@ def fake_transport():
     pubkey_hex = privkey.public_key.encode().encode("hex")
     TT_privkey, TT_pubkey = rrid.create_keypair()
     TTID, TT0 = rrid.create_token(TT_pubkey)
-    private = {"privkey": privkey,
-               "TT": (TTID, TT_privkey, TT0) }
-    # this is what lives in our database. All channels that share the same
-    # transport will use the same thing.
-    db_record = { "for_sender": {"type": "test-return",
-                                 "transport_pubkey": pubkey_hex,
-                                 },
-                  "for_recipient": {"TT0": TT0.encode("hex") },
-                  }
-    return private, db_record
+    mbrec = {"transport": {"generic": {"type": "test-return",
+                                       "transport_pubkey": pubkey_hex,},
+                           "sender": {"TT0": TT0.encode("hex")}},
+             "retrieval": {"type": "test-return",
+                           # extra things that a normal retriever wouldn't
+                           # get
+                           "privkey": privkey.encode().encode("hex"),
+                           "TTID": TTID.encode("hex"),
+                           "TT_privkey": TT_privkey.encode("hex"),
+                           },
+             }
+    return mbrec
 
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
@@ -118,17 +120,12 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         basedirB = os.path.join(self.make_basedir(), "nodeB")
         self.createNode(basedirB, relayurl=relayurl)
 
-        tA = self.buildNode(basedirA)
-        tB = self.buildNode(basedirB)
+        # TODO: do we need to pre-instantiate these anymore?
+        self.buildNode(basedirA)
+        self.buildNode(basedirB)
         if transport == "local":
-            tA.agent.command_enable_local_mailbox()
-            tB.agent.command_enable_local_mailbox()
             self.tports1 = None
             self.tports2 = None
-            tA.db.execute("UPDATE mailbox_server_config SET enable_retrieval=1")
-            tA.db.commit()
-            tB.db.execute("UPDATE mailbox_server_config SET enable_retrieval=1")
-            tB.db.commit()
 
         nA = self.startNode(basedirA)
         nB = self.startNode(basedirB)
@@ -137,21 +134,17 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
             # TODO: the fake_transport() doesn't persist well, so create it
             # on the real (live) nodes instead of the temporary setup ones.
             # This should be fixed.
-            self.tport1 = fake_transport()
-            self.tports1 = {0: self.tport1[1]}
+            self.tports1 = {"local": fake_transport()}
             nA.db.execute("INSERT INTO mailboxes"
-                          " (sender_descriptor_json, private_descriptor_json)"
-                          " VALUES (?,?)",
-                          (json.dumps(self.tport1[1]["for_sender"]),
-                           json.dumps(self.tport1[1]["for_recipient"])))
+                          " (mailbox_record_json)"
+                          " VALUES (?)",
+                          (json.dumps(self.tports1["local"]),))
             nA.db.commit()
-            self.tport2 = fake_transport()
-            self.tports2 = {0: self.tport2[1]}
+            self.tports2 = {"local": fake_transport()}
             nB.db.execute("INSERT INTO mailboxes"
-                          " (sender_descriptor_json, private_descriptor_json)"
-                          " VALUES (?,?)",
-                          (json.dumps(self.tport2[1]["for_sender"]),
-                           json.dumps(self.tport2[1]["for_recipient"])))
+                          " (mailbox_record_json)"
+                          " VALUES (?)",
+                          (json.dumps(self.tports2["local"]),))
             nB.db.commit()
 
         self.accelerate_polling(nA)
@@ -250,23 +243,19 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
 
     def add_recipient(self, n):
         ms = n.mailbox_server
-        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
-        sc = json.loads(row["private_descriptor_json"])
-        TT_pubkey = sc["TT_public_key"].decode("hex")
-        TTID_1, TT0_1 = rrid.create_token(TT_pubkey)
-        STT_1 = rrid.randomize(TT0_1)
-
-        symkey = os.urandom(32)
-        tid = ms.add_transport(TTID_1, symkey)
-
-        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"]
-        trec = {"STT": STT_1.encode("hex"),
-                "transport_pubkey": transport_pubkey}
+        tid = ms.allocate_transport()
+        mbrec = ms.get_mailbox_record(tid)
+        TT0 = mbrec["transport"]["sender"]["TT0"].decode("hex")
+        STT = rrid.randomize(TT0)
+        transport_pubkey = mbrec["transport"]["generic"]["transport_pubkey"]
+        trec = {"STT": STT.encode("hex"),
+                "transport_pubkey": transport_pubkey,
+                "retrieval_pubkey": mbrec["retrieval"]["retrieval_pubkey"]}
         return tid, trec
 
     def create_unknown_STT(self, n):
         row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
-        sc = json.loads(row["private_descriptor_json"])
+        sc = json.loads(row["mailbox_config_json"])
         TT_pubkey = sc["TT_public_key"].decode("hex")
         TTID_1, TT0_1 = rrid.create_token(TT_pubkey)
         STT_1 = rrid.randomize(TT0_1)

@@ -28,24 +28,31 @@ CREATE TABLE `webapi_access_tokens`
  `token` STRING
 );
 
-CREATE TABLE `relay_servers`
-(
- `descriptor_json` STRING
-);
+-- These three mailbox_server_* tables (and retrieval_replay_tokens) are used
+-- the MailboxServer that lives inside each node. This server is only exposed
+-- to the outside world if requested, generally because the node has a stable
+-- routeable address. The server always accepts messages for the local agent,
+-- but the agent will only advertise that fact if the server is exposed to
+-- the outside world. The server will also accept messages for other (remote)
+-- agents if those transports are allocated: this is how servers-for-hire
+-- work.
 
 CREATE TABLE `mailbox_server_config` -- contains exactly one row
 (
  -- .transport_privkey, TT_private_key, local_TT0, local_TTID
- `private_descriptor_json` STRING,
- `enable_retrieval` INT -- for public servers
+ `mailbox_config_json` STRING
 );
 
 CREATE TABLE `mailbox_server_transports` -- one row per user we support
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
- `TTID` STRING,
+ `TTID` STRING, -- transport token ID, used during delivery
+ `TT0` STRING, -- initial transport token, given to recipient
+ `RT` STRING, -- retrieval token
  `symkey` STRING
 );
+CREATE UNIQUE INDEX `TTID` ON `mailbox_server_transports` (`TTID`);
+CREATE UNIQUE INDEX `RT` ON `mailbox_server_transports` (`RT`);
 
 CREATE TABLE `mailbox_server_messages`
 (
@@ -68,16 +75,17 @@ CREATE TABLE `retrieval_replay_tokens`
 CREATE UNIQUE INDEX `timestamp` ON `retrieval_replay_tokens` (`timestamp`);
 CREATE UNIQUE INDEX `token` ON `retrieval_replay_tokens` (`timestamp`, `pubkey`);
 
-CREATE TABLE `mailboxes` -- one per mailbox
+-- The following tables are owned by the Agent, not the Server.
+
+CREATE TABLE `relay_servers`
+(
+ `descriptor_json` STRING
+);
+
+CREATE TABLE `mailboxes` -- one per remote mailbox (no local mailboxes here)
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
-  -- give sender_desc to peers, tells them how to send us messages
-  -- .type, (.url), .transport_pubkey
-  -- we will add .STT before sending
- `sender_descriptor_json` STRING,
- -- private_descriptor is for recipient (us), tells us how to read our inbox
- -- .type, .TT0, (.url), (retrieval credentials)
- `private_descriptor_json` STRING
+ `mailbox_record_json` STRING
 );
 
 CREATE TABLE `agent_profile` -- contains one row

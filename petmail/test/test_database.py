@@ -12,7 +12,7 @@ class Database(BasedirMixin, unittest.TestCase):
 
         row = db.execute("SELECT * FROM version").fetchone()
         self.failUnlessEqual(row["version"], 1)
-        
+
     def test_observable(self):
         basedir = self.make_basedir()
         dbfile = os.path.join(basedir, "test.db")
@@ -22,7 +22,7 @@ class Database(BasedirMixin, unittest.TestCase):
         db.subscribe("inbound_messages", n.append)
 
         # nobody is watching this table
-        mid = db.insert("INSERT INTO mailboxes (sender_descriptor_json)"
+        mid = db.insert("INSERT INTO mailboxes (mailbox_record_json)"
                         " VALUES (?)", ("desc",),
                         "mailboxes")
         self.failUnlessEqual(mid, 1)

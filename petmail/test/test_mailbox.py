@@ -9,7 +9,6 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
         n1 = self.startNode(basedir1)
-        pub_bogus = priv_bogus = {"type": "bogus"}
+        mbrec_bogus = {"retrieval": {"type": "bogus"}}
         self.failUnlessRaises(CommandError,
-                              n1.agent.command_add_mailbox,
-                              pub_bogus, priv_bogus)
+                              n1.agent.command_add_mailbox, mbrec_bogus)
