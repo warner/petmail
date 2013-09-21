@@ -205,6 +205,7 @@ def encrypt_fetch_response(symkey, fetch_token, msgC, nonce=None):
 class RetrievalListResource(resource.Resource):
     CLOCK_WINDOW = 5*60 # the window is "now" plus/minus this value
     MAX_MESSAGES_PER_ENTRY = 10
+    ENABLE_EVENTSOURCE = True
 
     def __init__(self, db, privkey):
         resource.Resource.__init__(self)
@@ -261,7 +262,7 @@ class RetrievalListResource(resource.Resource):
         entries = [" ".join([base64.b64encode(e) for e in group])
                    for group in groups]
         if ("text/event-stream" in (request.getHeader("accept") or "")
-            and self.enable_eventsource):
+            and self.ENABLE_EVENTSOURCE):
             # EventSource protocol
             if tid in self.subscribers:
                 # close the EventsProtocol when a new GET occurs (since

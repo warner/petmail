@@ -1,6 +1,6 @@
 import os, json, copy, base64, time
 from twisted.trial import unittest
-from twisted.web import http
+from twisted.web import http, client
 from twisted.web.test.test_web import DummyRequest # not exactly stable
 from .common import TwoNodeMixin
 from .. import rrid
@@ -143,7 +143,7 @@ def do_request(resource, t=None, method="GET"):
     return "".join(req.written), req
 
 class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
-    def test_web(self):
+    def test_resource(self):
         n = self.prepare()
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
@@ -298,4 +298,41 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         self.failIfEqual(messages[0]["fetch_token"],
                          fetch_token2.encode("hex"))
 
-        # TODO: streaming/EventSource, new messages should trigger events
+    def GET(self, url):
+        return client.getPage(url, method="GET",
+                              headers={"accept": "application/json"})
+    def POST(self, url, data):
+        return client.getPage(url, method="POST", postdata=data,
+                              headers={"accept": "application/json",
+                                       "content-type": "application/json"})
+
+    def test_web_list(self):
+        n = self.prepare()
+        ms = n.mailbox_server
+        tid1, trec1 = self.add_recipient(n)
+        tid2, trec2 = self.add_recipient(n)
+        TID1, symkey1 = ms.get_tid_data(tid1)
+        TID2, symkey2 = ms.get_tid_data(tid2)
+
+        ms.insert_msgC(tid1, "msgC1_first")
+        ms.insert_msgC(tid1, "msgC1_second")
+        ms.insert_msgC(tid2, "msgC2")
+
+        baseurl = n.baseurl + "retrieval/"
+
+        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        d = self.GET(baseurl+"list?t="+base64.urlsafe_b64encode(reqkey))
+        def _then1(res):
+            fields = parse_events(res)
+            self.failUnlessEqual(len(fields), 1)
+            self.failUnlessEqual(fields[0][0], "data")
+            responses = fields[0][1].split()
+            r1 = base64.b64decode(responses[0])
+            (fetch_token1, delete_token1, length1) = \
+                           retrieval.decrypt_list_entry(r1, symkey1, tmppub)
+            self.failUnlessEqual(length1, len("msgC1_first"))
+        d.addCallback(_then1)
+        return d
+
+    # TODO: test streaming/EventSource: new messages should trigger events
