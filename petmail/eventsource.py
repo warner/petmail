@@ -88,7 +88,8 @@ class EventSource: # TODO: service.Service
             # twisted.web._newclient.TransportProxyProducer , and its
             # ._producer is the tcp.Port.
             port = self.proto.transport._producer
-            port.loseConnection()
+            if port:
+                port.loseConnection()
         except AttributeError as e:
             log.err(e, "get_events: unable to stop connection")
             # oh well

@@ -402,3 +402,85 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
             return d2
         d.addBoth(_shutdown)
         return d
+
+    def test_web_events_replacement(self):
+        n = self.prepare()
+        ms = n.mailbox_server
+        tid1, trec1 = self.add_recipient(n)
+        tid2, trec2 = self.add_recipient(n)
+        TID1, symkey1 = ms.get_tid_data(tid1)
+        TID2, symkey2 = ms.get_tid_data(tid2)
+
+        ms.insert_msgC(tid1, "msgC1_first")
+        ms.insert_msgC(tid1, "msgC1_second")
+        ms.insert_msgC(tid2, "msgC2")
+
+        baseurl = n.baseurl + "retrieval/"
+
+        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
+        reqkey1,tmppub1 = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        url1 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey1)
+
+        reqkey2,tmppub2 = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        url2 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey2)
+
+        fields1 = []
+        def handler1(name, data):
+            fields1.append( (name,data) )
+        fields2 = []
+        def handler2(name, data):
+            fields2.append( (name,data) )
+
+        def check_f(fields, min_fields):
+            if len(fields) < min_fields:
+                return False
+            return True
+
+        es1 = eventsource.EventSource(url1, handler1)
+        es2 = eventsource.EventSource(url2, handler2)
+
+        cleanup1_d = defer.Deferred()
+        cleanup2_d = defer.Deferred()
+        def fire_cleanup(res, cleanup_d):
+            cleanup_d.callback(None)
+            return res
+        finished1_d = es1.start()
+        finished1_d.addBoth(fire_cleanup, cleanup1_d)
+
+        d = self.poll(lambda: check_f(fields1, 2))
+        def _then1(_):
+            self.failUnlessEqual(len(fields1), 2)
+            self.failUnlessEqual(fields1[0][0], "") # comment
+            self.failUnlessEqual(fields1[1][0], "data")
+            responses = fields1[1][1].split()
+            self.failUnlessEqual(len(responses), 2)
+            r1 = base64.b64decode(responses[0])
+            (fetch_token1, delete_token1, length1) = \
+                           retrieval.decrypt_list_entry(r1, symkey1, tmppub1)
+            self.failUnlessEqual(length1, len("msgC1_first"))
+
+            # starting a new request should cancel the existing one
+            self.finished2_d = es2.start()
+            self.finished2_d.addBoth(fire_cleanup, cleanup2_d)
+            return finished1_d
+        d.addCallback(_then1)
+        d.addCallback(lambda _: self.poll(lambda: check_f(fields2, 2)))
+        def _then2(_):
+            self.failUnlessEqual(len(fields2), 2)
+            self.failUnlessEqual(fields2[0][0], "") # comment
+            self.failUnlessEqual(fields2[1][0], "data")
+            responses = fields2[1][1].split()
+            self.failUnlessEqual(len(responses), 2)
+            r1 = base64.b64decode(responses[0])
+            (fetch_token1, delete_token1, length1) = \
+                           retrieval.decrypt_list_entry(r1, symkey1, tmppub2)
+            self.failUnlessEqual(length1, len("msgC1_first"))
+        d.addCallback(_then2)
+
+        def _shutdown(res):
+            es1.cancel()
+            es2.cancel()
+            return cleanup1_d
+        d.addBoth(_shutdown)
+        d.addBoth(lambda _: cleanup2_d)
+        return d

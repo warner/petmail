@@ -267,7 +267,7 @@ class RetrievalListResource(resource.Resource):
             if tid in self.subscribers:
                 # close the EventsProtocol when a new GET occurs (since
                 # that will reset the tokens anyways)
-                self.subscribers[tid].stop()
+                self.subscribers[tid][0].stop()
             request.setHeader("content-type", "text/event-stream")
             p = EventsProtocol(request, lambda m: m)
             p.sendComment("beginning Message List event stream")
