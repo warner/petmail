@@ -248,5 +248,29 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
         return entA, entB
 
+    def add_recipient(self, n):
+        ms = n.mailbox_server
+        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
+        sc = json.loads(row["private_descriptor_json"])
+        TID_pubkey = sc["TID_public_key"].decode("hex")
+        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
+        STID1 = rrid.randomize(TID1_token0)
+
+        symkey = os.urandom(32)
+        tid = ms.add_TID(TID1_tokenid, symkey)
+
+        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"]
+        trec = {"STID": STID1.encode("hex"),
+                "transport_pubkey": transport_pubkey}
+        return tid, trec
+
+    def create_unknown_TID(self, n):
+        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
+        sc = json.loads(row["private_descriptor_json"])
+        TID_pubkey = sc["TID_public_key"].decode("hex")
+        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
+        STID1 = rrid.randomize(TID1_token0)
+        return STID1
+
 def flip_bit(s):
     return s[:-1] + chr(ord(s[-1]) ^ 0x01)

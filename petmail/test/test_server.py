@@ -1,4 +1,4 @@
-import os, json, copy, base64, time
+import json, copy, base64, time
 from twisted.trial import unittest
 from twisted.web import http, client
 from twisted.web.test.test_web import DummyRequest # not exactly stable
@@ -10,36 +10,7 @@ from ..eventual import flushEventualQueue
 from ..mailbox import delivery, retrieval
 from .test_eventsource import parse_events
 
-class HelperMixin:
-    def prepare(self):
-        nA, nB = self.make_nodes(transport="local")
-        return nB
-
-    def add_recipient(self, n):
-        ms = n.mailbox_server
-        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
-        sc = json.loads(row["private_descriptor_json"])
-        TID_pubkey = sc["TID_public_key"].decode("hex")
-        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
-        STID1 = rrid.randomize(TID1_token0)
-
-        symkey = os.urandom(32)
-        tid = ms.add_TID(TID1_tokenid, symkey)
-
-        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"]
-        trec = {"STID": STID1.encode("hex"),
-                "transport_pubkey": transport_pubkey}
-        return tid, trec
-
-    def create_unknown_TID(self, n):
-        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
-        sc = json.loads(row["private_descriptor_json"])
-        TID_pubkey = sc["TID_public_key"].decode("hex")
-        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
-        STID1 = rrid.randomize(TID1_token0)
-        return STID1
-
-class Inbound(HelperMixin, TwoNodeMixin, unittest.TestCase):
+class Inbound(TwoNodeMixin, unittest.TestCase):
     def test_unknown_TID(self):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         msgC = "msgC"
@@ -84,7 +55,7 @@ class Inbound(HelperMixin, TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_nonlocal_TID(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         msgC = "msgC"
         server = n.client.mailbox_server
 
@@ -108,7 +79,7 @@ class Inbound(HelperMixin, TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_two_nonlocal_TID(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
 
@@ -144,9 +115,9 @@ def do_request(resource, t=None, method="GET"):
     req.render(resource)
     return "".join(req.written), req
 
-class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
+class Retrieval(TwoNodeMixin, unittest.TestCase):
     def test_resource(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
@@ -309,7 +280,7 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
                                        "content-type": "application/json"})
 
     def test_web_list(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
@@ -338,7 +309,7 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_web_events(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
@@ -404,7 +375,7 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_web_events_replacement(self):
-        n = self.prepare()
+        n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
