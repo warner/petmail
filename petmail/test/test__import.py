@@ -6,8 +6,8 @@ from twisted.trial import unittest
 
 class Import(unittest.TestCase):
     def test_import_all(self):
-        from .. import _version, base32, client, database, errors, eventual
-        del _version, base32, client, database, errors, eventual
+        from .. import _version, base32, agent, database, errors, eventual
+        del _version, base32, agent, database, errors, eventual
         from .. import hkdf, invitation, netstring, node, rrid, util, web
         del hkdf, invitation, netstring, node, rrid, util, web
 

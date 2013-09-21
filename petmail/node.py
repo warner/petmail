@@ -72,6 +72,6 @@ class Node(service.MultiService):
         self.mailbox_server = s
 
     def init_client(self):
-        from . import client
-        self.client = client.Client(self.db, self.basedir, self.mailbox_server)
+        from . import agent
+        self.client = agent.Client(self.db, self.basedir, self.mailbox_server)
         self.client.setServiceParent(self)
