@@ -3,7 +3,6 @@ from twisted.trial import unittest
 from twisted.web import http, client
 from twisted.web.test.test_web import DummyRequest # not exactly stable
 from twisted.internet import defer
-from twisted.internet.error import ConnectionDone
 from .common import TwoNodeMixin
 from .. import rrid, eventsource
 from ..database import Notice
