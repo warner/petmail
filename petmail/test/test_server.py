@@ -480,7 +480,8 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         def _shutdown(res):
             es1.cancel()
             es2.cancel()
-            return cleanup1_d
+            return res
         d.addBoth(_shutdown)
-        d.addBoth(lambda _: cleanup2_d)
+        d.addCallback(lambda _: cleanup1_d)
+        d.addCallback(lambda _: cleanup2_d)
         return d
