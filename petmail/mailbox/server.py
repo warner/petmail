@@ -245,7 +245,11 @@ class RetrievalListResource(resource.Resource):
             request.setResponseCode(http.BAD_REQUEST, "Replay")
             return "Replay"
         TID = decrypt_list_request_2(tmppub, boxed0, self.privkey)
-        tid, symkey = self.check_TID(TID)
+        try:
+            tid, symkey = self.check_TID(TID)
+        except KeyError:
+            request.setResponseCode(http.NOT_FOUND, "no such TID")
+            return "no such TID"
         # If check_TID() didn't throw KeyError, this is a new request, for a
         # known TID. It's worth preventing a replay.
         self.old_requests[tmppub] = ts

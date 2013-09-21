@@ -29,6 +29,14 @@ class HelperMixin:
                 "transport_pubkey": transport_pubkey}
         return tid, trec
 
+    def create_unknown_TID(self, n):
+        row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
+        sc = json.loads(row["private_descriptor_json"])
+        TID_pubkey = sc["TID_public_key"].decode("hex")
+        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
+        STID1 = rrid.randomize(TID1_token0)
+        return STID1
+
 class Inbound(HelperMixin, TwoNodeMixin, unittest.TestCase):
     def test_unknown_TID(self):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
@@ -218,16 +226,6 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(len(messages), 2)
         self.failUnlessEqual(messages[0]["fetch_token"], None)
 
-        # replay should be rejected
-        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
-        self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
-
-        # test unknown tokens
-        out,req = do_request(fetchres, base64.urlsafe_b64encode("wrong"))
-        self.failUnlessEqual(req.responseCode, 404)
-        self.failUnlessEqual(req.responseMessage, "unknown fetch_token")
-        self.failUnlessEqual(out, "")
-
         # test delete_token
         out, req = do_request(deleteres,
                               base64.urlsafe_b64encode(delete_token1),
@@ -238,6 +236,16 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
                                 " WHERE tid=? ORDER BY id",
                                 (tid1,)).fetchall()
         self.failUnlessEqual(len(messages), 1)
+
+        # replay should be rejected
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
+
+        # test unknown tokens
+        out,req = do_request(fetchres, base64.urlsafe_b64encode("wrong"))
+        self.failUnlessEqual(req.responseCode, 404)
+        self.failUnlessEqual(req.responseMessage, "unknown fetch_token")
+        self.failUnlessEqual(out, "")
 
         # timestamp in past (old replay)
         now = time.time()
@@ -262,10 +270,32 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         listres.prune_old_requests(now=future)
         self.failUnlessEqual(len(listres.old_requests), 0)
 
-        # TODO: unrecognized TID, causing KeyError (or nicer)
+        # unrecognized TID, causing KeyError (or nicer)
+        unknown_TID = self.create_unknown_TID(n)
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey,
+                                                        unknown_TID)
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        self.failUnlessEqual(req.responseCode, http.NOT_FOUND)
+        self.failUnlessEqual(req.responseMessage, "no such TID")
+        self.failUnlessEqual(out, "no such TID")
 
-        # TODO: a second 'list' should revoke tokens from the first
+        # since none of those "list" requests were accepted, the fetch_token2
+        # should still be valid. We don't spend it now, to test how a second
+        # "list" should cancel it.
+        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
+                                " WHERE tid=? ORDER BY id",
+                                (tid1,)).fetchall()
+        self.failUnlessEqual(len(messages), 1)
+        self.failUnlessEqual(messages[0]["fetch_token"],
+                             fetch_token2.encode("hex"))
+        # a second 'list' should revoke tokens from the first
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
+                                " WHERE tid=? ORDER BY id",
+                                (tid1,)).fetchall()
+        self.failUnlessEqual(len(messages), 1)
+        self.failIfEqual(messages[0]["fetch_token"],
+                         fetch_token2.encode("hex"))
 
         # TODO: streaming/EventSource, new messages should trigger events
-
-        #reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
