@@ -96,13 +96,14 @@ class HTTPMailboxServer(BaseServer):
         if self.accept_nonlocal:
             # add a second resource for clients to retrieve messages
             r = resource.Resource()
-            self.listres = RetrievalListResource(self.db)
+            self.listres = RetrievalListResource(self.db, self.privkey)
             r.putChild("list", self.listres)
             ts = internet.TimerService(self.listres.CLOCK_WINDOW*3,
                                        self.prune_old_requests)
             ts.setServiceParent(self)
             r.putChild("fetch", RetrievalFetchResource(self.db))
             r.putChild("delete", RetrievalDeleteResource(self.db))
+            web.get_root().putChild("retrieval", r)
 
     def prune_old_requests(self):
         self.listres.prune_old_requests()
@@ -135,6 +136,12 @@ class HTTPMailboxServer(BaseServer):
         self.db.commit()
         return tid
 
+    def get_tid_data(self, tid):
+        c = self.db.execute("SELECT * FROM mailbox_server_transports"
+                             " WHERE id=?", (tid,))
+        row = c.fetchone()
+        return (row["TID"].decode("hex"), row["symkey"].decode("hex"))
+
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
         msgB = Box(self.privkey, PublicKey(pubkey1_s)).decrypt(boxed)
@@ -152,14 +159,16 @@ class HTTPMailboxServer(BaseServer):
                                 " WHERE TID=?", (TID.encode("hex"),))
             row = c.fetchone()
             if row:
-                self.db.insert("INSERT INTO mailbox_server_messages"
-                               " (tid, length, msgC) VALUES (?,?,?)",
-                               (row["id"], len(msgC), msgC.encode("hex")),
-                               "mailbox_server_messages")
-                self.db.commit()
-                return
+                return self.insert_msgC(row["id"], msgC)
         # unknown
         self.signal_unrecognized_TID(TID)
+
+    def insert_msgC(self, tid, msgC):
+        self.db.insert("INSERT INTO mailbox_server_messages"
+                       " (tid, length, msgC) VALUES (?,?,?)",
+                       (tid, len(msgC), msgC.encode("hex")),
+                       "mailbox_server_messages")
+        self.db.commit()
 
     def signal_unrecognized_TID(self, TID):
         # this can be overridden by unit tests
@@ -197,9 +206,10 @@ class RetrievalListResource(resource.Resource):
     CLOCK_WINDOW = 5*60 # the window is "now" plus/minus this value
     MAX_MESSAGES_PER_ENTRY = 10
 
-    def __init__(self, db):
+    def __init__(self, db, privkey):
         resource.Resource.__init__(self)
         self.db = db
+        self.privkey = privkey
         self.old_requests = {} # maps tmppub to timestamp
         self.db.subscribe("mailbox_server_messages", self.new_message)
         # tid -> (EventsProtocol,symkey,tmppub) . only one per tid.
@@ -282,7 +292,7 @@ class RetrievalListResource(resource.Resource):
         c = self.db.execute("SELECT id,length FROM mailbox_server_messages"
                             " WHERE tid=?", (tid,))
         for row in c.fetchall():
-            entry = self.prepare_entry(symkey, tmppub, c)
+            entry = self.prepare_entry(symkey, tmppub, row)
             entries.append(entry)
         self.db.commit()
         return entries

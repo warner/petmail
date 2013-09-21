@@ -4,6 +4,13 @@ from ..eventsource import EventSourceParser
 class FakeTransport:
     disconnecting = False
 
+def parse_events(s):
+    fields = []
+    p = EventSourceParser(lambda name, data: fields.append((name,data)))
+    p.makeConnection(FakeTransport())
+    p.dataReceived(s)
+    return fields
+
 class EventSource(unittest.TestCase):
     def test_parse(self):
         fields = []
