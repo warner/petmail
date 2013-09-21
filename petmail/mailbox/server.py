@@ -322,16 +322,16 @@ class RetrievalFetchResource(resource.Resource):
         if row:
             c2 = self.db.execute("SELECT symkey"
                                  " FROM mailbox_server_transports"
-                                 " WHERE id=?", (c["tid"],))
+                                 " WHERE id=?", (row["tid"],))
             symkey = c2.fetchone()["symkey"].decode("hex")
             self.db.execute("UPDATE mailbox_server_messages"
                             " SET fetch_token=NULL"
                             " WHERE id=?",
-                            (c["id"],))
+                            (row["id"],))
             self.db.commit()
-            return encrypt_fetch_response(symkey, fetch_token,
-                                          row["msgC"].decode("hex")
-                                          ).encode("hex")
+            resp = encrypt_fetch_response(symkey, fetch_token,
+                                          row["msgC"].decode("hex"))
+            return base64.b64encode(resp)
         request.setResponseCode(http.NOT_FOUND, "unknown fetch_token")
         return ""
 
@@ -346,4 +346,5 @@ class RetrievalDeleteResource(resource.Resource):
                         " WHERE delete_token=?",
                         (delete_token.encode("hex"),))
         self.db.commit()
+        request.setResponseCode(http.OK, "deleted")
         return ""

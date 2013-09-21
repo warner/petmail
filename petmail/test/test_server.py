@@ -1,5 +1,6 @@
-import os, json, copy, base64
+import os, json, copy, base64, time
 from twisted.trial import unittest
+from twisted.web import http
 from twisted.web.test.test_web import DummyRequest # not exactly stable
 from .common import TwoNodeMixin
 from .. import rrid
@@ -124,8 +125,17 @@ class Inbound(HelperMixin, TwoNodeMixin, unittest.TestCase):
         d.addCallback(_then)
         return d
 
+def do_request(resource, t=None, method="GET"):
+    req = DummyRequest([])
+    req.method = method
+    req.args = {}
+    if t:
+        req.args["t"] = [t]
+    req.render(resource)
+    return "".join(req.written), req
+
 class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
-    def test_two(self):
+    def test_web(self):
         n = self.prepare()
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
@@ -144,16 +154,18 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         bodies = set([m["msgC"].decode("hex") for m in messages])
         self.failUnlessEqual(bodies, set(["msgC1_first", "msgC1_second"]))
 
-        #r = n.web.get_root().getStaticEntity("retrieval")
         listres = ms.listres
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
         reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
 
-        req = DummyRequest([])
-        req.args = {"t": [base64.urlsafe_b64encode(reqkey)]}
-        req.render(listres) # this creates the tokens
-        out = "".join(req.written)
+        # test 'list'
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        # that created the tokens, so now we check the DB
+        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
+                                " WHERE tid=? ORDER BY id",
+                                (tid1,)).fetchall()
+        self.failUnlessEqual(len(messages), 2)
 
         self.failUnless(out.startswith("data: "), out)
         self.failUnless(out.endswith("\n\n"), out)
@@ -161,9 +173,6 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(len(fields), 1)
         self.failUnlessEqual(fields[0][0], "data")
         responses = fields[0][1].split()
-
-        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
-                                " ORDER BY id").fetchall()
 
         r1 = base64.b64decode(responses[0])
         (fetch_token1, delete_token1, length1) = \
@@ -184,3 +193,79 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(str(messages[1]["delete_token"]),
                              delete_token2.encode("hex"))
         self.failUnlessEqual(messages[1]["length"], length2)
+
+        r = n.web.get_root().getStaticEntity("retrieval")
+        fetchres = r.getStaticEntity("fetch")
+        deleteres = r.getStaticEntity("delete")
+
+        # test 'fetch' on the first message
+        out, req = do_request(fetchres,
+                              base64.urlsafe_b64encode(fetch_token1))
+        encrypted_m1 = base64.b64decode(out)
+        m1 = retrieval.decrypt_fetch_response(symkey1, fetch_token1,
+                                              encrypted_m1)
+        self.failUnlessEqual(m1, "msgC1_first")
+
+        # fetch_token is single-use
+        out, req = do_request(fetchres,
+                              base64.urlsafe_b64encode(fetch_token1))
+        self.failUnlessEqual(req.responseCode, http.NOT_FOUND)
+        self.failUnlessEqual(req.responseMessage, "unknown fetch_token")
+        self.failUnlessEqual(out, "")
+        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
+                                " WHERE tid=? ORDER BY id",
+                                (tid1,)).fetchall()
+        self.failUnlessEqual(len(messages), 2)
+        self.failUnlessEqual(messages[0]["fetch_token"], None)
+
+        # replay should be rejected
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
+
+        # test unknown tokens
+        out,req = do_request(fetchres, base64.urlsafe_b64encode("wrong"))
+        self.failUnlessEqual(req.responseCode, 404)
+        self.failUnlessEqual(req.responseMessage, "unknown fetch_token")
+        self.failUnlessEqual(out, "")
+
+        # test delete_token
+        out, req = do_request(deleteres,
+                              base64.urlsafe_b64encode(delete_token1),
+                              method="POST")
+        self.failUnlessEqual(req.responseCode, http.OK)
+        self.failUnlessEqual(out, "")
+        messages = n.db.execute("SELECT * FROM mailbox_server_messages"
+                                " WHERE tid=? ORDER BY id",
+                                (tid1,)).fetchall()
+        self.failUnlessEqual(len(messages), 1)
+
+        # timestamp in past (old replay)
+        now = time.time()
+        past = now - 24*3600
+        future = now + 24*3600
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1,
+                                                        now=past)
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
+        self.failUnlessEqual(req.responseMessage, "too much clock skew")
+        self.failUnlessEqual(out, "Too much clock skew")
+
+        # timestamp in future
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1,
+                                                        now=future)
+        out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
+        self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
+        self.failUnlessEqual(req.responseMessage, "too much clock skew")
+        self.failUnlessEqual(out, "Too much clock skew")
+
+        self.failUnlessEqual(len(listres.old_requests), 1)
+        listres.prune_old_requests(now=future)
+        self.failUnlessEqual(len(listres.old_requests), 0)
+
+        # TODO: unrecognized TID, causing KeyError (or nicer)
+
+        # TODO: a second 'list' should revoke tokens from the first
+
+        # TODO: streaming/EventSource, new messages should trigger events
+
+        #reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
