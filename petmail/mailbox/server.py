@@ -224,7 +224,7 @@ class RetrievalListResource(resource.Resource):
             return
         (p, symkey, tmppub) = self.subscribers[v["tid"]]
         entry = self.prepare_entry(symkey, tmppub, v)
-        p.sendEvent(entry)
+        p.sendEvent(base64.b64encode(entry))
 
     def prune_old_requests(self, now=None):
         old = (now or time.time()) - self.CLOCK_WINDOW

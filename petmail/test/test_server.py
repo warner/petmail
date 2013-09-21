@@ -2,8 +2,11 @@ import os, json, copy, base64, time
 from twisted.trial import unittest
 from twisted.web import http, client
 from twisted.web.test.test_web import DummyRequest # not exactly stable
+from twisted.internet import defer
+from twisted.internet.error import ConnectionDone
 from .common import TwoNodeMixin
-from .. import rrid
+from .. import rrid, eventsource
+from ..database import Notice
 from ..eventual import flushEventualQueue
 from ..mailbox import delivery, retrieval
 from .test_eventsource import parse_events
@@ -335,4 +338,68 @@ class Retrieval(HelperMixin, TwoNodeMixin, unittest.TestCase):
         d.addCallback(_then1)
         return d
 
-    # TODO: test streaming/EventSource: new messages should trigger events
+    def test_web_events(self):
+        n = self.prepare()
+        ms = n.mailbox_server
+        tid1, trec1 = self.add_recipient(n)
+        tid2, trec2 = self.add_recipient(n)
+        TID1, symkey1 = ms.get_tid_data(tid1)
+        TID2, symkey2 = ms.get_tid_data(tid2)
+
+        ms.insert_msgC(tid1, "msgC1_first")
+        ms.insert_msgC(tid1, "msgC1_second")
+        ms.insert_msgC(tid2, "msgC2")
+
+        baseurl = n.baseurl + "retrieval/"
+
+        transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        # test streaming/EventSource: new messages should trigger events
+        url = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey)
+
+        fields = []
+        def handler(name, data):
+            fields.append( (name,data) )
+        def check_f(min_fields):
+            if len(fields) < min_fields:
+                return False
+            return True
+
+        es = eventsource.EventSource(url, handler)
+        finished_d = es.start()
+        d = self.poll(lambda: check_f(2))
+        def _then1(_):
+            self.failUnlessEqual(len(fields), 2)
+            self.failUnlessEqual(fields[0][0], "") # comment
+            self.failUnlessEqual(fields[1][0], "data")
+            responses = fields[1][1].split()
+            self.failUnlessEqual(len(responses), 2)
+            r1 = base64.b64decode(responses[0])
+            (fetch_token1, delete_token1, length1) = \
+                           retrieval.decrypt_list_entry(r1, symkey1, tmppub)
+            self.failUnlessEqual(length1, len("msgC1_first"))
+
+            # resource should ignore UPDATE and DELETE
+            ms.listres.new_message(Notice("mailbox_server_messages",
+                                          "delete", 15, None))
+            # now trigger a third message
+            ms.insert_msgC(tid1, "msgC1_third")
+            return self.poll(lambda: check_f(3))
+        d.addCallback(_then1)
+        def _then2(_):
+            self.failUnlessEqual(len(fields), 3)
+            self.failUnlessEqual(fields[2][0], "data")
+            responses = fields[2][1].split()
+            self.failUnlessEqual(len(responses), 1)
+            r3 = base64.b64decode(responses[0])
+            (fetch_token3, delete_token3, length3) = \
+                           retrieval.decrypt_list_entry(r3, symkey1, tmppub)
+            self.failUnlessEqual(length3, len("msgC1_third"))
+        d.addCallback(_then2)
+        def _shutdown(res):
+            es.cancel()
+            d2 = defer.Deferred()
+            finished_d.addBoth(lambda _: d2.callback(res))
+            return d2
+        d.addBoth(_shutdown)
+        return d
