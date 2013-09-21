@@ -6,7 +6,7 @@ from . import invitation, rrid
 from .errors import CommandError
 from .mailbox import channel, retrieval
 
-class Client(service.MultiService):
+class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
         service.MultiService.__init__(self)
         self.db = db

@@ -30,7 +30,7 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(msgC, msgC2)
 
         # TODO: use a stable fake TID private key instead of randomly
-        # generating one (and throwing it away) in Client.build_transports(),
+        # generating one (and throwing it away) in Agent.build_transports(),
         # so we can decrypt it here and make sure it matches
 
     def test_local(self):
