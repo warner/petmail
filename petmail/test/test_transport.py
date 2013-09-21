@@ -26,10 +26,10 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         b = Box(tpriv, PublicKey(pubkey1_s))
         msgB = b.decrypt(boxed)
 
-        MSTID, msgC2 = parseMsgB(msgB)
+        MSTT, msgC2 = parseMsgB(msgB)
         self.failUnlessEqual(msgC, msgC2)
 
-        # TODO: use a stable fake TID private key instead of randomly
+        # TODO: use a stable fake TT private key instead of randomly
         # generating one (and throwing it away) in Agent.build_transports(),
         # so we can decrypt it here and make sure it matches
 

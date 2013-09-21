@@ -43,13 +43,13 @@ def create_node(so, stdout, stderr, services):
                    " (`name`, `icon_data`) VALUES (?,?)",
                    ("",""))
         privkey = PrivateKey.generate()
-        TID_privkey,TID_pubkey = rrid.create_keypair()
-        TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
+        TT_privkey,TT_pubkey = rrid.create_keypair()
+        TTID, TT0 = rrid.create_token(TT_pubkey)
         server_desc = { "transport_privkey": privkey.encode().encode("hex"),
-                        "TID_private_key": TID_privkey.encode("hex"),
-                        "TID_public_key": TID_pubkey.encode("hex"),
-                        "local_TID0": TID_token0.encode("hex"),
-                        "local_TID_tokenid": TID_tokenid.encode("hex"),
+                        "TT_private_key": TT_privkey.encode("hex"),
+                        "TT_public_key": TT_pubkey.encode("hex"),
+                        "local_TT0": TT0.encode("hex"),
+                        "local_TTID": TTID.encode("hex"),
                         }
         db.execute("INSERT INTO mailbox_server_config"
                    " (private_descriptor_json, enable_retrieval)"

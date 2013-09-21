@@ -10,12 +10,12 @@ from ..netstring import netstring
 #  pubkey1 [fixed-length]
 #  enc(to=transport, from=key1, msgB)
 # msgB:
-#  netstring(MSTID)
+#  netstring(MSTT)
 #  msgC
 
 def createMsgA(trec, msgC):
-    MSTID = rrid.randomize(trec["STID"].decode("hex"))
-    msgB = netstring(MSTID) + msgC
+    MSTT = rrid.randomize(trec["STT"].decode("hex"))
+    msgB = netstring(MSTT) + msgC
 
     privkey1 = PrivateKey.generate()
     pubkey1 = privkey1.public_key.encode()

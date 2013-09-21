@@ -26,14 +26,14 @@ ENABLE_POLLING = False
 
 # retrieval code
 
-def encrypt_list_request(serverpubkey, TID, offset=0, now=None, tmppriv=None):
+def encrypt_list_request(serverpubkey, TT, offset=0, now=None, tmppriv=None):
     if not now:
         now = int(time.time())
     now = now + offset
     if not tmppriv:
         tmppriv = PrivateKey.generate()
     tmppub = tmppriv.public_key.encode()
-    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(TID, "\x00"*24)
+    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(TT, "\x00"*24)
     assert boxed0[:24] == "\x00"*24
     boxed = boxed0[24:] # we elide the nonce, always 0
     req = struct.pack(">L32s", now, tmppub) + boxed
@@ -166,7 +166,7 @@ class HTTPRetriever(service.MultiService):
         assert self.baseurl.endswith("/")
         self.server_pubkey = descriptor["server_pubkey"].decode("hex")
         self.symkey = descriptor["transport_symkey"].decode("hex")
-        self.TID = descriptor["TID"].decode("hex")
+        self.TT = descriptor["TT"].decode("hex")
         self.got_msgC = got_msgC
         self.clock_offset = 0 # TODO
         self.source = ReconnectingEventSource(self.baseurl,
@@ -177,7 +177,7 @@ class HTTPRetriever(service.MultiService):
 
     def start_source(self):
         # each time we start the EventSource, we must establish a new URL
-        req, tmppub = encrypt_list_request(self.server_pubkey, self.TID,
+        req, tmppub = encrypt_list_request(self.server_pubkey, self.TT,
                                            offset=self.clock_offset)
         self.tmppub = tmppub
         url = self.baseurl + "list?t=%s" % base64.urlsafe_b64encode(req)

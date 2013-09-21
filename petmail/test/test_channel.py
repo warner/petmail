@@ -105,7 +105,7 @@ class Send(TwoNodeMixin, unittest.TestCase):
             tpriv = self.tport2[0]["privkey"]
             b = Box(tpriv, PublicKey(pubkey1_s))
             msgB = b.decrypt(boxed)
-            MSTID, msgC = parseMsgB(msgB)
+            MSTT, msgC = parseMsgB(msgB)
 
         d.addCallback(_sent)
         return d

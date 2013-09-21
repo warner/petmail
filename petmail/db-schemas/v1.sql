@@ -35,7 +35,7 @@ CREATE TABLE `relay_servers`
 
 CREATE TABLE `mailbox_server_config` -- contains exactly one row
 (
- -- .transport_privkey, TID_private_key, local_TID0, local_TID_tokenid
+ -- .transport_privkey, TT_private_key, local_TT0, local_TTID
  `private_descriptor_json` STRING,
  `enable_retrieval` INT -- for public servers
 );
@@ -43,7 +43,7 @@ CREATE TABLE `mailbox_server_config` -- contains exactly one row
 CREATE TABLE `mailbox_server_transports` -- one row per user we support
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
- `TID` STRING,
+ `TTID` STRING,
  `symkey` STRING
 );
 
@@ -73,10 +73,10 @@ CREATE TABLE `mailboxes` -- one per mailbox
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
   -- give sender_desc to peers, tells them how to send us messages
   -- .type, (.url), .transport_pubkey
-  -- we will add .STID before sending
+  -- we will add .STT before sending
  `sender_descriptor_json` STRING,
  -- private_descriptor is for recipient (us), tells us how to read our inbox
- -- .type, .TID0, (.url), (retrieval credentials)
+ -- .type, .TT0, (.url), (retrieval credentials)
  `private_descriptor_json` STRING
 );
 
@@ -108,7 +108,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `addressbook_id` INTEGER, -- to correlate with an addressbook entry
 
  -- my (public) record: .channel_pubkey, .CID_key,
- --  .transports[]: .STID, .transport_pubkey, .type, .url
+ --  .transports[]: .STT, .transport_pubkey, .type, .url
  `my_channel_record` STRING,
  -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey,
  --  .transport_ids (points to 'transports' table)

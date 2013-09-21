@@ -11,20 +11,20 @@ from ..mailbox import delivery, retrieval
 from .test_eventsource import parse_events
 
 class Inbound(TwoNodeMixin, unittest.TestCase):
-    def test_unknown_TID(self):
+    def test_unknown_TTID(self):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         msgC = "msgC"
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
         bad_trec = copy.deepcopy(trec)
-        TID_privkey, TID_pubkey = rrid.create_keypair()
-        TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
-        bad_STID = rrid.randomize(TID_token0)
-        bad_trec["STID"] = bad_STID.encode("hex")
+        TT_privkey, TT_pubkey = rrid.create_keypair()
+        TTID, TT0 = rrid.create_token(TT_pubkey)
+        bad_STT = rrid.randomize(TT0)
+        bad_trec["STT"] = bad_STT.encode("hex")
         msgA = delivery.createMsgA(bad_trec, msgC)
 
         unknowns = []
         server = nB.agent.mailbox_server
-        server.signal_unrecognized_TID = unknowns.append
+        server.signal_unrecognized_TTID = unknowns.append
         server.handle_msgA(msgA)
         d = flushEventualQueue()
         def _then(res):
@@ -35,7 +35,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         d.addCallback(_then)
         return d
 
-    def test_local_TID(self):
+    def test_local_TTID(self):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         msgC = "msgC"
         trec = json.loads(entA["their_channel_record_json"])["transports"][0]
@@ -54,7 +54,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         d.addCallback(_then)
         return d
 
-    def test_nonlocal_TID(self):
+    def test_nonlocal_TTID(self):
         n = self.make_nodes(transport="local")[1]
         msgC = "msgC"
         server = n.agent.mailbox_server
@@ -78,7 +78,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         d.addCallback(_then)
         return d
 
-    def test_two_nonlocal_TID(self):
+    def test_two_nonlocal_TTID(self):
         n = self.make_nodes(transport="local")[1]
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
@@ -121,8 +121,8 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
-        TID1, symkey1 = ms.get_tid_data(tid1)
-        TID2, symkey2 = ms.get_tid_data(tid2)
+        TTID1, symkey1 = ms.get_tid_data(tid1)
+        TTID2, symkey2 = ms.get_tid_data(tid2)
 
         ms.insert_msgC(tid1, "msgC1_first")
         ms.insert_msgC(tid1, "msgC1_second")
@@ -138,7 +138,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         listres = ms.listres
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1)
 
         # test 'list'
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
@@ -224,7 +224,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         now = time.time()
         past = now - 24*3600
         future = now + 24*3600
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1,
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1,
                                                         now=past)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
@@ -232,7 +232,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(out, "Too much clock skew")
 
         # timestamp in future
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1,
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1,
                                                         now=future)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
@@ -243,14 +243,14 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         listres.prune_old_requests(now=future)
         self.failUnlessEqual(len(listres.old_requests), 0)
 
-        # unrecognized TID, causing KeyError (or nicer)
-        unknown_TID = self.create_unknown_TID(n)
+        # unrecognized TTID, causing KeyError (or nicer)
+        unknown_TTID = "unknown"
         reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey,
-                                                        unknown_TID)
+                                                        unknown_TTID)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.NOT_FOUND)
-        self.failUnlessEqual(req.responseMessage, "no such TID")
-        self.failUnlessEqual(out, "no such TID")
+        self.failUnlessEqual(req.responseMessage, "no such TTID")
+        self.failUnlessEqual(out, "no such TTID")
 
         # since none of those "list" requests were accepted, the fetch_token2
         # should still be valid. We don't spend it now, to test how a second
@@ -262,7 +262,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(messages[0]["fetch_token"],
                              fetch_token2.encode("hex"))
         # a second 'list' should revoke tokens from the first
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         messages = n.db.execute("SELECT * FROM mailbox_server_messages"
                                 " WHERE tid=? ORDER BY id",
@@ -284,8 +284,8 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
-        TID1, symkey1 = ms.get_tid_data(tid1)
-        TID2, symkey2 = ms.get_tid_data(tid2)
+        TTID1, symkey1 = ms.get_tid_data(tid1)
+        TTID2, symkey2 = ms.get_tid_data(tid2)
 
         ms.insert_msgC(tid1, "msgC1_first")
         ms.insert_msgC(tid1, "msgC1_second")
@@ -294,7 +294,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1)
         d = self.GET(baseurl+"list?t="+base64.urlsafe_b64encode(reqkey))
         def _then1(res):
             fields = parse_events(res)
@@ -313,8 +313,8 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
-        TID1, symkey1 = ms.get_tid_data(tid1)
-        TID2, symkey2 = ms.get_tid_data(tid2)
+        TTID1, symkey1 = ms.get_tid_data(tid1)
+        TTID2, symkey2 = ms.get_tid_data(tid2)
 
         ms.insert_msgC(tid1, "msgC1_first")
         ms.insert_msgC(tid1, "msgC1_second")
@@ -323,7 +323,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey, tmppub = retrieval.encrypt_list_request(transport_pubkey, TTID1)
         # test streaming/EventSource: new messages should trigger events
         url = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey)
 
@@ -379,8 +379,8 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
-        TID1, symkey1 = ms.get_tid_data(tid1)
-        TID2, symkey2 = ms.get_tid_data(tid2)
+        TTID1, symkey1 = ms.get_tid_data(tid1)
+        TTID2, symkey2 = ms.get_tid_data(tid2)
 
         ms.insert_msgC(tid1, "msgC1_first")
         ms.insert_msgC(tid1, "msgC1_second")
@@ -389,10 +389,10 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"].decode("hex")
-        reqkey1,tmppub1 = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey1,tmppub1 = retrieval.encrypt_list_request(transport_pubkey, TTID1)
         url1 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey1)
 
-        reqkey2,tmppub2 = retrieval.encrypt_list_request(transport_pubkey, TID1)
+        reqkey2,tmppub2 = retrieval.encrypt_list_request(transport_pubkey, TTID1)
         url2 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey2)
 
         fields1 = []

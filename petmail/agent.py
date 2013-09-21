@@ -92,8 +92,8 @@ class Agent(service.MultiService):
         # that will build a Retriever that connects to the local mailbox
         # server, with persistence for later runs
 
-        # TODO: consider telling the server, here, to start accepting TIDs
-        # for the local client (and not accepting such TIDs by default) (and
+        # TODO: consider telling the server, here, to start accepting TTs for
+        # the local client (and not accepting such TTs by default) (and
         # persist that state for later)
 
     def msgC_received(self, tid, msgC):
@@ -144,8 +144,8 @@ class Agent(service.MultiService):
         transports = {}
         for tid, base in base_transports.items():
             t = base["for_sender"].copy()
-            TID_token0 = base["for_recipient"]["TID"].decode("hex")
-            t["STID"] = rrid.randomize(TID_token0).encode("hex")
+            TT0 = base["for_recipient"]["TT0"].decode("hex")
+            t["STT"] = rrid.randomize(TT0).encode("hex")
             transports[tid] = t
         return transports
 

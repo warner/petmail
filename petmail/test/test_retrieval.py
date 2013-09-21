@@ -9,11 +9,11 @@ from .common import flip_bit
 class Roundtrip(unittest.TestCase):
     def test_list_request(self):
         serverkey = PrivateKey.generate()
-        TID = "01234567" # 8 bytes
-        req, tmppub = retrieval.encrypt_list_request(serverkey.public_key.encode(), TID)
+        TTID = "01234567" # 8 bytes
+        req, tmppub = retrieval.encrypt_list_request(serverkey.public_key.encode(), TTID)
         ts, got_tmppub, boxed0 = server.decrypt_list_request_1(req)
-        got_TID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
-        self.failUnlessEqual(TID, got_TID)
+        got_TTID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
+        self.failUnlessEqual(TTID, got_TTID)
 
     def test_list_entry(self):
         symkey = os.urandom(32)
@@ -38,8 +38,8 @@ class More(unittest.TestCase):
         serverkey = PrivateKey("\x11"*32)
         serverpub = serverkey.public_key.encode()
         tmppriv = PrivateKey("\x22"*32)
-        TID = "01234567" # 8 bytes
-        req, tmppub = retrieval.encrypt_list_request(serverpub, TID,
+        TTID = "01234567" # 8 bytes
+        req, tmppub = retrieval.encrypt_list_request(serverpub, TTID,
                                                      now=now, tmppriv=tmppriv)
         self.failUnlessEqual(req.encode("hex"),
                              "523683150faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20eb8ba0e3826a6fa8c91fad9460cd297a4415545153679f5c")
@@ -50,8 +50,8 @@ class More(unittest.TestCase):
         self.failUnlessEqual(got_tmppub, tmppriv.public_key.encode())
         self.failUnlessEqual(boxed0.encode("hex"),
                              "eb8ba0e3826a6fa8c91fad9460cd297a4415545153679f5c")
-        got_TID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
-        self.failUnlessEqual(TID, got_TID)
+        got_TTID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
+        self.failUnlessEqual(TTID, got_TTID)
 
         self.failUnlessRaises(CryptoError,
                               server.decrypt_list_request_2,

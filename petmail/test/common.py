@@ -87,16 +87,16 @@ class NodeRunnerMixin:
 def fake_transport():
     privkey = PrivateKey.generate()
     pubkey_hex = privkey.public_key.encode().encode("hex")
-    TID_privkey, TID_pubkey = rrid.create_keypair()
-    TID_tokenid, TID_token0 = rrid.create_token(TID_pubkey)
+    TT_privkey, TT_pubkey = rrid.create_keypair()
+    TTID, TT0 = rrid.create_token(TT_pubkey)
     private = {"privkey": privkey,
-               "TID": (TID_tokenid, TID_privkey, TID_token0) }
+               "TT": (TTID, TT_privkey, TT0) }
     # this is what lives in our database. All channels that share the same
     # transport will use the same thing.
     db_record = { "for_sender": {"type": "test-return",
                                  "transport_pubkey": pubkey_hex,
                                  },
-                  "for_recipient": {"TID": TID_token0.encode("hex") },
+                  "for_recipient": {"TT0": TT0.encode("hex") },
                   }
     return private, db_record
 
@@ -252,25 +252,25 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         ms = n.mailbox_server
         row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
         sc = json.loads(row["private_descriptor_json"])
-        TID_pubkey = sc["TID_public_key"].decode("hex")
-        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
-        STID1 = rrid.randomize(TID1_token0)
+        TT_pubkey = sc["TT_public_key"].decode("hex")
+        TTID_1, TT0_1 = rrid.create_token(TT_pubkey)
+        STT_1 = rrid.randomize(TT0_1)
 
         symkey = os.urandom(32)
-        tid = ms.add_TID(TID1_tokenid, symkey)
+        tid = ms.add_transport(TTID_1, symkey)
 
         transport_pubkey = ms.get_sender_descriptor()["transport_pubkey"]
-        trec = {"STID": STID1.encode("hex"),
+        trec = {"STT": STT_1.encode("hex"),
                 "transport_pubkey": transport_pubkey}
         return tid, trec
 
-    def create_unknown_TID(self, n):
+    def create_unknown_STT(self, n):
         row = n.db.execute("SELECT * FROM mailbox_server_config").fetchone()
         sc = json.loads(row["private_descriptor_json"])
-        TID_pubkey = sc["TID_public_key"].decode("hex")
-        TID1_tokenid, TID1_token0 = rrid.create_token(TID_pubkey)
-        STID1 = rrid.randomize(TID1_token0)
-        return STID1
+        TT_pubkey = sc["TT_public_key"].decode("hex")
+        TTID_1, TT0_1 = rrid.create_token(TT_pubkey)
+        STT_1 = rrid.randomize(TT0_1)
+        return STT_1
 
 def flip_bit(s):
     return s[:-1] + chr(ord(s[-1]) ^ 0x01)

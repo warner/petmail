@@ -20,11 +20,11 @@ def parseMsgA(msgA):
     return pubkey1_s, boxed
 
 def parseMsgB(msgB):
-    (MSTID,),msgC = split_netstrings_and_trailer(msgB)
-    return MSTID, msgC
+    (MSTT,),msgC = split_netstrings_and_trailer(msgB)
+    return MSTT, msgC
 
-# the Mailbox object decrypts msgA to get msgB, decrypts the TID, looks up a
-# Transport, then dispatches msgB to the transport
+# the Mailbox object decrypts msgA to get msgB, decrypts the TT to get a
+# TTID, looks up a Transport, then dispatches msgB to the transport
 
 # the Transport queues the message somewhere, maybe on disk.
 
@@ -59,8 +59,8 @@ class BaseServer(service.MultiService):
     inner msgB. Later, the recipient will come along and collect their
     messages.
 
-    My persistent state includes: my TID private key, a list of registered
-    transports (including a TID for each, the message queue, and retrieval
+    My persistent state includes: my TT private key, a list of registered
+    transports (including a TTID for each, the message queue, and retrieval
     credential verifiers), and perhaps some replay-prevention state.
     """
 
@@ -80,14 +80,14 @@ class HTTPMailboxServer(BaseServer):
         self.db = db
         self.baseurl = baseurl
         self.privkey = PrivateKey(desc["transport_privkey"].decode("hex"))
-        self.TID_privkey = desc["TID_private_key"].decode("hex")
-        self.TID_pubkey = desc["TID_public_key"].decode("hex")
+        self.TT_privkey = desc["TT_private_key"].decode("hex")
+        self.TT_pubkey = desc["TT_public_key"].decode("hex")
 
-        # If we feed a local transport, it will have just one TID. If we
-        # queue messages for any other transports, they'll each have their
-        # own TID and handler (e.g. a queue and some retrieval credentials).
-        self.local_TID0 = desc["local_TID0"].decode("hex")
-        self.local_TID_tokenid = desc["local_TID_tokenid"].decode("hex")
+        # If we feed a local transport, it will have just one TT. If we queue
+        # messages for any other transports, they'll each have their own TT
+        # and handler (e.g. a queue and some retrieval credentials).
+        self.local_TT0 = desc["local_TT0"].decode("hex")
+        self.local_TTID = desc["local_TTID"].decode("hex")
 
         # this is how we get messages from senders
         web.get_root().putChild("mailbox", ServerResource(self.handle_msgA))
@@ -111,9 +111,9 @@ class HTTPMailboxServer(BaseServer):
     def get_retrieval_descriptor(self):
         return { "type": "local",
                  "transport_privkey": self.privkey.encode().encode("hex"),
-                 "TID_private_key": self.TID_privkey.encode("hex"),
-                 "TID": self.local_TID0.encode("hex"),
-                 "TID_tokenid": self.local_TID_tokenid.encode("hex"),
+                 "TT_private_key": self.TT_privkey.encode("hex"),
+                 "TT0": self.local_TT0.encode("hex"),
+                 "TTID": self.local_TTID.encode("hex"),
                  }
 
     def get_sender_descriptor(self):
@@ -128,10 +128,10 @@ class HTTPMailboxServer(BaseServer):
     def register_local_transport_handler(self, handler):
         self.local_transport_handler = handler
 
-    def add_TID(self, TID, symkey):
+    def add_transport(self, TTID, symkey):
         tid = self.db.insert("INSERT INTO mailbox_server_transports"
-                             " (TID, symkey) VALUES (?,?)",
-                             (TID.encode("hex"), symkey.encode("hex")),
+                             " (TTID, symkey) VALUES (?,?)",
+                             (TTID.encode("hex"), symkey.encode("hex")),
                              "mailbox_server_transports")
         self.db.commit()
         return tid
@@ -140,7 +140,7 @@ class HTTPMailboxServer(BaseServer):
         c = self.db.execute("SELECT * FROM mailbox_server_transports"
                              " WHERE id=?", (tid,))
         row = c.fetchone()
-        return (row["TID"].decode("hex"), row["symkey"].decode("hex"))
+        return (row["TTID"].decode("hex"), row["symkey"].decode("hex"))
 
     def handle_msgA(self, msgA):
         pubkey1_s, boxed = parseMsgA(msgA)
@@ -149,19 +149,19 @@ class HTTPMailboxServer(BaseServer):
         eventually(self.handle_msgB, msgB)
 
     def handle_msgB(self, msgB):
-        MSTID, msgC = parseMsgB(msgB)
-        TID = rrid.decrypt(self.TID_privkey, MSTID)
-        if TID == self.local_TID_tokenid:
+        MSTT, msgC = parseMsgB(msgB)
+        TTID = rrid.decrypt(self.TT_privkey, MSTT)
+        if TTID == self.local_TTID:
             return self.local_transport_handler(msgC)
         if self.accept_nonlocal:
             # look up registered transports, queue message
             c = self.db.execute("SELECT * FROM mailbox_server_transports"
-                                " WHERE TID=?", (TID.encode("hex"),))
+                                " WHERE TTID=?", (TTID.encode("hex"),))
             row = c.fetchone()
             if row:
                 return self.insert_msgC(row["id"], msgC)
         # unknown
-        self.signal_unrecognized_TID(TID)
+        self.signal_unrecognized_TTID(TTID)
 
     def insert_msgC(self, tid, msgC):
         self.db.insert("INSERT INTO mailbox_server_messages"
@@ -170,7 +170,7 @@ class HTTPMailboxServer(BaseServer):
                        "mailbox_server_messages")
         self.db.commit()
 
-    def signal_unrecognized_TID(self, TID):
+    def signal_unrecognized_TTID(self, TTID):
         # this can be overridden by unit tests
         raise KeyError("unrecognized transport identifier")
 
@@ -180,8 +180,8 @@ def decrypt_list_request_1(req):
     return timestamp, tmppub, boxed0
 
 def decrypt_list_request_2(tmppub, boxed0, serverprivkey):
-    TID = Box(serverprivkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
-    return TID
+    TTID = Box(serverprivkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
+    return TTID
 
 assert struct.calcsize(">Q") == 8
 
@@ -245,14 +245,14 @@ class RetrievalListResource(resource.Resource):
         if tmppub in self.old_requests:
             request.setResponseCode(http.BAD_REQUEST, "Replay")
             return "Replay"
-        TID = decrypt_list_request_2(tmppub, boxed0, self.privkey)
+        TTID = decrypt_list_request_2(tmppub, boxed0, self.privkey)
         try:
-            tid, symkey = self.check_TID(TID)
+            tid, symkey = self.check_TTID(TTID)
         except KeyError:
-            request.setResponseCode(http.NOT_FOUND, "no such TID")
-            return "no such TID"
-        # If check_TID() didn't throw KeyError, this is a new request, for a
-        # known TID. It's worth preventing a replay.
+            request.setResponseCode(http.NOT_FOUND, "no such TTID")
+            return "no such TTID"
+        # If check_TTID() didn't throw KeyError, this is a new request, for a
+        # known TTID. It's worth preventing a replay.
         self.old_requests[tmppub] = ts
 
         all_messages = self.prepare_message_list(tid, symkey, tmppub)
@@ -284,13 +284,13 @@ class RetrievalListResource(resource.Resource):
             request.write("data: %s\n\n" % e)
         return ""
 
-    def check_TID(self, TID):
+    def check_TTID(self, TTID):
         c = self.db.execute("SELECT * FROM mailbox_server_transports"
-                            " WHERE TID=?", (TID.encode("hex"),))
+                            " WHERE TTID=?", (TTID.encode("hex"),))
         row = c.fetchone()
         if row:
             return (row["id"], row["symkey"].decode("hex"))
-        raise KeyError("no such TID")
+        raise KeyError("no such TTID")
 
     def prepare_message_list(self, tid, symkey, tmppub):
         entries = []
