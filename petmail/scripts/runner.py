@@ -61,6 +61,9 @@ class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("port", "p", None, "port number to advertise in URLs"),
         ]
 
+class PrintBaseURLOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
+    pass
+
 class StartNodeOptions(BasedirParameterMixin, StartArguments, usage.Options):
     optFlags = [
         ("no-open", "n", "Do not automatically open the control panel"),
@@ -115,7 +118,7 @@ class Options(usage.Options):
         ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
                    ("create-relay", None, CreateRelayOptions, "Create a relay"),
-                   ("print-baseurl", None, NoOptions, "Print the node's base URL"),
+                   ("print-baseurl", None, PrintBaseURLOptions, "Print the node's base URL"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
                    ("restart", None, RestartNodeOptions, "Restart a node"),
