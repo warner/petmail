@@ -163,7 +163,7 @@ class ReconnectingEventSource(service.MultiService,
         self._maybeStart()
 
     def deactivate(self):
-        assert self.active
+        assert self.active # XXX
         self.active = False
         return self._maybeStop()
 
