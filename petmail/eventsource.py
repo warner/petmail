@@ -46,6 +46,9 @@ class EventSourceParser(basic.LineOnlyReceiver):
     def fieldReceived(self, name, data):
         self.handler(name, data)
 
+class EventSourceError(Exception):
+    pass
+
 # es = EventSource(url, handler)
 # d = es.start()
 # es.cancel()
@@ -56,6 +59,7 @@ class EventSource: # TODO: service.Service
         self.handler = handler
         self.when_connected = when_connected
         self.started = False
+        self.cancelled = False
         self.proto = EventSourceParser(self.handler)
 
     def start(self):
@@ -68,30 +72,41 @@ class EventSource: # TODO: service.Service
         return d
 
     def _connected(self, resp):
-        assert resp.code == 200, resp # TODO: return some error instead
+        if resp.code != 200:
+            raise EventSourceError("%d: %s" % (resp.code, resp.phrase))
         if self.when_connected:
             self.when_connected()
         #if resp.headers.getRawHeaders("content-type") == ["text/event-stream"]:
         resp.deliverBody(self.proto)
+        if self.cancelled:
+            self.kill_connection()
         return self.proto.done_deferred
 
     def cancel(self):
-        if not hasattr(self.proto, "transport"):
-            log.err("EventSource: cancel() called too early, not connected yet")
-            # this should kill it as soon as any data is delivered
+        self.cancelled = True
+        if not self.proto.transport:
+            # _connected hasn't been called yet, but that self.cancelled
+            # should take care of it when the connection is established
             def kill(data):
+                # this should kill it as soon as any data is delivered
                 raise ValueError("dead")
-            self.proto.dataReceived = kill
-        try:
+            self.proto.dataReceived = kill # just in case
+            return
+        self.kill_connection()
+
+    def kill_connection(self):
+        if (hasattr(self.proto.transport, "_producer")
+            and self.proto.transport._producer):
             # This is gross and fragile. We need a clean way to stop the
             # client connection. p.transport is a
             # twisted.web._newclient.TransportProxyProducer , and its
             # ._producer is the tcp.Port.
-            if self.proto.transport:
-                port = self.proto.transport._producer
-                if port:
-                    port.loseConnection()
-        except AttributeError as e:
-            log.err(e, "get_events: unable to stop connection")
+            self.proto.transport._producer.loseConnection()
+        else:
+            log.err("get_events: unable to stop connection")
             # oh well
-
+            #err = EventSourceError("unable to cancel")
+            try:
+                self.proto.done_deferred.callback(None)
+            except defer.AlreadyCalledError:
+                pass
