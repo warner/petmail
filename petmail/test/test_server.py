@@ -124,9 +124,9 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         TTID_1, TT0_1, RT_1, symkey_1 = ms.get_tid_data(tid1)
         TTID_2, TT0_2, RT_2, symkey_2 = ms.get_tid_data(tid2)
 
-        ms.insert_msgC(tid1, "msgC1_first")
-        ms.insert_msgC(tid1, "msgC1_second")
-        ms.insert_msgC(tid2, "msgC2")
+        ms.queue_msgC(tid1, "msgC1_first")
+        ms.queue_msgC(tid1, "msgC1_second")
+        ms.queue_msgC(tid2, "msgC2")
 
         c = n.db.execute("SELECT * FROM mailbox_server_messages"
                          " WHERE tid=?", (tid1,))
@@ -287,9 +287,9 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         TTID_1, TT0_1, RT_1, symkey_1 = ms.get_tid_data(tid1)
         #TTID_2, TT0_2, RT_2, symkey_2 = ms.get_tid_data(tid2)
 
-        ms.insert_msgC(tid1, "msgC1_first")
-        ms.insert_msgC(tid1, "msgC1_second")
-        ms.insert_msgC(tid2, "msgC2")
+        ms.queue_msgC(tid1, "msgC1_first")
+        ms.queue_msgC(tid1, "msgC1_second")
+        ms.queue_msgC(tid2, "msgC2")
 
         baseurl = n.baseurl + "retrieval/"
 
@@ -316,9 +316,9 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         TTID_1, TT0_1, RT_1, symkey_1 = ms.get_tid_data(tid1)
         TTID_2, TT0_2, RT_2, symkey_2 = ms.get_tid_data(tid2)
 
-        ms.insert_msgC(tid1, "msgC1_first")
-        ms.insert_msgC(tid1, "msgC1_second")
-        ms.insert_msgC(tid2, "msgC2")
+        ms.queue_msgC(tid1, "msgC1_first")
+        ms.queue_msgC(tid1, "msgC1_second")
+        ms.queue_msgC(tid2, "msgC2")
 
         baseurl = n.baseurl + "retrieval/"
 
@@ -353,7 +353,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
             ms.listres.new_message(Notice("mailbox_server_messages",
                                           "delete", 15, None))
             # now trigger a third message
-            ms.insert_msgC(tid1, "msgC1_third")
+            ms.queue_msgC(tid1, "msgC1_third")
             return self.poll(lambda: check_f(3))
         d.addCallback(_then1)
         def _then2(_):
@@ -382,9 +382,9 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         TTID_1, TT0_1, RT_1, symkey_1 = ms.get_tid_data(tid1)
         TTID_2, TT0_2, RT_2, symkey_2 = ms.get_tid_data(tid2)
 
-        ms.insert_msgC(tid1, "msgC1_first")
-        ms.insert_msgC(tid1, "msgC1_second")
-        ms.insert_msgC(tid2, "msgC2")
+        ms.queue_msgC(tid1, "msgC1_first")
+        ms.queue_msgC(tid1, "msgC1_second")
+        ms.queue_msgC(tid2, "msgC2")
 
         baseurl = n.baseurl + "retrieval/"
 

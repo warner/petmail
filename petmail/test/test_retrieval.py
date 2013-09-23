@@ -127,9 +127,9 @@ class Server(TwoNodeMixin, unittest.TestCase):
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
 
-        ms.insert_msgC(tid1, "msgC1_first")
-        ms.insert_msgC(tid1, "msgC1_second")
-        ms.insert_msgC(tid2, "msgC2")
+        ms.queue_msgC(tid1, "msgC1_first")
+        ms.queue_msgC(tid1, "msgC1_second")
+        ms.queue_msgC(tid2, "msgC2")
 
         mbrec = ms.get_mailbox_record(tid1)
         messages = []
@@ -150,7 +150,7 @@ class Server(TwoNodeMixin, unittest.TestCase):
         def _then1(_):
             self.failUnlessEqual(messages[0], "msgC1_first")
             self.failUnlessEqual(messages[1], "msgC1_second")
-            ms.insert_msgC(tid1, "msgC1_third")
+            ms.queue_msgC(tid1, "msgC1_third")
             return self.poll(lambda: check(messages, 3))
         d.addCallback(_then1)
         def _then2(_):

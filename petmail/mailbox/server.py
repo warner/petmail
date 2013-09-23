@@ -184,11 +184,11 @@ class HTTPMailboxServer(BaseServer):
             if row["symkey"] is None:
                 return self.local_transport_handler(msgC)
             else:
-                return self.insert_msgC(row["id"], msgC)
+                return self.queue_msgC(row["id"], msgC)
         # unknown
         self.signal_unrecognized_TTID(TTID)
 
-    def insert_msgC(self, tid, msgC):
+    def queue_msgC(self, tid, msgC):
         self.db.insert("INSERT INTO mailbox_server_messages"
                        " (tid, length, msgC) VALUES (?,?,?)",
                        (tid, len(msgC), msgC.encode("hex")),
