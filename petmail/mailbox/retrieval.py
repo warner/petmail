@@ -1,14 +1,13 @@
 import time, struct
 from base64 import urlsafe_b64encode, b64decode
 from twisted.application import service
-from twisted.internet import defer, protocol
 from twisted.web import client
-from twisted.python import log, failure
+from twisted.python import log
 from nacl.secret import SecretBox
 from nacl.public import PrivateKey, PublicKey, Box
-from ..eventual import eventually, fireEventually
+from ..eventual import fireEventually
 from ..util import equal, remove_prefix
-from ..eventsource import EventSource
+from ..eventsource import ReconnectingEventSource
 
 class LocalRetriever(service.MultiService):
     """I can 'retrieve' messages from an in-process HTTPMailboxServer. This
@@ -67,96 +66,6 @@ def decrypt_fetch_response(symkey, fetch_token, boxed):
         raise WrongFetchTokenError
     msgC = msg[32:]
     return msgC
-
-class Connector:
-    # behave enough like an IConnector to appease ReconnectingClientFactory
-    def __init__(self, res):
-        self.res = res
-    def connect(self):
-        self.res._maybeStart()
-    def stopConnecting(self):
-        self.res._stop_eventsource()
-
-class ReconnectingEventSource(service.MultiService,
-                              protocol.ReconnectingClientFactory):
-    def __init__(self, baseurl, connection_starting, handler):
-        service.MultiService.__init__(self)
-        # we don't use any of the basic Factory/ClientFactory methods of
-        # this, just the ReconnectingClientFactory.retry, stopTrying, and
-        # resetDelay methods.
-
-        self.baseurl = baseurl
-        self.connection_starting = connection_starting
-        self.handler = handler
-        # IService provides self.running, toggled by {start,stop}Service.
-        # self.active is toggled by {,de}activate. If both .running and
-        # .active are True, then we want to have an outstanding EventSource
-        # and will start one if necessary. If either is False, then we don't
-        # want one to be outstanding, and will initiate shutdown.
-        self.active = False
-        self.connector = Connector(self)
-        self.es = None # set we have an outstanding EventSource
-        self.when_stopped = [] # list of Deferreds
-
-    def isStopped(self):
-        return not self.es
-
-    def startService(self):
-        service.MultiService.startService(self) # sets self.running
-        self._maybeStart()
-
-    def stopService(self):
-        # clears self.running
-        d = defer.maybeDeferred(service.MultiService.stopService, self)
-        d.addCallback(self._maybeStop)
-        return d
-
-    def activate(self):
-        assert not self.active
-        self.active = True
-        self._maybeStart()
-
-    def deactivate(self):
-        assert self.active
-        self.active = False
-        return self._maybeStop()
-
-    def _maybeStart(self):
-        if not (self.active and self.running):
-            return
-        self.continueTrying = True
-        url = self.connection_starting()
-        self.es = EventSource(url, self.handler, self.resetDelay)
-        d = self.es.start()
-        d.addBoth(self._stopped)
-
-    def _stopped(self, res):
-        self.es = None
-        # we might have stopped because of a connection error, or because of
-        # an intentional shutdown.
-        if self.active and self.running:
-            # we still want to be connected, so schedule a reconnection
-            if isinstance(res, failure.Failure):
-                log.err(res)
-            self.retry() # will eventually call _maybeStart
-            return
-        # intentional shutdown
-        self.stopTrying()
-        for d in self.when_stopped:
-            eventually(d.callback, None)
-        self.when_stopped = []
-
-    def _stop_eventsource(self):
-        if self.es:
-            eventually(self.es.cancel)
-
-    def _maybeStop(self, _=None):
-        self.stopTrying() # cancels timer, calls _stop_eventsource()
-        if not self.es:
-            return defer.succeed(None)
-        d = defer.Deferred()
-        self.when_stopped.append(d)
-        return d
 
 class HTTPRetriever(service.MultiService):
     """I provide a retriever that fetches messages from an HTTP server
