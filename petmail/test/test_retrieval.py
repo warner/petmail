@@ -147,14 +147,20 @@ class Server(TwoNodeMixin, unittest.TestCase):
                              " WHERE tid=?", (tid1,))
             return bool(c.fetchall())
         d.addCallback(lambda _: self.poll(_messages_deleted))
-        def _then(_):
+        def _then1(_):
             self.failUnlessEqual(messages[0], "msgC1_first")
             self.failUnlessEqual(messages[1], "msgC1_second")
-        d.addCallback(_then)
+            ms.insert_msgC(tid1, "msgC1_third")
+            return self.poll(lambda: check(messages, 3))
+        d.addCallback(_then1)
+        def _then2(_):
+            self.failUnlessEqual(messages[2], "msgC1_third")
+        d.addCallback(_then2)
+
 
         d.addCallback(lambda _: r.disownServiceParent())
         d.addCallback(lambda _: self.poll(lambda:
-                                          not len(ms.listres.subscribers)))
-
+                                          not len(ms.listres.subscribers)
+                                          and r.source.isStopped()))
         d.addCallback(flushEventualQueue)
         return d

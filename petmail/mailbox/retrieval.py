@@ -99,8 +99,7 @@ class ReconnectingEventSource(service.MultiService,
         self.when_stopped = [] # list of Deferreds
 
     def isStopped(self):
-        if self.es:
-            return False
+        return not self.es
 
     def startService(self):
         service.MultiService.startService(self) # sets self.running
