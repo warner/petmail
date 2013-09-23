@@ -142,10 +142,10 @@ class HTTPMailboxServer(BaseServer):
         if symkey:
             rpubkey = self.retrieval_privkey.public_key.encode()
             retrieval = {"type": "http",
-                         "url": self.baseurl+"retrieval/",
+                         "baseurl": self.baseurl+"retrieval/",
                          "retrieval_pubkey": rpubkey.encode("hex"),
                          "RT": RT.encode("hex"),
-                         "symkey": symkey.encode("hex"),
+                         "retrieval_symkey": symkey.encode("hex"),
                          }
         else:
             retrieval = {"type": "local",
@@ -205,8 +205,8 @@ def decrypt_list_request_1(req):
     return timestamp, tmppub, boxed0
 
 def decrypt_list_request_2(tmppub, boxed0, retrieval_privkey):
-    TTID = Box(retrieval_privkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
-    return TTID
+    RT = Box(retrieval_privkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
+    return RT
 
 assert struct.calcsize(">Q") == 8
 
@@ -270,14 +270,14 @@ class RetrievalListResource(resource.Resource):
         if tmppub in self.old_requests:
             request.setResponseCode(http.BAD_REQUEST, "Replay")
             return "Replay"
-        TTID = decrypt_list_request_2(tmppub, boxed0, self.retrieval_privkey)
+        RT = decrypt_list_request_2(tmppub, boxed0, self.retrieval_privkey)
         try:
-            tid, symkey = self.check_TTID(TTID)
+            tid, symkey = self.check_RT(RT)
         except KeyError:
-            request.setResponseCode(http.NOT_FOUND, "no such TTID")
-            return "no such TTID"
-        # If check_TTID() didn't throw KeyError, this is a new request, for a
-        # known TTID. It's worth preventing a replay.
+            request.setResponseCode(http.NOT_FOUND, "no such RT")
+            return "no such RT"
+        # If check_RT() didn't throw KeyError, this is a new request, for a
+        # known RT. It's worth preventing a replay.
         self.old_requests[tmppub] = ts
 
         all_messages = self.prepare_message_list(tid, symkey, tmppub)
@@ -309,13 +309,13 @@ class RetrievalListResource(resource.Resource):
             request.write("data: %s\n\n" % e)
         return ""
 
-    def check_TTID(self, TTID):
+    def check_RT(self, RT):
         c = self.db.execute("SELECT * FROM mailbox_server_transports"
-                            " WHERE TTID=?", (TTID.encode("hex"),))
+                            " WHERE RT=?", (RT.encode("hex"),))
         row = c.fetchone()
         if row:
             return (row["id"], row["symkey"].decode("hex"))
-        raise KeyError("no such TTID")
+        raise KeyError("no such RT")
 
     def prepare_message_list(self, tid, symkey, tmppub):
         entries = []
@@ -361,7 +361,7 @@ class RetrievalFetchResource(resource.Resource):
             self.db.commit()
             resp = encrypt_fetch_response(symkey, fetch_token,
                                           row["msgC"].decode("hex"))
-            return base64.b64encode(resp)
+            return resp
         request.setResponseCode(http.NOT_FOUND, "unknown fetch_token")
         return ""
 

@@ -3,8 +3,9 @@ from twisted.trial import unittest
 from nacl.public import PrivateKey
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
+from ..eventual import flushEventualQueue
 from ..mailbox import server, retrieval
-from .common import flip_bit
+from .common import flip_bit, TwoNodeMixin
 
 class Roundtrip(unittest.TestCase):
     def test_list_request(self):
@@ -117,3 +118,43 @@ class More(unittest.TestCase):
         self.failUnlessRaises(CryptoError,
                               retrieval.decrypt_fetch_response,
                               symkey, fetch_token, flip_bit(msg))
+
+class Server(TwoNodeMixin, unittest.TestCase):
+
+    def test_retrieval_client(self):
+        n = self.make_nodes(transport="local")[1]
+        ms = n.mailbox_server
+        tid1, trec1 = self.add_recipient(n)
+        tid2, trec2 = self.add_recipient(n)
+
+        ms.insert_msgC(tid1, "msgC1_first")
+        ms.insert_msgC(tid1, "msgC1_second")
+        ms.insert_msgC(tid2, "msgC2")
+
+        mbrec = ms.get_mailbox_record(tid1)
+        messages = []
+        def check(messages, min_messages):
+            if len(messages) < min_messages:
+                return False
+            return True
+
+        r = retrieval.HTTPRetriever(mbrec["retrieval"], messages.append)
+        r.setServiceParent(self.sparent)
+        self.failUnlessEqual(len(messages), 0)
+        d = self.poll(lambda: check(messages, 2))
+        def _messages_deleted():
+            c = n.db.execute("SELECT COUNT(*) FROM mailbox_server_messages"
+                             " WHERE tid=?", (tid1,))
+            return bool(c.fetchall())
+        d.addCallback(lambda _: self.poll(_messages_deleted))
+        def _then(_):
+            self.failUnlessEqual(messages[0], "msgC1_first")
+            self.failUnlessEqual(messages[1], "msgC1_second")
+        d.addCallback(_then)
+
+        d.addCallback(lambda _: r.disownServiceParent())
+        d.addCallback(lambda _: self.poll(lambda:
+                                          not len(ms.listres.subscribers)))
+
+        d.addCallback(flushEventualQueue)
+        return d

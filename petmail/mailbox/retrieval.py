@@ -1,11 +1,12 @@
-import time, struct, base64
+import time, struct
+from base64 import urlsafe_b64encode, b64decode
 from twisted.application import service
 from twisted.internet import defer, protocol
 from twisted.web import client
-from twisted.python import log
+from twisted.python import log, failure
 from nacl.secret import SecretBox
 from nacl.public import PrivateKey, PublicKey, Box
-from ..eventual import eventually
+from ..eventual import eventually, fireEventually
 from ..util import equal, remove_prefix
 from ..eventsource import EventSource
 
@@ -26,14 +27,14 @@ ENABLE_POLLING = False
 
 # retrieval code
 
-def encrypt_list_request(serverpubkey, TT, offset=0, now=None, tmppriv=None):
+def encrypt_list_request(serverpubkey, RT, offset=0, now=None, tmppriv=None):
     if not now:
         now = int(time.time())
     now = now + offset
     if not tmppriv:
         tmppriv = PrivateKey.generate()
     tmppub = tmppriv.public_key.encode()
-    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(TT, "\x00"*24)
+    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(RT, "\x00"*24)
     assert boxed0[:24] == "\x00"*24
     boxed = boxed0[24:] # we elide the nonce, always 0
     req = struct.pack(">L32s", now, tmppub) + boxed
@@ -83,7 +84,6 @@ class ReconnectingEventSource(service.MultiService,
         # we don't use any of the basic Factory/ClientFactory methods of
         # this, just the ReconnectingClientFactory.retry, stopTrying, and
         # resetDelay methods.
-        protocol.ReconnectingClientFactory.__init__(self)
 
         self.baseurl = baseurl
         self.connection_starting = connection_starting
@@ -97,6 +97,10 @@ class ReconnectingEventSource(service.MultiService,
         self.connector = Connector(self)
         self.es = None # set we have an outstanding EventSource
         self.when_stopped = [] # list of Deferreds
+
+    def isStopped(self):
+        if self.es:
+            return False
 
     def startService(self):
         service.MultiService.startService(self) # sets self.running
@@ -133,6 +137,8 @@ class ReconnectingEventSource(service.MultiService,
         # an intentional shutdown.
         if self.active and self.running:
             # we still want to be connected, so schedule a reconnection
+            if isinstance(res, failure.Failure):
+                log.err(res)
             self.retry() # will eventually call _maybeStart
             return
         # intentional shutdown
@@ -143,9 +149,9 @@ class ReconnectingEventSource(service.MultiService,
 
     def _stop_eventsource(self):
         if self.es:
-            self.es.cancel()
+            eventually(self.es.cancel)
 
-    def _maybeStop(self):
+    def _maybeStop(self, _=None):
         self.stopTrying() # cancels timer, calls _stop_eventsource()
         if not self.es:
             return defer.succeed(None)
@@ -164,11 +170,12 @@ class HTTPRetriever(service.MultiService):
         self.descriptor = descriptor
         self.baseurl = str(descriptor["baseurl"])
         assert self.baseurl.endswith("/")
-        self.server_pubkey = descriptor["server_pubkey"].decode("hex")
-        self.symkey = descriptor["transport_symkey"].decode("hex")
-        self.TT = descriptor["TT"].decode("hex")
+        self.server_pubkey = descriptor["retrieval_pubkey"].decode("hex")
+        self.symkey = descriptor["retrieval_symkey"].decode("hex")
+        self.RT = descriptor["RT"].decode("hex")
         self.got_msgC = got_msgC
         self.clock_offset = 0 # TODO
+        self.fetchable = [] # list of (fetch_token, delete_token, length)
         self.source = ReconnectingEventSource(self.baseurl,
                                               self.start_source,
                                               self.handle_SSE)
@@ -177,32 +184,48 @@ class HTTPRetriever(service.MultiService):
 
     def start_source(self):
         # each time we start the EventSource, we must establish a new URL
-        req, tmppub = encrypt_list_request(self.server_pubkey, self.TT,
+        req, tmppub = encrypt_list_request(self.server_pubkey, self.RT,
                                            offset=self.clock_offset)
         self.tmppub = tmppub
-        url = self.baseurl + "list?t=%s" % base64.urlsafe_b64encode(req)
+        self.fetchable = []
+        url = self.baseurl + "list?t=%s" % urlsafe_b64encode(req)
         return url
 
     def handle_SSE(self, name, data):
-        # TODO: transport security, SSE, overlap prevention, deletion (server
-        # currently serves each message just once)
-        boxed = data.decode("hex")
-        (fetch_token, delete_token,
-         length) = decrypt_list_entry(boxed, self.symkey, self.tmppub)
-        url = self.baseurl + "fetch?t=%s" % fetch_token.encode("hex")
+        if name != "data":
+            return
+        self.fetchable = [decrypt_list_entry(b64decode(boxed),
+                                             self.symkey, self.tmppub)
+                          for boxed in data.split()]
 
         d = self.source.deactivate()
-
-        def _source_stopped(_):
-            return client.getPage(url, method="GET")
-        d.addCallback(_source_stopped)
-
-        def _done(page):
-            msgC = decrypt_fetch_response(self.symkey, fetch_token, page)
-            self.got_msgC(msgC)
-            url = self.baseurl + "delete?t=%s" % delete_token.encode("hex")
-            return client.getPage(url, method="POST")
-        d.addCallback(_done)
+        d.addCallback(self.fetch)
         d.addErrback(log.err)
-        d.addCallback(lambda _: self.source.activate())
+        def _start_polling_again(_):
+            if not self.running:
+                return
+            return self.source.activate()
+        d.addCallback(_start_polling_again)
 
+    def fetch(self, _):
+        if not self.running: return
+        if not self.fetchable:
+            return
+        fetch_t, delete_t, length = self.fetchable.pop(0)
+        url = self.baseurl + "fetch?t=%s" % urlsafe_b64encode(fetch_t)
+        d = client.getPage(url, method="GET")
+        def _fetched(page):
+            if not self.running: return
+            msgC = decrypt_fetch_response(self.symkey, fetch_t, page)
+            self.got_msgC(msgC)
+        d.addCallback(_fetched)
+        def _delete(_):
+            if not self.running: return
+            url = self.baseurl + "delete?t=%s" % urlsafe_b64encode(delete_t)
+            return client.getPage(url, method="POST")
+        d.addCallback(_delete)
+        def _fetch_more(_):
+            if not self.running: return
+            return fireEventually().addCallback(self.fetch)
+        d.addCallback(_fetch_more)
+        return d

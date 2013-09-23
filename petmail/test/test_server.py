@@ -138,8 +138,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         listres = ms.listres
 
         retrieval_pubkey = trec1["retrieval_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1)
+        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
 
         # test 'list'
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
@@ -183,7 +182,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         # test 'fetch' on the first message
         out, req = do_request(fetchres,
                               base64.urlsafe_b64encode(fetch_token1))
-        encrypted_m1 = base64.b64decode(out)
+        encrypted_m1 = out
         m1 = retrieval.decrypt_fetch_response(symkey_1, fetch_token1,
                                               encrypted_m1)
         self.failUnlessEqual(m1, "msgC1_first")
@@ -226,7 +225,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         past = now - 24*3600
         future = now + 24*3600
         reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1, now=past)
+                                                        RT_1, now=past)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
         self.failUnlessEqual(req.responseMessage, "too much clock skew")
@@ -234,7 +233,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
 
         # timestamp in future
         reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1, now=future)
+                                                        RT_1, now=future)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.BAD_REQUEST)
         self.failUnlessEqual(req.responseMessage, "too much clock skew")
@@ -250,8 +249,8 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
                                                         unknown_TTID)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.NOT_FOUND)
-        self.failUnlessEqual(req.responseMessage, "no such TTID")
-        self.failUnlessEqual(out, "no such TTID")
+        self.failUnlessEqual(req.responseMessage, "no such RT")
+        self.failUnlessEqual(out, "no such RT")
 
         # since none of those "list" requests were accepted, the fetch_token2
         # should still be valid. We don't spend it now, to test how a second
@@ -263,8 +262,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(messages[0]["fetch_token"],
                              fetch_token2.encode("hex"))
         # a second 'list' should revoke tokens from the first
-        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1)
+        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         messages = n.db.execute("SELECT * FROM mailbox_server_messages"
                                 " WHERE tid=? ORDER BY id",
@@ -296,8 +294,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         retrieval_pubkey = trec1["retrieval_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1)
+        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
         d = self.GET(baseurl+"list?t="+base64.urlsafe_b64encode(reqkey))
         def _then1(res):
             fields = parse_events(res)
@@ -326,8 +323,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         retrieval_pubkey = trec1["retrieval_pubkey"].decode("hex")
-        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        TTID_1)
+        reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
         # test streaming/EventSource: new messages should trigger events
         url = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey)
 
@@ -393,12 +389,10 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         baseurl = n.baseurl + "retrieval/"
 
         retrieval_pubkey = trec1["retrieval_pubkey"].decode("hex")
-        reqkey1,tmppub1 = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                         TTID_1)
+        reqkey1,tmppub1 = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
         url1 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey1)
 
-        reqkey2,tmppub2 = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                         TTID_1)
+        reqkey2,tmppub2 = retrieval.encrypt_list_request(retrieval_pubkey, RT_1)
         url2 = baseurl+"list?t="+base64.urlsafe_b64encode(reqkey2)
 
         fields1 = []
