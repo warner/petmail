@@ -182,12 +182,6 @@ class AddMailbox(BaseHandler):
         return {"ok": "ok"}
 handlers["add-mailbox"] = AddMailbox
 
-class EnableLocalMailbox(BaseHandler):
-    def handle(self, payload):
-        self.agent.command_enable_local_mailbox()
-        return {"ok": "ok"}
-handlers["enable-local-mailbox"] = EnableLocalMailbox
-
 class SendBasic(BaseHandler):
     def handle(self, payload):
         cid = int(payload["cid"])
