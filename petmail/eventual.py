@@ -68,9 +68,16 @@ def fireEventually(value=None):
     eventually(d.callback, value)
     return d
 
-def flushEventualQueue(_ignored=None):
+def flushEventualQueue(value=None):
     """This returns a Deferred which fires when the eventual-send queue is
     finally empty. This is useful to wait upon as the last step of a Trial
-    test method.
+    test method. If an argument is provided, the Deferred will fire with it,
+    making this useful at the end of a unit test:
+
+        d = some_stuff_that_uses_eventual_sends()
+        d.addBoth(flushEventualQueue)
+        return d
     """
-    return _theSimpleQueue.flush()
+    d = _theSimpleQueue.flush()
+    d.addBoth(lambda _: value)
+    return d
