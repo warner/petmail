@@ -67,9 +67,9 @@ class BaseView(resource.Resource):
             request.setHeader("content-type", "text/event-stream")
             p = EventsProtocol(request, self.render_event)
             self.catchup(p.notify)
-            self.agent.subscribe(self.table, p.notify)
+            self.db.subscribe(self.table, p.notify)
             def _done(_):
-                self.agent.unsubscribe(self.table, p.notify)
+                self.db.unsubscribe(self.table, p.notify)
             request.notifyFinish().addErrback(_done)
             return server.NOT_DONE_YET
         # no event-stream, deliver the non-streaming equivalent

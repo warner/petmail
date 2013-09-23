@@ -38,12 +38,6 @@ class Agent(service.MultiService):
             self.im.addRendezvousService(rs)
         self.im.setServiceParent(self)
 
-    def subscribe(self, table, observer):
-        self.db.subscribe(table, observer)
-
-    def unsubscribe(self, table, observer):
-        self.db.unsubscribe(table, observer)
-
     def build_retriever(self, mbid, rrec):
         # parse descriptor, import correct module and constructor
         def got_msgC(msgC):

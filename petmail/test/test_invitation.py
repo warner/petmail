@@ -49,7 +49,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         tports1 = {"local": fake_transport()}
 
         nA_notices = []
-        n1.agent.subscribe("addressbook", nA_notices.append)
+        n1.db.subscribe("addressbook", nA_notices.append)
 
         n1.agent.command_invite(u"petname-from-1", code,
                                 override_transports=tports1)
@@ -172,7 +172,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
             self.failUnlessEqual(nA_notices[1].new_value["petname"],
                                  "petname-from-1")
-            n1.agent.unsubscribe("addressbook", nA_notices.append)
+            n1.db.unsubscribe("addressbook", nA_notices.append)
         d.addCallback(_then)
         return d
 
