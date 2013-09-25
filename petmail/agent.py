@@ -14,14 +14,14 @@ class Agent(service.MultiService):
         self.mailbox_server = mailbox_server
 
         self.mailbox_retrievers = set()
-        mboxes = {}
         c = self.db.execute("SELECT * FROM agent_profile").fetchone()
-        if c["advertise_local_mailbox"]:
+        self.advertise_local_mailbox = bool(c["advertise_local_mailbox"])
+        mboxes = {}
+        if self.advertise_local_mailbox:
             local_tid = mailbox_server.get_local_transport()
             local_mbrec = mailbox_server.get_mailbox_record(local_tid)
             mboxes["local"] = local_mbrec["retrieval"]
-        c = self.db.execute("SELECT * FROM mailboxes")
-        for row in c.fetchall():
+        for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
             mbrec = json.loads(row["mailbox_record_json"])
             mboxes[row["id"]] = mbrec["retrieval"]
 
@@ -162,9 +162,11 @@ class Agent(service.MultiService):
     def get_transports(self):
         # returns dict of mbid->pubrecord . These will be individualized
         # before delivery to the peer.
-        local_tid = self.mailbox_server.get_local_transport()
-        local_mbrec = self.mailbox_server.get_mailbox_record(local_tid)
-        transports = {"local": local_mbrec}
+        transports = {}
+        if self.advertise_local_mailbox:
+            local_tid = self.mailbox_server.get_local_transport()
+            local_mbrec = self.mailbox_server.get_mailbox_record(local_tid)
+            transports["local"] = local_mbrec
         for row in self.db.execute("SELECT * FROM mailboxes").fetchall():
             transports[row["id"]] = json.loads(row["mailbox_record_json"])
         return transports
