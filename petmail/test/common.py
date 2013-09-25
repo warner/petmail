@@ -56,7 +56,7 @@ class NodeRunnerMixin:
 
     def createNode(self, basedir, type="agent", relayurl=None):
         so = runner.CreateNodeOptions()
-        args = []
+        args = ["--local-mailbox"]
         if relayurl:
             args.extend(["--relay-url", relayurl])
         args.append(basedir)

@@ -53,6 +53,10 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("port", "p", None, "port number to advertise in URLs"),
         ("relay-url", "r", None, "URL of the relay server (for invitations)"),
         ]
+    optFlags = [
+        ("local-mailbox", "m", "Advertise the local mailbox"),
+        ]
+
 
 class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     optParameters = [

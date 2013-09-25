@@ -90,6 +90,7 @@ CREATE TABLE `mailboxes` -- one per remote mailbox (no local mailboxes here)
 
 CREATE TABLE `agent_profile` -- contains one row
 (
+ `advertise_local_mailbox` INTEGER,
  `name` STRING,
  `icon_data` STRING
 );

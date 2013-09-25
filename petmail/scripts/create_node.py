@@ -40,8 +40,9 @@ def create_node(so, stdout, stderr, services):
                        (json.dumps({"type": "localdir"}),))
         db.execute("INSERT INTO services (name) VALUES (?)", ("agent",))
         db.execute("INSERT INTO `agent_profile`"
-                   " (`name`, `icon_data`) VALUES (?,?)",
-                   ("",""))
+                   " (`name`, `icon_data`, `advertise_local_mailbox`)"
+                   " VALUES (?,?,?)",
+                   ("","", int(bool(so["local-mailbox"]))))
         transport_privkey = PrivateKey.generate().encode()
         retrieval_privkey = PrivateKey.generate().encode()
         TT_privkey,TT_pubkey = rrid.create_keypair()

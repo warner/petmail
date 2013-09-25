@@ -13,13 +13,17 @@ class Agent(service.MultiService):
         self.mailbox_server = mailbox_server
 
         self.mailbox_retrievers = set()
-        local_tid = mailbox_server.get_local_transport()
-        local_mbrec = mailbox_server.get_mailbox_record(local_tid)
-        mboxes = {"local": local_mbrec["retrieval"]}
+        mboxes = {}
+        c = self.db.execute("SELECT * FROM agent_profile").fetchone()
+        if c["advertise_local_mailbox"]:
+            local_tid = mailbox_server.get_local_transport()
+            local_mbrec = mailbox_server.get_mailbox_record(local_tid)
+            mboxes["local"] = local_mbrec["retrieval"]
         c = self.db.execute("SELECT * FROM mailboxes")
         for row in c.fetchall():
             mbrec = json.loads(row["mailbox_record_json"])
             mboxes[row["id"]] = mbrec["retrieval"]
+
         for mbid, rrec in mboxes.items():
             rc = self.build_retriever(mbid, rrec)
             self.subscribe_to_mailbox(rc)
