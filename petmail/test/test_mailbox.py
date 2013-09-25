@@ -72,6 +72,13 @@ class Invite(TwoNodeMixin, unittest.TestCase):
             retrievers = nA.agent.mailbox_retrievers
             self.failUnlessEqual(len(retrievers), 1)
             self.failUnless(isinstance(list(retrievers)[0], HTTPRetriever))
-
+            return nA.disownServiceParent()
         d.addCallback(_then)
+        d.addCallback(lambda _: self.startNode(nA.basedir))
+        def _then2(nA2):
+            retrievers = nA2.agent.mailbox_retrievers
+            self.failUnlessEqual(len(retrievers), 1)
+            self.failUnless(isinstance(list(retrievers)[0], HTTPRetriever))
+        d.addCallback(_then2)
+
         return d
