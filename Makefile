@@ -84,7 +84,7 @@ test-coverage:
 	coverage run ./bin/petmail test $(TEST)
 coverage-html:
 	rm -rf .coverage-html
-	coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*"
+	coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*,petmail/_version.py"
 open-coverage:
 	open .coverage-html/index.html
 # you may need to run "deps-venv/bin/pip install coverage" to use this,
