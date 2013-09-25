@@ -101,6 +101,38 @@ class Agent(service.MultiService):
         self.im.startInvitation(petname, code, transports)
         return "invitation for %s started" % petname
 
+    def invitation_done(self, petname, me, them, their_verfkey):
+        cid = self.db.insert(
+            "INSERT INTO addressbook"
+            " (petname, acked,"
+            "  next_outbound_seqnum, my_signkey,"
+            "  their_channel_record_json,"
+            "  my_CID_key, next_CID_token,"
+            "  highest_inbound_seqnum,"
+            "  my_old_channel_privkey, my_new_channel_privkey,"
+            "  they_used_new_channel_key, their_verfkey)"
+            " VALUES (?,?, "
+            "         ?,?,"
+            "         ?,"
+            "         ?,?," # my_CID_key, next_CID_token
+            "         ?,"   # highest_inbound_seqnum
+            "         ?,?,"
+            "         ?,?)",
+            (petname, 0,
+             1, me["my_signkey"],
+             json.dumps(them),
+             me["my_CID_key"], None,
+             0,
+             me["my_old_channel_privkey"],
+             me["my_new_channel_privkey"],
+             0, their_verfkey.encode().encode("hex") ),
+            "addressbook")
+        return cid
+
+    def invitation_acked(self, cid):
+        self.db.update("UPDATE addressbook SET acked=1 WHERE id=?", (cid,),
+                       "addressbook", cid)
+
     def command_send_basic_message(self, cid, message):
         self.send_message(cid, {"basic": message}) # ignore Deferred
         return "maybe sent"

@@ -83,7 +83,7 @@ class InvitationManager(service.MultiService):
         if not rows:
             raise KeyError(inviteID)
         iid = rows[0][0]
-        i = Invitation(iid, self.db, self)
+        i = Invitation(iid, self.db, self, self.agent)
         i.processMessages(messages)
 
     def sendToAll(self, inviteID, msg):
@@ -140,7 +140,7 @@ class InvitationManager(service.MultiService):
                          "", "", 1),
                         "invitations")
         self.subscribe(inviteID)
-        i = Invitation(iid, self.db, self)
+        i = Invitation(iid, self.db, self, self.agent)
         i.sendFirstMessage()
         self.db.commit()
 
@@ -151,10 +151,11 @@ class Invitation:
     # process multiple messages for a single invitation, e.g. A's second poll
     # will receive both B-m1 and B-m2 together). But all persistent state
     # beyond that one tick is stored in the database.
-    def __init__(self, iid, db, manager):
+    def __init__(self, iid, db, manager, agent):
         self.iid = iid
         self.db = db
         self.manager = manager
+        self.agent = agent
         c = self.db.execute("SELECT petname, inviteID, inviteKey," # 0,1,2
                             " theirTempPubkey," # 3
                             " nextExpectedMessage," # 4
@@ -357,33 +358,9 @@ class Invitation:
 
         them = json.loads(payload_for_us_json)
         me = self.getMyPrivateData()
-        addressbook_id = self.db.insert(
-            "INSERT INTO addressbook"
-            " (petname, acked,"
-            "  next_outbound_seqnum, my_signkey,"
-            "  their_channel_record_json,"
-            "  my_CID_key, next_CID_token,"
-            "  highest_inbound_seqnum,"
-            "  my_old_channel_privkey, my_new_channel_privkey,"
-            "  they_used_new_channel_key, their_verfkey)"
-            " VALUES (?,?, "
-            "         ?,?,"
-            "         ?,"
-            "         ?,?," # my_CID_key, next_CID_token
-            "         ?,"   # highest_inbound_seqnum
-            "         ?,?,"
-            "         ?,?)",
-            (self.petname, 0,
-             1, me["my_signkey"],
-             json.dumps(them),
-             me["my_CID_key"], None,
-             0,
-             me["my_old_channel_privkey"],
-             me["my_new_channel_privkey"],
-             0, theirVerfkey.encode(Hex) ),
-            "addressbook")
+        cid = self.agent.invitation_done(self.petname, me, them, theirVerfkey)
         self.db.update("UPDATE invitations SET addressbook_id=?"
-                       " WHERE id=?", (addressbook_id, self.iid),
+                       " WHERE id=?", (cid, self.iid),
                        "invitations", self.iid)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
@@ -394,9 +371,7 @@ class Invitation:
         #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
-        cid = self.getAddressbookID()
-        self.db.update("UPDATE addressbook SET acked=1 WHERE id=?", (cid,),
-                       "addressbook", cid )
+        self.agent.invitation_acked(self.getAddressbookID())
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
         # we no longer care about the channel
