@@ -130,7 +130,7 @@ class InvitationManager(service.MultiService):
                         " (code, petname, inviteKey,"
                         "  inviteID,"
                         "  myTempPrivkey, mySigningKey,"
-                        "  my_channel_record, my_private_channel_data,"
+                        "  payload_for_them_json, my_private_invitation_data,"
                         "  myMessages, theirMessages, nextExpectedMessage)"
                         " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
                         (code.encode("hex"), petname, stretched.encode("hex"),
@@ -189,13 +189,13 @@ class Invitation:
                             " WHERE id = ?", (self.iid,))
         return SigningKey(c.fetchone()[0].decode("hex"))
 
-    def getMyPublicChannelRecord(self):
-        c = self.db.execute("SELECT my_channel_record FROM invitations"
+    def getPayloadForThem(self):
+        c = self.db.execute("SELECT payload_for_them_json FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return c.fetchone()[0]
 
-    def getMyPrivateChannelData(self):
-        c = self.db.execute("SELECT my_private_channel_data FROM invitations"
+    def getMyPrivateData(self):
+        c = self.db.execute("SELECT my_private_invitation_data FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return json.loads(c.fetchone()[0])
 
@@ -308,11 +308,11 @@ class Invitation:
         # the message send
 
         my_privkey = self.getMyTempPrivkey()
-        my_channel_record = self.getMyPublicChannelRecord()
+        payload_for_them = self.getPayloadForThem()
         b = Box(my_privkey, self.theirTempPubkey)
         signedBody = b"".join([self.theirTempPubkey.encode(),
                                my_privkey.public_key.encode(),
-                               my_channel_record.encode("utf-8")])
+                               payload_for_them.encode("utf-8")])
         my_sign = self.getMySigningKey()
         body = b"".join([b"i0:m2a:",
                          my_sign.verify_key.encode(),
@@ -344,7 +344,7 @@ class Invitation:
         body = theirVerfkey.verify(signedBody)
         check_myTempPubkey = body[:32]
         check_theirTempPubkey = body[32:64]
-        their_channel_record_json = body[64:].decode("utf-8")
+        payload_for_us_json = body[64:].decode("utf-8")
         #print " binding checks:"
         #print " check_myTempPubkey", check_myTempPubkey.encode("hex")
         #print " my real tempPubkey", my_privkey.public_key.encode(Hex)
@@ -355,8 +355,8 @@ class Invitation:
         if check_theirTempPubkey != self.theirTempPubkey.encode():
             raise ValueError("binding failure theirTempPubkey")
 
-        them = json.loads(their_channel_record_json)
-        me = self.getMyPrivateChannelData()
+        them = json.loads(payload_for_us_json)
+        me = self.getMyPrivateData()
         addressbook_id = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, acked,"
