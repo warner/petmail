@@ -94,7 +94,8 @@ class Agent(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, code, override_transports=None):
+    def command_invite(self, petname, code, override_transports=None,
+                       offer_mailbox=False):
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)
@@ -105,21 +106,29 @@ class Agent(service.MultiService):
         transports = self.individualize_transports(base_transports)
         tids = ",".join([str(tid) for tid in sorted(transports.keys())])
 
-        payload = { "channel_pubkey": channel_key.public_key.encode(Hex),
+        channel = { "channel_pubkey": channel_key.public_key.encode(Hex),
                     "CID_key": my_CID_key.encode("hex"),
                     "transports": transports.values(),
                      }
-        private = { "my_signkey": my_signkey.encode(Hex),
-                    "my_CID_key": my_CID_key.encode("hex"),
-                    "my_old_channel_privkey": channel_key.encode(Hex),
-                    "my_new_channel_privkey": channel_key.encode(Hex),
-                    "transport_ids": tids,
-                    }
+        payload = { "channel": channel }
+        private_channel = { "my_signkey": my_signkey.encode(Hex),
+                            "my_CID_key": my_CID_key.encode("hex"),
+                            "my_old_channel_privkey": channel_key.encode(Hex),
+                            "my_new_channel_privkey": channel_key.encode(Hex),
+                            "transport_ids": tids,
+                            }
+        private = { "channel": private_channel }
+
+        if offer_mailbox:
+            tid = self.mailbox_server.allocate_transport(remote=True)
+            private["mailbox_tid"] = tid
+            payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
 
         self.im.start_invitation(petname, code, my_signkey, payload, private)
         return "invitation for %s started" % petname
 
-    def invitation_done(self, petname, me, them, their_verfkey):
+    def invitation_done(self, petname, private, them, their_verfkey):
+        channel = them["channel"]
         cid = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, acked,"
@@ -137,14 +146,22 @@ class Agent(service.MultiService):
             "         ?,?,"
             "         ?,?)",
             (petname, 0,
-             1, me["my_signkey"],
-             json.dumps(them),
-             me["my_CID_key"], None,
+             1, private["channel"]["my_signkey"],
+             json.dumps(channel),
+             private["channel"]["my_CID_key"], None,
              0,
-             me["my_old_channel_privkey"],
-             me["my_new_channel_privkey"],
+             private["channel"]["my_old_channel_privkey"],
+             private["channel"]["my_new_channel_privkey"],
              0, their_verfkey.encode().encode("hex") ),
             "addressbook")
+        mailbox = them.get("mailbox")
+        if mailbox:
+            # auto-accept
+            mbid = self.db.insert("INSERT INTO mailboxes"
+                                  " (mailbox_record_json) VALUES (?)",
+                                  (json.dumps(mailbox),), "mailboxes")
+            rc = self.build_retriever(mbid, mailbox["retrieval"])
+            self.subscribe_to_mailbox(rc)
         return cid
 
     def invitation_acked(self, cid):

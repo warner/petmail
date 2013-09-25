@@ -54,9 +54,12 @@ class NodeRunnerMixin:
     def tearDown(self):
         return self.sparent.stopService()
 
-    def createNode(self, basedir, type="agent", relayurl=None):
+    def createNode(self, basedir, type="agent", relayurl=None,
+                   local_mailbox=True):
         so = runner.CreateNodeOptions()
-        args = ["--local-mailbox"]
+        args = []
+        if local_mailbox:
+            args.append("--local-mailbox")
         if relayurl:
             args.extend(["--relay-url", relayurl])
         args.append(basedir)
@@ -92,7 +95,7 @@ def fake_transport():
     mbrec = {"transport": {"generic": {"type": "test-return",
                                        "transport_pubkey": pubkey_hex,},
                            "sender": {"TT0": TT0.encode("hex")}},
-             "retrieval": {"type": "test-return",
+             "retrieval": {"type": "test-return-retrieval",
                            # extra things that a normal retriever wouldn't
                            # get
                            "privkey": privkey.encode().encode("hex"),
@@ -105,7 +108,7 @@ def fake_transport():
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
     def make_nodes(self, transport="test-return", relay="localdir"):
-        assert transport in ["test-return", "local"]
+        assert transport in ["test-return", "local", "none"]
         relayurl = None
         if relay == "http":
             basedirR = os.path.join(self.make_basedir(), "relay")
@@ -116,14 +119,19 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
             relayurl = row["baseurl"]
 
         basedirA = os.path.join(self.make_basedir(), "nodeA")
-        self.createNode(basedirA, relayurl=relayurl)
+        local_mailbox = True
+        if transport == "none":
+            local_mailbox = False
+        self.createNode(basedirA, relayurl=relayurl,
+                        local_mailbox=local_mailbox)
         basedirB = os.path.join(self.make_basedir(), "nodeB")
-        self.createNode(basedirB, relayurl=relayurl)
+        self.createNode(basedirB, relayurl=relayurl,
+                        local_mailbox=local_mailbox)
 
         # TODO: do we need to pre-instantiate these anymore?
         self.buildNode(basedirA)
         self.buildNode(basedirB)
-        if transport == "local":
+        if transport in ("local", "none"):
             self.tports1 = None
             self.tports2 = None
 
@@ -151,14 +159,15 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         self.accelerate_polling(nB)
         return nA, nB
 
-    def add_new_channel_with_invitation(self, nA, nB):
+    def add_new_channel_with_invitation(self, nA, nB, offer_mailbox=False):
         code = "code"
         nA.agent.im._debug_invitations_completed = 0
         nB.agent.im._debug_invitations_completed = 0
         nA.agent.command_invite(u"petname-from-A", code,
                                 override_transports=self.tports1)
         nB.agent.command_invite(u"petname-from-B", code,
-                                override_transports=self.tports2)
+                                override_transports=self.tports2,
+                                offer_mailbox=offer_mailbox)
         rclientA = list(nA.agent.im)[0]
         rclientB = list(nB.agent.im)[0]
         def check():
