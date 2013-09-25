@@ -1,5 +1,6 @@
 import os.path, json
 from twisted.application import service
+from nacl.public import PrivateKey
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
@@ -94,11 +95,28 @@ class Agent(service.MultiService):
         #    print "BASIC:", payload["basic"]
 
     def command_invite(self, petname, code, override_transports=None):
+        my_signkey = SigningKey.generate()
+        channel_key = PrivateKey.generate()
+        my_CID_key = os.urandom(32)
+
         base_transports = self.get_transports()
         if override_transports:
             base_transports = override_transports
         transports = self.individualize_transports(base_transports)
-        self.im.startInvitation(petname, code, transports)
+        tids = ",".join([str(tid) for tid in sorted(transports.keys())])
+
+        payload = { "channel_pubkey": channel_key.public_key.encode(Hex),
+                    "CID_key": my_CID_key.encode("hex"),
+                    "transports": transports.values(),
+                     }
+        private = { "my_signkey": my_signkey.encode(Hex),
+                    "my_CID_key": my_CID_key.encode("hex"),
+                    "my_old_channel_privkey": channel_key.encode(Hex),
+                    "my_new_channel_privkey": channel_key.encode(Hex),
+                    "transport_ids": tids,
+                    }
+
+        self.im.startInvitation(petname, code, my_signkey, payload, private)
         return "invitation for %s started" % petname
 
     def invitation_done(self, petname, me, them, their_verfkey):

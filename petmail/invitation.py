@@ -99,28 +99,13 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def startInvitation(self, petname, code, transports):
+    def startInvitation(self, petname, code, my_signkey, payload, private):
+        # "payload" goes to them, "private" stays with us
         #print "invite", petname, code.encode("hex")
         stretched = stretch(code)
         inviteKey = SigningKey(stretched)
         inviteID = inviteKey.verify_key.encode(Hex)
-        mySigningKey = SigningKey.generate()
-        myCIDkey = os.urandom(32)
         myTempPrivkey = PrivateKey.generate()
-
-        # create my channel record
-        tids = ",".join([str(tid) for tid in sorted(transports.keys())])
-        channel_key = PrivateKey.generate()
-        pub_crec = { "channel_pubkey": channel_key.public_key.encode(Hex),
-                     "CID_key": myCIDkey.encode("hex"),
-                     "transports": transports.values(),
-                     }
-        priv_data = { "my_signkey": mySigningKey.encode(Hex),
-                      "my_CID_key": myCIDkey.encode("hex"),
-                      "my_old_channel_privkey": channel_key.encode(Hex),
-                      "my_new_channel_privkey": channel_key.encode(Hex),
-                      "transport_ids": tids,
-                      }
 
         db = self.db
         c = db.execute("SELECT inviteID FROM invitations")
@@ -135,8 +120,8 @@ class InvitationManager(service.MultiService):
                         " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
                         (code.encode("hex"), petname, stretched.encode("hex"),
                          inviteID,
-                         myTempPrivkey.encode(Hex), mySigningKey.encode(Hex),
-                         json.dumps(pub_crec), json.dumps(priv_data),
+                         myTempPrivkey.encode(Hex), my_signkey.encode(Hex),
+                         json.dumps(payload), json.dumps(private),
                          "", "", 1),
                         "invitations")
         self.subscribe(inviteID)
