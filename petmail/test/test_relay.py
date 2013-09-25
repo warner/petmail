@@ -13,7 +13,7 @@ class Accumulator(service.MultiService):
     def __init__(self):
         service.MultiService.__init__(self)
         self.messages = []
-    def messagesReceived(self, channelID, messages):
+    def messages_received(self, channelID, messages):
         self.messages.append( (channelID, messages) )
 
 class Relay(NodeRunnerMixin, ShouldFailMixin, PollMixin, unittest.TestCase):

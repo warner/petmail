@@ -40,7 +40,7 @@ class Agent(service.MultiService):
             if desc["type"] == "http":
                 from .rendezvous.web_client import HTTPRendezvousClient
                 rs = HTTPRendezvousClient(str(desc["url"]))
-            self.im.addRendezvousService(rs)
+            self.im.add_rendezvous_service(rs)
         self.im.setServiceParent(self)
 
     def build_retriever(self, mbid, rrec):
@@ -116,7 +116,7 @@ class Agent(service.MultiService):
                     "transport_ids": tids,
                     }
 
-        self.im.startInvitation(petname, code, my_signkey, payload, private)
+        self.im.start_invitation(petname, code, my_signkey, payload, private)
         return "invitation for %s started" % petname
 
     def invitation_done(self, petname, me, them, their_verfkey):

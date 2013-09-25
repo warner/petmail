@@ -100,7 +100,7 @@ class LocalDirectoryRendezvousClient(service.MultiService):
         # observed by poll(). So it's sufficient to merely add the
         # messages here, and count them in send() instead.
 
-        self.parent.messagesReceived(channelID, messages)
+        self.parent.messages_received(channelID, messages)
 
     def send(self, channelID, msg):
         assert channelID in self.subscriptions

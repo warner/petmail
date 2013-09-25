@@ -103,17 +103,17 @@ CREATE TABLE `invitations` -- data on all pending invitations
 
  -- these are only used during the invitation process, then discarded
  `code` STRING,
- `inviteKey` STRING, -- Ed25519 signing key
+ `invite_key` STRING, -- Ed25519 signing key
  `inviteID` STRING, -- Ed25519 verifying key
- `myTempPrivkey` STRING, -- Curve25519 privkey (ephemeral)
- `theirTempPubkey` STRING, -- Curve25519 pubkey (ephemeral)
+ `my_temp_privkey` STRING, -- Curve25519 privkey (ephemeral)
+ `their_temp_pubkey` STRING, -- Curve25519 pubkey (ephemeral)
  -- these track the state of the invitation process
- `myMessages` STRING, -- r0:hex,r0-hex of all my sent messages
- `theirMessages` STRING, -- r0:hex,r0-hex of all processed inbound messages
- `nextExpectedMessage` INTEGER,
+ `my_messages` STRING, -- r0:hex,r0-hex of all my sent messages
+ `their_messages` STRING, -- r0:hex,r0-hex of all processed inbound messages
+ `next_expected_message` INTEGER,
 
  -- these two are retained long-term, in the addressbook entry
- `mySigningKey` STRING, -- Ed25519 privkey (long-term), for this peer
+ `my_signkey` STRING, -- Ed25519 privkey (long-term), for this peer
  `addressbook_id` INTEGER, -- to correlate with an addressbook entry
 
  -- they'll get this payload in M2

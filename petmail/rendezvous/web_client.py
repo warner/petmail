@@ -54,7 +54,7 @@ class ChannelWatcher(service.MultiService):
             if name == "data":
                 # we expect the value to start with "r0:" followed by a
                 # hex-encoded signed message
-                self.rclient.messagesReceived(self.channelID, set([data]))
+                self.rclient.messages_received(self.channelID, set([data]))
         self.pending_request = eventsource.EventSource(self.url, _handler)
         d = self.pending_request.start()
 
@@ -129,8 +129,8 @@ class HTTPRendezvousClient(service.MultiService):
         self.subscriptions[channelID] = c
         c.setServiceParent(self)
 
-    def messagesReceived(self, channelID, messages):
-        self.parent.messagesReceived(channelID, messages)
+    def messages_received(self, channelID, messages):
+        self.parent.messages_received(channelID, messages)
 
     def unsubscribe(self, channelID):
         self.subscriptions[channelID].unsubscribe()

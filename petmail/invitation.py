@@ -63,9 +63,9 @@ class InvitationManager(service.MultiService):
 
     def startService(self):
         service.MultiService.startService(self)
-        self.readyPendingInvitations()
+        self.ready_pending_invitations()
 
-    def addRendezvousService(self, rs):
+    def add_rendezvous_service(self, rs):
         rs.setServiceParent(self)
 
     def subscribe(self, inviteID):
@@ -76,7 +76,7 @@ class InvitationManager(service.MultiService):
         for rs in list(self):
             rs.unsubscribe(inviteID)
 
-    def messagesReceived(self, inviteID, messages):
+    def messages_received(self, inviteID, messages):
         rows = self.db.execute("SELECT id FROM invitations"
                                " WHERE inviteID=? LIMIT 1",
                                (inviteID,)).fetchall()
@@ -84,14 +84,13 @@ class InvitationManager(service.MultiService):
             raise KeyError(inviteID)
         iid = rows[0][0]
         i = Invitation(iid, self.db, self, self.agent)
-        i.processMessages(messages)
+        i.process_messages(messages)
 
-    def sendToAll(self, inviteID, msg):
-        #print "sendToAll", msg
+    def send_to_all(self, inviteID, msg):
         for rs in list(self):
             rs.send(inviteID, msg)
 
-    def readyPendingInvitations(self):
+    def ready_pending_invitations(self):
         c = self.db.execute("SELECT inviteID FROM invitations")
         for (inviteID,) in c.fetchall():
             # this will fetch a batch of messages (possibly empty, if we
@@ -99,34 +98,36 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def startInvitation(self, petname, code, my_signkey, payload, private):
+    def start_invitation(self, petname, code, my_signkey, payload, private):
         # "payload" goes to them, "private" stays with us
         #print "invite", petname, code.encode("hex")
         stretched = stretch(code)
-        inviteKey = SigningKey(stretched)
-        inviteID = inviteKey.verify_key.encode(Hex)
-        myTempPrivkey = PrivateKey.generate()
+        invite_key = SigningKey(stretched)
+        inviteID = invite_key.verify_key.encode(Hex)
+        my_temp_privkey = PrivateKey.generate()
 
         db = self.db
         c = db.execute("SELECT inviteID FROM invitations")
         if inviteID in [str(row[0]) for row in c.fetchall()]:
             raise CommandError("invitation code already in use")
         iid = db.insert("INSERT INTO `invitations`"
-                        " (code, petname, inviteKey,"
+                        " (code, petname, invite_key,"
                         "  inviteID,"
-                        "  myTempPrivkey, mySigningKey,"
+                        "  my_temp_privkey, my_signkey,"
                         "  payload_for_them_json, my_private_invitation_data,"
-                        "  myMessages, theirMessages, nextExpectedMessage)"
-                        " VALUES (?,?,?, ?, ?,?, ?,?, ?,?,?)",
+                        "  my_messages, their_messages, "
+                        "  next_expected_message)"
+                        " VALUES (?,?,?, ?, ?,?, ?,?, ?,?, ?)",
                         (code.encode("hex"), petname, stretched.encode("hex"),
                          inviteID,
-                         myTempPrivkey.encode(Hex), my_signkey.encode(Hex),
+                         my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
                          json.dumps(payload), json.dumps(private),
-                         "", "", 1),
+                         "", "",
+                         1),
                         "invitations")
         self.subscribe(inviteID)
         i = Invitation(iid, self.db, self, self.agent)
-        i.sendFirstMessage()
+        i.send_first_message()
         self.db.commit()
 
 class Invitation:
@@ -141,77 +142,77 @@ class Invitation:
         self.db = db
         self.manager = manager
         self.agent = agent
-        c = self.db.execute("SELECT petname, inviteID, inviteKey," # 0,1,2
-                            " theirTempPubkey," # 3
-                            " nextExpectedMessage," # 4
-                            " myMessages," # 5
-                            " theirMessages" # 6
+        c = self.db.execute("SELECT petname, inviteID, invite_key," # 0,1,2
+                            " their_temp_pubkey," # 3
+                            " next_expected_message," # 4
+                            " my_messages," # 5
+                            " their_messages" # 6
                             " FROM invitations WHERE id = ?", (iid,))
         res = c.fetchone()
         if not res:
             raise KeyError("no pending Invitation for '%d'" % iid)
         self.petname = res[0]
         self.inviteID = str(res[1])
-        self.inviteKey = SigningKey(res[2].decode("hex"))
-        self.theirTempPubkey = None
+        self.invite_key = SigningKey(res[2].decode("hex"))
+        self.their_temp_pubkey = None
         if res[3]:
-            self.theirTempPubkey = PublicKey(res[3].decode("hex"))
-        self.nextExpectedMessage = int(res[4])
-        self.myMessages = splitMessages(res[5])
-        self.theirMessages = splitMessages(res[6])
+            self.their_temp_pubkey = PublicKey(res[3].decode("hex"))
+        self.next_expected_message = int(res[4])
+        self.my_messages = splitMessages(res[5])
+        self.their_messages = splitMessages(res[6])
 
-    def getAddressbookID(self):
+    def get_addressbook_id(self):
         c = self.db.execute("SELECT addressbook_id FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return c.fetchone()[0]
 
-    def getMyTempPrivkey(self):
-        c = self.db.execute("SELECT myTempPrivkey FROM invitations"
+    def get_my_temp_privkey(self):
+        c = self.db.execute("SELECT my_temp_privkey FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return PrivateKey(c.fetchone()[0].decode("hex"))
 
-    def getMySigningKey(self):
-        c = self.db.execute("SELECT mySigningKey FROM invitations"
+    def get_my_signkey(self):
+        c = self.db.execute("SELECT my_signkey FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return SigningKey(c.fetchone()[0].decode("hex"))
 
-    def getPayloadForThem(self):
+    def get_payload_for_them(self):
         c = self.db.execute("SELECT payload_for_them_json FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return c.fetchone()[0]
 
-    def getMyPrivateData(self):
+    def get_my_private_data(self):
         c = self.db.execute("SELECT my_private_invitation_data FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return json.loads(c.fetchone()[0])
 
 
-    def sendFirstMessage(self):
-        pub = self.getMyTempPrivkey().public_key.encode()
+    def send_first_message(self):
+        pub = self.get_my_temp_privkey().public_key.encode()
         self.send("i0:m1:"+pub)
-        self.db.update("UPDATE invitations SET myMessages=? WHERE id=?",
-                       (",".join(self.myMessages), self.iid),
+        self.db.update("UPDATE invitations SET my_messages=? WHERE id=?",
+                       (",".join(self.my_messages), self.iid),
                        "invitations", self.iid)
         # that will be commited by our caller
 
-    def processMessages(self, messages):
+    def process_messages(self, messages):
         # These messages are neither version-checked nor signature-checked.
         # Also, we may have already processed some of them.
-        #print "processMessages", messages
-        #print " my", self.myMessages
-        #print " theirs", self.theirMessages
+        #print "process_messages", messages
+        #print " my", self.my_messages
+        #print " theirs", self.their_messages
         assert isinstance(messages, set), type(messages)
         assert None not in messages, messages
-        assert None not in self.myMessages, self.myMessages
-        assert None not in self.theirMessages, self.theirMessages
+        assert None not in self.my_messages, self.my_messages
+        assert None not in self.their_messages, self.their_messages
         # Send anything that didn't make it to the server. This covers the
         # case where we commit our outbound message in send() but crash
         # before finishing delivery.
-        #for m in self.myMessages - messages:
+        #for m in self.my_messages - messages:
         #    #print "resending", m
-        #    self.manager.sendToAll(self.inviteID, m)
+        #    self.manager.send_to_all(self.inviteID, m)
 
-        newMessages = messages - self.myMessages - self.theirMessages
+        newMessages = messages - self.my_messages - self.their_messages
         #print " %d new messages" % len(newMessages)
         if not newMessages:
             #print " huh, no new messages, stupid rendezvous client"
@@ -231,7 +232,7 @@ class Invitation:
                 if not VALID_MESSAGE.search(m):
                     raise CorruptChannelError()
                 decoded = m[len("r0:"):].decode("hex")
-                body = self.inviteKey.verify_key.verify(decoded)
+                body = self.invite_key.verify_key.verify(decoded)
                 valid_bodies[body] = m
             except (BadSignatureError, CorruptChannelError) as e:
                 print "channel %s is corrupt" % self.inviteID
@@ -241,8 +242,8 @@ class Invitation:
                 # TODO: mark invitation as failed, destroy it
                 return
 
-        # these handlers will update self.myMessages with sent messages, and
-        # will increment self.nextExpectedMessage. We can handle multiple
+        # these handlers will update self.my_messages with sent messages, and
+        # will increment self.next_expected_message. We can handle multiple
         # (sequential) messages in a single pass.
         def call_if_prefixed(prefix, handler):
             for b in valid_bodies:
@@ -251,22 +252,22 @@ class Invitation:
                     handler(b[len(prefix):])
                     return
 
-        if self.nextExpectedMessage == 1:
-            call_if_prefixed("i0:m1:", self.processM1)
-        # no elif here: self.nextExpectedMessage may have incremented
-        if self.nextExpectedMessage == 2:
-            call_if_prefixed("i0:m2:", self.processM2)
-        if self.nextExpectedMessage == 3:
-            call_if_prefixed("i0:m3:", self.processM3)
+        if self.next_expected_message == 1:
+            call_if_prefixed("i0:m1:", self.process_M1)
+        # no elif here: self.next_expected_message may have incremented
+        if self.next_expected_message == 2:
+            call_if_prefixed("i0:m2:", self.process_M2)
+        if self.next_expected_message == 3:
+            call_if_prefixed("i0:m3:", self.process_M3)
 
         self.db.update("UPDATE invitations SET"
-                       "  myMessages=?,"
-                       "  theirMessages=?,"
-                       "  nextExpectedMessage=?"
+                       "  my_messages=?,"
+                       "  their_messages=?,"
+                       "  next_expected_message=?"
                        " WHERE id=?",
-                       (",".join(self.myMessages),
-                        ",".join(self.theirMessages | messages_to_ignore),
-                        self.nextExpectedMessage,
+                       (",".join(self.my_messages),
+                        ",".join(self.their_messages | messages_to_ignore),
+                        self.next_expected_message,
                         self.iid),
                        "invitations", self.iid)
         #print " db.commit"
@@ -274,32 +275,32 @@ class Invitation:
 
     def send(self, msg, persist=True):
         #print "send", repr(msg[:10]), "..."
-        signed = "r0:%s" % self.inviteKey.sign(msg).encode("hex")
+        signed = "r0:%s" % self.invite_key.sign(msg).encode("hex")
         if persist: # m4-destroy is not persistent
-            self.myMessages.add(signed) # will be persisted by caller
+            self.my_messages.add(signed) # will be persisted by caller
             # This will be added to the DB, and committed, by our caller, to
             # get it into the same transaction as the update to which inbound
             # messages we've processed.
         assert VALID_MESSAGE.search(signed), signed
-        self.manager.sendToAll(self.inviteID, signed)
+        self.manager.send_to_all(self.inviteID, signed)
 
-    def processM1(self, msg):
+    def process_M1(self, msg):
         #print "processM1", self.petname
-        self.theirTempPubkey = PublicKey(msg)
-        self.db.update("UPDATE invitations SET theirTempPubkey=?"
+        self.their_temp_pubkey = PublicKey(msg)
+        self.db.update("UPDATE invitations SET their_temp_pubkey=?"
                        " WHERE id=?",
-                       (self.theirTempPubkey.encode(Hex), self.iid),
+                       (self.their_temp_pubkey.encode(Hex), self.iid),
                        "invitations", self.iid)
-        # theirTempPubkey will committed by our caller, in the same txn as
+        # their_temp_pubkey will committed by our caller, in the same txn as
         # the message send
 
-        my_privkey = self.getMyTempPrivkey()
-        payload_for_them = self.getPayloadForThem()
-        b = Box(my_privkey, self.theirTempPubkey)
-        signedBody = b"".join([self.theirTempPubkey.encode(),
+        my_privkey = self.get_my_temp_privkey()
+        payload_for_them = self.get_payload_for_them()
+        b = Box(my_privkey, self.their_temp_pubkey)
+        signedBody = b"".join([self.their_temp_pubkey.encode(),
                                my_privkey.public_key.encode(),
                                payload_for_them.encode("utf-8")])
-        my_sign = self.getMySigningKey()
+        my_sign = self.get_my_signkey()
         body = b"".join([b"i0:m2a:",
                          my_sign.verify_key.encode(),
                          my_sign.sign(signedBody)
@@ -310,14 +311,14 @@ class Invitation:
         #print " nonce", nonce.encode("hex")
         msg2 = "i0:m2:"+nonce_and_ciphertext
         self.send(msg2)
-        self.nextExpectedMessage = 2
+        self.next_expected_message = 2
 
-    def processM2(self, msg):
+    def process_M2(self, msg):
         #print "processM2", repr(msg[:10]), "...", self.petname
-        assert self.theirTempPubkey
+        assert self.their_temp_pubkey
         nonce_and_ciphertext = msg
-        my_privkey = self.getMyTempPrivkey()
-        b = Box(my_privkey, self.theirTempPubkey)
+        my_privkey = self.get_my_temp_privkey()
+        b = Box(my_privkey, self.their_temp_pubkey)
         #nonce = msg[:Box.NONCE_SIZE]
         #ciphertext = msg[Box.NONCE_SIZE:]
         #print "DECRYPTING n+ct", len(msg), msg.encode("hex")
@@ -325,38 +326,38 @@ class Invitation:
         if not body.startswith("i0:m2a:"):
             raise ValueError("expected i0:m2a:, got '%r'" % body[:20])
         verfkey_and_signedBody = body[len("i0:m2a:"):]
-        theirVerfkey = VerifyKey(verfkey_and_signedBody[:32])
+        their_verfkey = VerifyKey(verfkey_and_signedBody[:32])
         signedBody = verfkey_and_signedBody[32:]
-        body = theirVerfkey.verify(signedBody)
-        check_myTempPubkey = body[:32]
-        check_theirTempPubkey = body[32:64]
+        body = their_verfkey.verify(signedBody)
+        check_my_temp_pubkey = body[:32]
+        check_their_temp_pubkey = body[32:64]
         payload_for_us_json = body[64:].decode("utf-8")
         #print " binding checks:"
-        #print " check_myTempPubkey", check_myTempPubkey.encode("hex")
+        #print " check_my_temp_pubkey", check_my_temp_pubkey.encode("hex")
         #print " my real tempPubkey", my_privkey.public_key.encode(Hex)
-        #print " check_theirTempPubkey", check_theirTempPubkey.encode("hex")
-        #print " first theirTempPubkey", self.theirTempPubkey.encode(Hex)
-        if check_myTempPubkey != my_privkey.public_key.encode():
+        #print " check_their_temp_pubkey", check_their_temp_pubkey.encode("hex")
+        #print " first their_temp_pubkey", self.their_temp_pubkey.encode(Hex)
+        if check_my_temp_pubkey != my_privkey.public_key.encode():
             raise ValueError("binding failure myTempPubkey")
-        if check_theirTempPubkey != self.theirTempPubkey.encode():
-            raise ValueError("binding failure theirTempPubkey")
+        if check_their_temp_pubkey != self.their_temp_pubkey.encode():
+            raise ValueError("binding failure their_temp_pubkey")
 
         them = json.loads(payload_for_us_json)
-        me = self.getMyPrivateData()
-        cid = self.agent.invitation_done(self.petname, me, them, theirVerfkey)
+        me = self.get_my_private_data()
+        cid = self.agent.invitation_done(self.petname, me, them, their_verfkey)
         self.db.update("UPDATE invitations SET addressbook_id=?"
                        " WHERE id=?", (cid, self.iid),
                        "invitations", self.iid)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)
-        self.nextExpectedMessage = 3
+        self.next_expected_message = 3
 
-    def processM3(self, msg):
+    def process_M3(self, msg):
         #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
-        self.agent.invitation_acked(self.getAddressbookID())
+        self.agent.invitation_acked(self.get_addressbook_id())
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
         # we no longer care about the channel

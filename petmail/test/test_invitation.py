@@ -15,7 +15,8 @@ AddressbookRow = collections.namedtuple("AddressbookEntry",
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
     def checkCounts(self, node, code, my, theirs, next, exists=True):
         c = node.db.execute("SELECT"
-                            " myMessages, theirMessages, nextExpectedMessage"
+                            " my_messages, their_messages,"
+                            " next_expected_message"
                             " FROM invitations WHERE code=?",
                             (code.encode("hex"),))
         rows = [ MROW(splitMessages(row[0]), splitMessages(row[1]), row[2])
