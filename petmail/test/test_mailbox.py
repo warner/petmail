@@ -20,6 +20,21 @@ class Invite(TwoNodeMixin, unittest.TestCase):
         self.failUnlessRaises(CommandError,
                               n1.agent.command_add_mailbox, mbrec_bogus)
 
+    def test_http_retriever(self):
+        basedir1 = os.path.join(self.make_basedir(), "node1")
+        self.createNode(basedir1)
+        n1 = self.startNode(basedir1)
+        d = n1.stopService() # keep the client from polling
+        def _then(_):
+            mbrec = {"retrieval": {"type": "http",
+                                   "baseurl": "/",
+                                   "RT": "",
+                                   "retrieval_pubkey": "",
+                                   "retrieval_symkey": ""}}
+            n1.agent.command_add_mailbox(mbrec)
+        d.addCallback(_then)
+        return d
+
     def test_offer_mailbox(self):
         nA, nB = self.make_nodes(transport="none", relay="http")
         self.failUnlessEqual(len(nA.agent.get_transports()), 0)
