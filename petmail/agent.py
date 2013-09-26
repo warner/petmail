@@ -63,20 +63,6 @@ class Agent(service.MultiService):
         # child, that happens here.
         rc.setServiceParent(self)
 
-    def command_add_mailbox(self, mbrec):
-        # TODO: (is this still accurate?) it'd be nice to make sure we can
-        # build it, before committing it to the DB. But we need the tid
-        # first, which comes from the DB. The commit-after-build below might
-        # accomplish this anyways.
-        mbid = self.db.insert("INSERT INTO mailboxes"
-                              " (mailbox_record_json)"
-                              " VALUES (?)",
-                              (json.dumps(mbrec),),
-                              "mailboxes")
-        rc = self.build_retriever(mbid, mbrec["retrieval"])
-        self.db.commit()
-        self.subscribe_to_mailbox(rc)
-
     def msgC_received(self, tid, msgC):
         assert msgC.startswith("c0:")
         cid, seqnum, payload_json = channel.process_msgC(self.db, msgC)

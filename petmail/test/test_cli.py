@@ -66,14 +66,6 @@ class CLI(unittest.TestCase):
         ''')
         self.failUnlessEqual(out, expected)
 
-    def test_add_mailbox(self):
-        path,body,rc,out,err = self.call(OK,
-                                         "add-mailbox", "mailbox-descriptor")
-        self.failUnlessEqual((rc, err), (0, ""))
-        self.failUnlessEqual(path, "add-mailbox")
-        self.failUnlessEqual(body, {"descriptor": "mailbox-descriptor"})
-        self.failUnlessEqual(out, "ok\n")
-
     def test_send_basic(self):
         path,body,rc,out,err = self.call(OK,
                                          "send-basic", "1", "message")

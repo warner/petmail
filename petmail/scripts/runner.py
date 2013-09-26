@@ -99,10 +99,6 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, code):
         self["code"] = code
 
-class AddMailboxOptions(BasedirParameterMixin, usage.Options):
-    def parseArgs(self, descriptor):
-        self["descriptor"] = descriptor
-
 class SendBasicOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, cid, message):
         self["cid"] = cid
@@ -131,7 +127,7 @@ class Options(usage.Options):
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
                    ("addressbook", None, NoOptions, "List Addressbook"),
-                   ("add-mailbox", None, AddMailboxOptions, "Add a new mailbox"),
+
                    ("send-basic", None, SendBasicOptions, "Send a basic message"),
                    ("fetch-messages", None, NoOptions, "Fetch all stored messages"),
                    ("follow-messages", None, NoOptions, "Fetch messages"),
@@ -262,7 +258,6 @@ DISPATCH = {"create-node": create_node,
             "invite": WebCommand("invite", ["petname", "code"]),
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
-            "add-mailbox": WebCommand("add-mailbox", ["descriptor"]),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),
             "fetch-messages": WebCommand("fetch-messages", [],
                                          render=render_messages),

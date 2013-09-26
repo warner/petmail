@@ -176,12 +176,6 @@ class ListAddressbook(BaseHandler):
                 "addressbook": self.agent.command_list_addressbook()}
 handlers["list-addressbook"] = ListAddressbook
 
-class AddMailbox(BaseHandler):
-    def handle(self, payload):
-        self.agent.command_add_mailbox(str(payload["descriptor"]))
-        return {"ok": "ok"}
-handlers["add-mailbox"] = AddMailbox
-
 class SendBasic(BaseHandler):
     def handle(self, payload):
         cid = int(payload["cid"])
