@@ -38,7 +38,8 @@ class Invite(TwoNodeMixin, unittest.TestCase):
     def test_offer_mailbox(self):
         nA, nB = self.make_nodes(transport="none", relay="http")
         self.failUnlessEqual(len(nA.agent.get_transports()), 0)
-        d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True)
+        d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True,
+                                                 accept_mailbox=True)
         def _then((entA,entB)):
             self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
@@ -81,4 +82,18 @@ class Invite(TwoNodeMixin, unittest.TestCase):
             self.failUnless(isinstance(list(retrievers)[0], HTTPRetriever))
         d.addCallback(_then2)
 
+        return d
+
+    def test_offer_mailbox_rejected(self):
+        nA, nB = self.make_nodes(transport="none", relay="http")
+        self.failUnlessEqual(len(nA.agent.get_transports()), 0)
+        d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True)
+        def _then((entA,entB)):
+            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
+                                 entA["id"])
+            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
+                                 entB["id"])
+            transports = nA.agent.get_transports()
+            self.failIf(transports)
+        d.addCallback(_then)
         return d

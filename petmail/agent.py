@@ -95,7 +95,7 @@ class Agent(service.MultiService):
         #    print "BASIC:", payload["basic"]
 
     def command_invite(self, petname, code, override_transports=None,
-                       offer_mailbox=False):
+                       offer_mailbox=False, accept_mailbox=False):
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)
@@ -123,6 +123,7 @@ class Agent(service.MultiService):
             tid = self.mailbox_server.allocate_transport(remote=True)
             private["mailbox_tid"] = tid
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
+        private["accept_mailbox"] = accept_mailbox
 
         self.im.start_invitation(petname, code, my_signkey, payload, private)
         return "invitation for %s started" % petname
@@ -155,8 +156,7 @@ class Agent(service.MultiService):
              0, their_verfkey.encode().encode("hex") ),
             "addressbook")
         mailbox = them.get("mailbox")
-        if mailbox:
-            # auto-accept
+        if mailbox and private["accept_mailbox"]:
             mbid = self.db.insert("INSERT INTO mailboxes"
                                   " (mailbox_record_json) VALUES (?)",
                                   (json.dumps(mailbox),), "mailboxes")
