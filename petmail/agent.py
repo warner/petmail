@@ -6,6 +6,7 @@ from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .errors import CommandError
 from .mailbox import channel, retrieval
+from .util import to_ascii
 
 class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
@@ -153,6 +154,14 @@ class Agent(service.MultiService):
     def invitation_acked(self, cid):
         self.db.update("UPDATE addressbook SET acked=1 WHERE id=?", (cid,),
                        "addressbook", cid)
+
+    def command_offer_mailbox(self, petname):
+        code = to_ascii(os.urandom(16), "mailbox-", "base32")
+        self.command_invite(petname, code, offer_mailbox=True)
+        return "invitation code: %s" % code
+
+    def command_accept_mailbox(self, petname, code):
+        return self.command_invite(petname, code, accept_mailbox=True)
 
     def command_send_basic_message(self, cid, message):
         self.send_message(cid, {"basic": message}) # ignore Deferred

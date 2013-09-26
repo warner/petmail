@@ -170,6 +170,19 @@ class Invite(BaseHandler):
         return self.agent.command_invite(petname, code)
 handlers["invite"] = Invite
 
+class OfferMailbox(BaseHandler):
+    def handle(self, payload):
+        petname = unicode(payload["petname"])
+        return self.agent.command_offer_mailbox(petname)
+handlers["offer-mailbox"] = OfferMailbox
+
+class AcceptMailbox(BaseHandler):
+    def handle(self, payload):
+        petname = unicode(payload["petname"])
+        code = str(payload["code"])
+        return self.agent.command_accept_mailbox(petname, code)
+handlers["accept-mailbox"] = AcceptMailbox
+
 class ListAddressbook(BaseHandler):
     def handle(self, payload):
         return {"ok": "ok",

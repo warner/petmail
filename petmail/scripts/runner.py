@@ -99,6 +99,19 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, code):
         self["code"] = code
 
+class OfferMailboxOptions(BasedirParameterMixin, usage.Options):
+    def parseArgs(self, petname):
+        self["petname"] = petname
+    synopsis = "PETNAME"
+    longdesc = "Offer a mailbox to a customer, assigning them PETNAME. This returns the invitation code that should be given to the customer for use in their own 'petmail accept-mailbox' command."
+
+class AcceptMailboxOptions(BasedirParameterMixin, usage.Options):
+    optParameters = [
+        ("petname", "n", None, "Petname for the server offering the mailbox"),
+        ]
+    def parseArgs(self, code):
+        self["code"] = code
+
 class SendBasicOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, cid, message):
         self["cid"] = cid
@@ -126,6 +139,8 @@ class Options(usage.Options):
 
                    ("sample", None, SampleOptions, "Sample Command"),
                    ("invite", None, InviteOptions, "Start an Invitation"),
+                   ("offer-mailbox", None, OfferMailboxOptions, "Offer mailbox service to somebody"),
+                   ("accept-mailbox", None, AcceptMailboxOptions, "Accept mailbox service from somebody"),
                    ("addressbook", None, NoOptions, "List Addressbook"),
 
                    ("send-basic", None, SendBasicOptions, "Send a basic message"),
@@ -256,6 +271,8 @@ DISPATCH = {"create-node": create_node,
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
             "invite": WebCommand("invite", ["petname", "code"]),
+            "offer-mailbox": WebCommand("offer-mailbox", ["petname"]),
+            "accept-mailbox": WebCommand("accept-mailbox", ["petname", "code"]),
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),
