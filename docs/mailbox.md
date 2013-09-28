@@ -1,9 +1,9 @@
 # Mailboxes
 
-To receive messages, each client must contract with at least one `mailbox`
+To receive messages, each agent must contract with at least one `mailbox`
 service. This is a publically-reachable server with good uptime, that is
-willing to store incoming messages later retrieval by the client. Mailboxes
-allow clients to receive messages despite not being online all the time, and
+willing to store incoming messages later retrieval by the agent. Mailboxes
+allow agents to receive messages despite not being online all the time, and
 living behind a NAT box. Some mailboxes can also improve privacy by making it
 difficult to link sender and receiver.
 
@@ -14,25 +14,25 @@ other fields depending upon the type. Each addressbook entry contains exactly
 one channel descriptor, and one or more transport descriptors (one per
 mailbox in use).
 
-Client nodes can provide their own mailbox. This is most useful for
-development, however it can be used for production when the transport
-provides NAT-traversal facilities, or when the client has a public IP
-address.
+Nodes can provide their own mailbox. This is most useful for development,
+however it can be used for production when the transport provides
+NAT-traversal facilities, or when the node has a public IP address.
 
-Clients may advertise mailboxes with transport types that are unrecognized by
-other clients: these are ignored. Some transports offer realtime confirmation
-of delivery, while others are high-latency send-and-hope. Senders may elect
-to deliver multiple copies of their message in parallel, and receivers must
-tolerate (ignore) duplicates.
+Agents might advertise mailboxes with transport types that are unrecognized
+by other agents: these are ignored. Some transports offer realtime
+confirmation of delivery, while others are high-latency send-and-hope.
+Senders may elect to deliver multiple copies of their message in parallel,
+and receivers must tolerate (ignore) duplicates.
 
 ## Terminology
 
 The Players: Alice and Bob are senders. Carol and David are recipients. Both
 senders have channels to both recipients (four channels in total). Each
-player has a user-agent Node, which maintains an addressbook.
+player has a user-"Agent" which maintains an addressbook and runs inside a
+"node".
 
 Channel: A unidirectional pathway for messages from one sender to one
-receiver. Two nodes which have established contact will maintain two
+receiver. Two agents which have established contact will maintain two
 Channels, one in each direction. Each addressbook entry contains information
 on the sending side of one channel, and the receiving side of the reverse
 channel. Each Channel uses a signing/verifying keypair, and a (current, old)
@@ -84,10 +84,10 @@ Each transport descriptor needs to convey the following information:
   indirection, so this could instead be a Tor hidden-service (.onion)
   address, or a SMTP mailbox name (username@host), or a local directory name.
 * Encryption pubkey for the mailbox. This is a 32-byte Curve25519 pubkey. All
-  clients who share a mailbox will use the same pubkey. This is used to
-  encrypt the outer message, which will be decrypted by the mailbox. The
-  intention is to conceal the ultimate recipient of each inner message from
-  an eavesdropper watching the mailbox's network inlet.
+  nodes who share a mailbox will use the same pubkey. This is used to encrypt
+  the outer message, which will be decrypted by the mailbox. The intention is
+  to conceal the ultimate recipient of each inner message from an
+  eavesdropper watching the mailbox's network inlet.
 * Sender-Specific Transport ID (STID). This is a re-randomizable encrypted
   token, unique to each channel. The sender will use this to create a
   per-message "MSTID", placed inside the outer-encrypted payload, so it will
@@ -122,38 +122,38 @@ and mailbox pubkey will be the same.
 Each mailbox service has a distinct pubkey. There should be a one-to-one
 relationship between reachability data and mailbox pubkey.
 
-Clients can use multiple mailbox services, or even use multiple transports
-within a single mailbox. The STID will be different for each. These clients
+Agents can use multiple mailbox services, or even use multiple transports
+within a single mailbox. The STID will be different for each. These agents
 will provide multiple transport descriptors to their correspondents. However
 they will only provide a single channel descriptor to each correspondent,
 regardless of how many mailboxes they use.
 
 ## Renting an Inbox
 
-Clients must generally arrange to rent inbox space. The process for making
+Agents must generally arrange to rent inbox space. The process for making
 these arrangements is up to the individual service provider. Regardless of
 how inbox service is obtained, the result is always an `inbox offer string`.
-This short string should be pasted into the client node's Inbox Control
-Panel. The node will then generate a transport descriptor for the inbox and
-update all addressbook contacts with the new coordinates. New invitations
-will include the updated descriptors.
+This short string should be pasted into the agent node's Inbox Control Panel.
+The node will then generate a transport descriptor for the inbox and update
+all addressbook contacts with the new coordinates. New invitations will
+include the updated descriptors.
 
 The inbox provider is automatically added to the addressbook. They are given
 the ability to deliver messages to the user. This channel allows the provider
 to inform the user about service changes, and to discuss payment.
 
 The inbox provider may find it necessary to change the transport coordinates
-of the user's inbox. An additional channel, managed internally by the client
+of the user's inbox. An additional channel, managed internally by the agent
 node, will receive and process these messages without user involvement.
 
 ## Retention Periods
 
-Mailboxes are for temporary storage of inbound messages. Client nodes are
+Mailboxes are for temporary storage of inbound messages. Agent nodes are
 expected to retrieve their messages every few days, after which the mailbox
 can delete the temporary copy. Mailboxes are allowed to delete even unread
 messages after a while: the exact duration should be specified as part of the
-contract (and displayed in the client UI), but is expected to be a few days
-or weeks.
+contract (and displayed in the agent UI), but is expected to be a few days or
+weeks.
 
 ## Transport Security
 
@@ -170,8 +170,8 @@ When a Tor hidden service is used as a transport, an eavesdropper should
 learn even less. Hidden services offer their own strong transport security,
 but for consistency we encrypt to the same mailbox key anyways. TLS/HTTPS
 could offer the same properties, but only when used in a forward-secret mode,
-and only if the client verifies the certificate properly, neither of which
-are particularly convenient, so we use the mailbox key here too.
+and only if the agent verifies the certificate properly, neither of which are
+particularly convenient, so we use the mailbox key here too.
 
 ## Anonymity / Unlinkability
 
@@ -225,7 +225,7 @@ it is deleted.
 Recipients will periodically (but not always immediately) update their
 senders with a new key.
 
-To enable recovery from client rollback (where a client is restored from a
+To enable recovery from agent rollback (where a node is restored from a
 backup, losing the rotating keypairs but retaining the other data), Petmail
 only offers forward-security for confidentiality, not authentication. If a
 node's private state is revealed, the attacker may be able to retroactively
@@ -366,14 +366,14 @@ BAD_REQUEST" is returned, and the sender should try again later or through a
 different mailbox. Other transports (non-connection oriented) can log
 successes and errors but do not (and cannot) inform the sender.
 
-## Client Flow
+## Agent Flow
 
 ![03-recipient](./images/03-recipient.png)
 
 The recipient contacts the mailbox and retrieves any queued messages intended
-for its client identifier, using a protocol that depends on the mailbox type.
-It gets the full contents of "msgC" as described above. The client then
-instructs the mailbox to delete the queued messages. If the client maintains
+for its transport identifier, using a protocol that depends on the mailbox
+type. It gets the full contents of "msgC" as described above. The agent then
+instructs the mailbox to delete the queued messages. If the agent maintains
 multiple queues with the same mailbox service (e.g. multiple TIDs), it must
 retrieve each set of messages separately.
 

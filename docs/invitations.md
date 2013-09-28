@@ -1,11 +1,10 @@
 # Invitations
 
-
-Petmail nodes learn about each other through `Invitations`. Each invitation
+Petmail agents learn about each other through `Invitations`. Each invitation
 creates a pair-wise connection between the two nodes: an entry is added to
 each node's addressbook, pointing to the other node. These entries enable
-secure communication with the other node, and by extension, the human who
-owns that node.
+secure communication with the other agent, and by extension, the human who
+owns that node/agent.
 
 `Invitation Codes` are short strings that deliver the invitation. They come
 in two forms: randomly-generated, and shared code-phrases. Regardless of how
@@ -48,20 +47,20 @@ cost calculations)
 
 ## Rendezvous Server
 
-All Petmail clients use the same (Firebase-hosted?) rendezvous server. The
-access coordinates are hard-wired into the client.
+All Petmail nodes use the same rendezvous server. The access coordinates are
+hard-wired into the node.
 
-This server holds some number of short-lived "channels", created on-demand,
-and deleted when both parties are done with them (or after 24 hours). Each
+This server holds a number of short-lived "channels", created on-demand, and
+deleted when both parties are done with them (or after 24 hours). Each
 channel holds an unsorted set of messages. All messages are signed (the
 channel ID is the verifying key), allowing the server to reject noise from
-non-participants (those who do not know the invitation code). Clients check
+non-participants (those who do not know the invitation code). Agents check
 the same signatures, so they can ignore noise from the server as well.
 
-For local development, clients also use a "local-fs" rendezvous service,
-which is simply a subdirectory of the source tree named ".rendezvous".
-Channels correspond to files in this directory. Files older than 15 minutes
-are deleted at node startup.
+For local development, agents also use a "local-fs" rendezvous service, which
+is simply a subdirectory of the source tree named ".rendezvous". Channels
+correspond to files in this directory. Files older than 15 minutes are
+deleted at node startup.
 
 ## Details
 
@@ -80,35 +79,35 @@ channel is more than 24 hours old, the channel is destroyed.
 
 ![invitation-1](./images/invitation-1.png)
 
-The first client to contact the server posts a message that contains a
-signed ephemeral Curve25519 pubkey. It then polls or subscribes to the
-channel, waiting for changes.
+The first agent to contact the server posts a message that contains a signed
+ephemeral Curve25519 pubkey. It then polls or subscribes to the channel,
+waiting for changes.
 
-The second client reads that message and prepares a similar one of its own.
-It also uses the two ephemeral pubkeys to create a boxed record containing
-its long-term verifying key, and a signed copy of the two ephemeral pubkeys
-and its transport record (listing the mailboxes it uses for inbound
-messages). Both messages are added to the channel. Note that the long-term
-verifying key is different for each sender (so each pair of users will
-involve two verifying keys).
+The second agent reads that message and prepares a similar one of its own. It
+also uses the two ephemeral pubkeys to create a boxed record containing its
+long-term verifying key, and a signed copy of the two ephemeral pubkeys and
+its transport record (listing the mailboxes it uses for inbound messages).
+Both messages are added to the channel. Note that the long-term verifying key
+is different for each sender (so each pair of users will involve two
+verifying keys).
 
 The transport record will include: the mailbox descriptor string (including
 URL and mailbox pubkey), the sender-specific STID and CID identifiers (see
 [mailbox.md](./mailbox.md)), and the current rotating pubkey (used to provide
 forward-secrecy).
 
-When generating the transport record, each client will remember several
-secret values for themselves. This includes the CID for their correspondent,
-the signing key they will use for outbound messages, and the private key
-they'll use to decrypt inbound messages. These secrets will be stored in the
+When generating the transport record, each agent will remember several secret
+values for themselves. This includes the CID for their correspondent, the
+signing key they will use for outbound messages, and the private key they'll
+use to decrypt inbound messages. These secrets will be stored in the
 addressbook entry.
 
-The first client then retrieves those messages and appends its own boxed
+The first agent then retrieves those messages and appends its own boxed
 record. It adds the address-book entry for the peer, marking it as
 "unacknowledged". It adds a third message to the channel with the string
 "ack-" and a nonce.
 
-The second client retrieves the boxed record, creates its own address-book
+The second agent retrieves the boxed record, creates its own address-book
 entry, and adds its own ACK to the channel. When it sees the other ACK, it
 marks the address-book entry as "acknowledged", and adds a "delete-channel"
 message to the channel (with a nonce). At this point, it unsubscribes from
@@ -116,9 +115,9 @@ the channel (stops polling, etc).
 
 ![invitation-2](./images/invitation-2.png)
 
-The first client sees the "ACK" message, marks its address-book entry as
+The first agent sees the "ACK" message, marks its address-book entry as
 "acknowledged", and adds its own "delete-channel" message to the channel. The
-first client now stops polling too.
+first agent now stops polling too.
 
 The server, upon seeing both "delete-channel" messages, deletes the channel.
 
