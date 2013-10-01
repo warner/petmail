@@ -63,8 +63,8 @@ def create_node(so, stdout, stderr, services):
         pe_fn = os.path.join(basedir, "petmail")
         pe = open(pe_fn, "w")
         pe.write("#!/bin/sh\n")
-        pe.write("%s -d %s $*\n" % (os.path.abspath(petmail),
-                                    os.path.abspath(basedir)))
+        pe.write('%s -d %s "$@"\n' % (os.path.abspath(petmail),
+                                      os.path.abspath(basedir)))
         pe.close()
         os.chmod(pe_fn, 0755)
 
