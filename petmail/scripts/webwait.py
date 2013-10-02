@@ -20,6 +20,7 @@ def get_url_and_token(basedir, err):
         raise NoNodeError(basedir)
     db = database.get_db(dbfile, err)
     url = str(db.execute("SELECT baseurl FROM node LIMIT 1").fetchone()[0])
+    assert url.endswith("/")
     # TODO: consider a separate localhost:listenport URL for CLI use
     c = db.execute("SELECT token FROM webapi_access_tokens LIMIT 1")
     row = c.fetchone()

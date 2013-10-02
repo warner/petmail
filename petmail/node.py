@@ -49,6 +49,7 @@ class Node(service.MultiService):
         self.web = web.WebPort(str(c["listenport"]), access_token)
         self.web.setServiceParent(self)
         self.baseurl = str(c["baseurl"])
+        assert self.baseurl.endswith("/")
 
         # The access token will be used by both CLI commands (which read it
         # directly from the database) and the frontend web client (which
