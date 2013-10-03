@@ -112,8 +112,11 @@ class Agent(service.MultiService):
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
         private["accept_mailbox"] = accept_mailbox
 
-        self.im.start_invitation(petname, code, my_signkey, payload, private)
-        return "invitation for %s started" % petname
+        iid = self.im.start_invitation(petname, code, my_signkey,
+                                       payload, private)
+        return {"invite-id": iid, "petname": petname,
+                "ok": "invitation for %s started: invite-id: %d" %
+                (petname, iid)}
 
     def invitation_done(self, petname, private, them, their_verfkey):
         channel = them["channel"]

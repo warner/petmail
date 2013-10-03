@@ -129,6 +129,7 @@ class InvitationManager(service.MultiService):
         i = Invitation(iid, self.db, self, self.agent)
         i.send_first_message()
         self.db.commit()
+        return iid
 
 class Invitation:
     # This has a brief lifetime: one is created in response to the rendezvous
