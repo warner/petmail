@@ -124,6 +124,10 @@
              (file-name-directory
               (directory-file-name
                (file-name-directory buffer-file-name))))
+;; TODO: this buffer-file-name is for whatever buffer is active when
+;; coverage.el is loaded, not the filename of coverage.el itself, so this is
+;; probably dumb. It also causes an error when the load is done from e.g. the
+;; *scratch* buffer.
 
 (defun maybe-enable-coverage-mode ()
   (let ((enable nil))
