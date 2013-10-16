@@ -104,7 +104,8 @@ class Agent(service.MultiService):
                             "my_new_channel_privkey": channel_key.encode(Hex),
                             "transport_ids": tids,
                             }
-        private = { "channel": private_channel }
+        private = { "petname": petname,
+                    "channel": private_channel }
 
         if offer_mailbox:
             tid = self.mailbox_server.allocate_transport(remote=True)
@@ -112,13 +113,12 @@ class Agent(service.MultiService):
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
         private["accept_mailbox"] = accept_mailbox
 
-        iid = self.im.start_invitation(petname, code, my_signkey,
-                                       payload, private)
+        iid = self.im.start_invitation(code, my_signkey, payload, private)
         return {"invite-id": iid, "petname": petname,
                 "ok": "invitation for %s started: invite-id: %d" %
                 (petname, iid)}
 
-    def invitation_done(self, petname, private, them, their_verfkey):
+    def invitation_done(self, private, them, their_verfkey):
         channel = them["channel"]
         cid = self.db.insert(
             "INSERT INTO addressbook"
@@ -136,7 +136,7 @@ class Agent(service.MultiService):
             "         ?,"   # highest_inbound_seqnum
             "         ?,?,"
             "         ?,?)",
-            (petname, 0,
+            (private["petname"], 0,
              1, private["channel"]["my_signkey"],
              json.dumps(channel),
              private["channel"]["my_CID_key"], None,

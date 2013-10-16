@@ -99,8 +99,6 @@ CREATE TABLE `invitations` -- data on all pending invitations
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
 
- `petname` STRING,
-
  -- these are only used during the invitation process, then discarded
  `code` STRING,
  `invite_key` STRING, -- Ed25519 signing key
@@ -121,7 +119,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
  --  .transports[]: .STT, .transport_pubkey, .type, .url
  `payload_for_them_json` STRING,
  -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey,
- --  .transport_ids (points to 'transports' table)
+ --  .transport_ids (points to 'transports' table), .petname
  `my_private_invitation_data` STRING
 );
 

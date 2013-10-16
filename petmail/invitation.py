@@ -98,9 +98,8 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def start_invitation(self, petname, code, my_signkey, payload, private):
+    def start_invitation(self, code, my_signkey, payload, private):
         # "payload" goes to them, "private" stays with us
-        #print "invite", petname, code.encode("hex")
         stretched = stretch(code)
         invite_key = SigningKey(stretched)
         inviteID = invite_key.verify_key.encode(Hex)
@@ -111,14 +110,14 @@ class InvitationManager(service.MultiService):
         if inviteID in [str(row[0]) for row in c.fetchall()]:
             raise CommandError("invitation code already in use")
         iid = db.insert("INSERT INTO `invitations`"
-                        " (code, petname, invite_key,"
+                        " (code, invite_key,"
                         "  inviteID,"
                         "  my_temp_privkey, my_signkey,"
                         "  payload_for_them_json, my_private_invitation_data,"
                         "  my_messages, their_messages, "
                         "  next_expected_message)"
-                        " VALUES (?,?,?, ?, ?,?, ?,?, ?,?, ?)",
-                        (code.encode("hex"), petname, stretched.encode("hex"),
+                        " VALUES (?,?, ?, ?,?, ?,?, ?,?, ?)",
+                        (code.encode("hex"), stretched.encode("hex"),
                          inviteID,
                          my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
                          json.dumps(payload), json.dumps(private),
@@ -143,24 +142,23 @@ class Invitation:
         self.db = db
         self.manager = manager
         self.agent = agent
-        c = self.db.execute("SELECT petname, inviteID, invite_key," # 0,1,2
-                            " their_temp_pubkey," # 3
-                            " next_expected_message," # 4
-                            " my_messages," # 5
-                            " their_messages" # 6
+        c = self.db.execute("SELECT inviteID, invite_key," # 0,1
+                            " their_temp_pubkey," # 2
+                            " next_expected_message," # 3
+                            " my_messages," # 4
+                            " their_messages" # 5
                             " FROM invitations WHERE id = ?", (iid,))
         res = c.fetchone()
         if not res:
             raise KeyError("no pending Invitation for '%d'" % iid)
-        self.petname = res[0]
-        self.inviteID = str(res[1])
-        self.invite_key = SigningKey(res[2].decode("hex"))
+        self.inviteID = str(res[0])
+        self.invite_key = SigningKey(res[1].decode("hex"))
         self.their_temp_pubkey = None
-        if res[3]:
-            self.their_temp_pubkey = PublicKey(res[3].decode("hex"))
-        self.next_expected_message = int(res[4])
-        self.my_messages = splitMessages(res[5])
-        self.their_messages = splitMessages(res[6])
+        if res[2]:
+            self.their_temp_pubkey = PublicKey(res[2].decode("hex"))
+        self.next_expected_message = int(res[3])
+        self.my_messages = splitMessages(res[4])
+        self.their_messages = splitMessages(res[5])
 
     def get_addressbook_id(self):
         c = self.db.execute("SELECT addressbook_id FROM invitations"
@@ -286,7 +284,6 @@ class Invitation:
         self.manager.send_to_all(self.inviteID, signed)
 
     def process_M1(self, msg):
-        #print "processM1", self.petname
         self.their_temp_pubkey = PublicKey(msg)
         self.db.update("UPDATE invitations SET their_temp_pubkey=?"
                        " WHERE id=?",
@@ -315,7 +312,6 @@ class Invitation:
         self.next_expected_message = 2
 
     def process_M2(self, msg):
-        #print "processM2", repr(msg[:10]), "...", self.petname
         assert self.their_temp_pubkey
         nonce_and_ciphertext = msg
         my_privkey = self.get_my_temp_privkey()
@@ -345,7 +341,7 @@ class Invitation:
 
         them = json.loads(payload_for_us_json)
         me = self.get_my_private_data()
-        cid = self.agent.invitation_done(self.petname, me, them, their_verfkey)
+        cid = self.agent.invitation_done(me, them, their_verfkey)
         self.db.update("UPDATE invitations SET addressbook_id=?"
                        " WHERE id=?", (cid, self.iid),
                        "invitations", self.iid)
@@ -358,6 +354,7 @@ class Invitation:
         #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
+        petname = self.get_my_private_data()["petname"]
         self.agent.invitation_acked(self.get_addressbook_id())
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
@@ -366,4 +363,4 @@ class Invitation:
         self.send(msg4, persist=False)
         self.manager.unsubscribe(self.inviteID)
         self.manager._debug_invitations_completed += 1
-        log.msg("addressbook entry added for petname=%r" % self.petname)
+        log.msg("addressbook entry added for petname=%r" % petname)
