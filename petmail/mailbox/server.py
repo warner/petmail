@@ -106,7 +106,7 @@ class HTTPMailboxServer(BaseServer):
         symkey = None
         if remote:
             symkey = os.urandom(32)
-        RT = os.urandom(16) # retrieval token
+        RT = os.urandom(8) # retrieval token
         TTID, TT0 = rrid.create_token(self.TT_pubkey)
         return self.add_transport(TTID, TT0, RT, symkey)
 
@@ -200,13 +200,14 @@ class HTTPMailboxServer(BaseServer):
         raise KeyError("unrecognized transport identifier")
 
 def decrypt_list_request_1(req):
-    (timestamp, tmppub) = struct.unpack(">L32s", req[:4+32])
-    boxed0 = req[4+32:]
-    return timestamp, tmppub, boxed0
+    tmppub, boxed0 = req[:32], req[32:]
+    return tmppub, boxed0
 
 def decrypt_list_request_2(tmppub, boxed0, retrieval_privkey):
-    RT = Box(retrieval_privkey, PublicKey(tmppub)).decrypt(boxed0, "\x00"*24)
-    return RT
+    nonce = "\x00"*24
+    m = Box(retrieval_privkey, PublicKey(tmppub)).decrypt(boxed0, nonce)
+    timestamp, RT = struct.unpack(">Q8s", m)
+    return timestamp, RT
 
 assert struct.calcsize(">Q") == 8
 
@@ -262,15 +263,15 @@ class RetrievalListResource(resource.Resource):
 
     def render_GET(self, request):
         msg = base64.urlsafe_b64decode(request.args["t"][0])
-        ts, tmppub, boxed0 = decrypt_list_request_1(msg)
+        tmppub, boxed0 = decrypt_list_request_1(msg)
+        if tmppub in self.old_requests:
+            request.setResponseCode(http.BAD_REQUEST, "Replay")
+            return "Replay"
+        ts, RT = decrypt_list_request_2(tmppub, boxed0, self.retrieval_privkey)
         now = time.time()
         if ts < now-self.CLOCK_WINDOW or ts > now+self.CLOCK_WINDOW:
             request.setResponseCode(http.BAD_REQUEST, "too much clock skew")
             return "Too much clock skew"
-        if tmppub in self.old_requests:
-            request.setResponseCode(http.BAD_REQUEST, "Replay")
-            return "Replay"
-        RT = decrypt_list_request_2(tmppub, boxed0, self.retrieval_privkey)
         try:
             tid, symkey = self.check_RT(RT)
         except KeyError:

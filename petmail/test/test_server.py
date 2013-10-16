@@ -243,10 +243,10 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
         listres.prune_old_requests(now=future)
         self.failUnlessEqual(len(listres.old_requests), 0)
 
-        # unrecognized TTID, causing KeyError (or nicer)
-        unknown_TTID = "unknown"
+        # unrecognized RT, causing KeyError (or nicer)
+        unknown_RT = "unknown0" # 8 bytes
         reqkey, tmppub = retrieval.encrypt_list_request(retrieval_pubkey,
-                                                        unknown_TTID)
+                                                        unknown_RT)
         out,req = do_request(listres, base64.urlsafe_b64encode(reqkey))
         self.failUnlessEqual(req.responseCode, http.NOT_FOUND)
         self.failUnlessEqual(req.responseMessage, "no such RT")

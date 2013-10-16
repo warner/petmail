@@ -33,10 +33,14 @@ def encrypt_list_request(serverpubkey, RT, offset=0, now=None, tmppriv=None):
     if not tmppriv:
         tmppriv = PrivateKey.generate()
     tmppub = tmppriv.public_key.encode()
-    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(RT, "\x00"*24)
-    assert boxed0[:24] == "\x00"*24
+    assert len(tmppub) == 32
+    nonce = "\x00"*24 # safe because we use a new random keypair each time
+    assert len(RT) == 8
+    m = struct.pack(">Q8s", now, RT)
+    boxed0 = Box(tmppriv, PublicKey(serverpubkey)).encrypt(m, nonce)
+    assert boxed0[:24] == nonce
     boxed = boxed0[24:] # we elide the nonce, always 0
-    req = struct.pack(">L32s", now, tmppub) + boxed
+    req = tmppub + boxed
     return req, tmppub
 
 class NotListResponseError(Exception):

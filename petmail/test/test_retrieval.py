@@ -10,11 +10,11 @@ from .common import flip_bit, TwoNodeMixin
 class Roundtrip(unittest.TestCase):
     def test_list_request(self):
         serverkey = PrivateKey.generate()
-        TTID = "01234567" # 8 bytes
-        req, tmppub = retrieval.encrypt_list_request(serverkey.public_key.encode(), TTID)
-        ts, got_tmppub, boxed0 = server.decrypt_list_request_1(req)
-        got_TTID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
-        self.failUnlessEqual(TTID, got_TTID)
+        RT = "01234567" # 8 bytes
+        req, tmppub = retrieval.encrypt_list_request(serverkey.public_key.encode(), RT)
+        got_tmppub, boxed0 = server.decrypt_list_request_1(req)
+        ts, got_RT = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
+        self.failUnlessEqual(RT, got_RT)
 
     def test_list_entry(self):
         symkey = os.urandom(32)
@@ -39,20 +39,20 @@ class More(unittest.TestCase):
         serverkey = PrivateKey("\x11"*32)
         serverpub = serverkey.public_key.encode()
         tmppriv = PrivateKey("\x22"*32)
-        TTID = "01234567" # 8 bytes
-        req, tmppub = retrieval.encrypt_list_request(serverpub, TTID,
+        RT = "01234567" # 8 bytes
+        req, tmppub = retrieval.encrypt_list_request(serverpub, RT,
                                                      now=now, tmppriv=tmppriv)
         self.failUnlessEqual(req.encode("hex"),
-                             "523683150faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20eb8ba0e3826a6fa8c91fad9460cd297a4415545153679f5c")
+                             "0faa684ed28867b97f4a6a2dee5df8ce974e76b7018e3f22a1c4cf2678570f20c4e48bcd33137dfecd5f1cc7ec4f42db7424666235642a7eb23090dcbe8aaaae")
 
-        ts, got_tmppub, boxed0 = server.decrypt_list_request_1(req)
-        self.failUnlessEqual(ts, now)
+        got_tmppub, boxed0 = server.decrypt_list_request_1(req)
         self.failUnlessEqual(got_tmppub, tmppub)
         self.failUnlessEqual(got_tmppub, tmppriv.public_key.encode())
         self.failUnlessEqual(boxed0.encode("hex"),
-                             "eb8ba0e3826a6fa8c91fad9460cd297a4415545153679f5c")
-        got_TTID = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
-        self.failUnlessEqual(TTID, got_TTID)
+                             "c4e48bcd33137dfecd5f1cc7ec4f42db7424666235642a7eb23090dcbe8aaaae")
+        ts, got_RT = server.decrypt_list_request_2(got_tmppub, boxed0, serverkey)
+        self.failUnlessEqual(ts, now)
+        self.failUnlessEqual(RT, got_RT)
 
         self.failUnlessRaises(CryptoError,
                               server.decrypt_list_request_2,
