@@ -119,7 +119,8 @@ CREATE TABLE `invitations` -- data on all pending invitations
  --  .transports[]: .STT, .transport_pubkey, .type, .url
  `payload_for_them_json` STRING,
  -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey,
- --  .transport_ids (points to 'transports' table), .petname
+ --  .transport_ids (points to 'transports' table), .petname,
+ --  .invitation_context
  `my_private_invitation_data` STRING
 );
 
@@ -130,6 +131,7 @@ CREATE TABLE `addressbook`
  -- our private notes and decisions about them
  `petname` STRING,
  `acked` INTEGER,
+ `invitation_context_json` STRING, -- .when_invited, .when_accepted, .code
  -- public notes about them
 
  -- things used to send outbound messages

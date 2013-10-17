@@ -1,4 +1,4 @@
-import os.path, json
+import os.path, json, time
 from twisted.application import service
 from nacl.public import PrivateKey
 from nacl.signing import SigningKey
@@ -104,8 +104,12 @@ class Agent(service.MultiService):
                             "my_new_channel_privkey": channel_key.encode(Hex),
                             "transport_ids": tids,
                             }
+        context = { "when_invited": time.time(),
+                    "code": code }
         private = { "petname": petname,
-                    "channel": private_channel }
+                    "channel": private_channel,
+                    "invitation_context": context,
+                    }
 
         if offer_mailbox:
             tid = self.mailbox_server.allocate_transport(remote=True)
@@ -120,23 +124,25 @@ class Agent(service.MultiService):
 
     def invitation_done(self, private, them, their_verfkey):
         channel = them["channel"]
+        context = private["invitation_context"]
+        context["when_accepted"] = time.time()
         cid = self.db.insert(
             "INSERT INTO addressbook"
-            " (petname, acked,"
+            " (petname, acked, invitation_context_json,"
             "  next_outbound_seqnum, my_signkey,"
             "  their_channel_record_json,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
             "  my_old_channel_privkey, my_new_channel_privkey,"
             "  they_used_new_channel_key, their_verfkey)"
-            " VALUES (?,?, "
+            " VALUES (?,?,?,"
             "         ?,?,"
             "         ?,"
             "         ?,?," # my_CID_key, next_CID_token
             "         ?,"   # highest_inbound_seqnum
             "         ?,?,"
             "         ?,?)",
-            (private["petname"], 0,
+            (private["petname"], 0, json.dumps(context),
              1, private["channel"]["my_signkey"],
              json.dumps(channel),
              private["channel"]["my_CID_key"], None,
@@ -207,6 +213,7 @@ class Agent(service.MultiService):
             sk = SigningKey(row["my_signkey"].decode("hex"))
             entry["my_verfkey"] = sk.verify_key.encode(Hex)
             entry["acked"] = bool(row["acked"])
+            entry["invitation_context"] = json.loads(row["invitation_context_json"])
             resp.append(entry)
         return resp
 

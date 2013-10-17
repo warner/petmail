@@ -1,4 +1,4 @@
-import os, collections, json
+import os, collections, json, time
 from twisted.trial import unittest
 from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
 from ..eventual import flushEventualQueue
@@ -41,6 +41,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
 
     def test_one(self):
         code = "code"
+        start = time.time()
 
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
@@ -160,6 +161,13 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(a1[0]["petname"], "petname-from-1")
         self.failUnlessEqual(a2[0]["acked"], True)
         self.failUnlessEqual(a2[0]["petname"], "petname-from-2")
+        now = time.time()
+        when_invited = a2[0]["invitation_context"]["when_invited"]
+        when_accepted = a2[0]["invitation_context"]["when_accepted"]
+        self.failUnless(start <= when_invited, (start, when_invited, now))
+        self.failUnless(when_invited <= when_accepted, (when_invited, when_accepted))
+        self.failUnless(when_accepted <= now, (start, when_accepted, now))
+        self.failUnlessEqual(a2[0]["invitation_context"]["code"], "code")
 
         self.failUnlessEqual(nA_notices, [])
         d = flushEventualQueue()
