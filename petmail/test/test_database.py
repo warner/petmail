@@ -13,6 +13,24 @@ class Database(BasedirMixin, unittest.TestCase):
         row = db.execute("SELECT * FROM version").fetchone()
         self.failUnlessEqual(row["version"], 1)
 
+    def test_coercion(self):
+        # if sqlite doesn't recognize a column type in the schema, it
+        # defaults to some curious value which attempts to automatically
+        # determine the item's type. If you store a string like "0123" into
+        # such a row, it will come back out as an int or a long like 123,
+        # which is kind of horrible. "STRING" is not recognized, but "BLOB"
+        # or "VARCHAR" or "VARCHAR(100)" avoid the coercion.
+
+        basedir = self.make_basedir()
+        dbfile = os.path.join(basedir, "test.db")
+        db = get_db(dbfile)
+
+        db.execute("INSERT INTO services (name) VALUES (?)", ("0123",))
+        db.commit()
+        row = db.execute("SELECT * FROM services").fetchone()
+        v = row["name"]
+        self.failUnlessEqual(type(v), unicode, repr((v, type(v))))
+
     def test_observable(self):
         basedir = self.make_basedir()
         dbfile = os.path.join(basedir, "test.db")
@@ -78,8 +96,5 @@ class Database(BasedirMixin, unittest.TestCase):
         def _then3(_):
             self.failUnlessEqual(len(n), 0)
         d.addCallback(_then3)
-        
+
         return d
-    
-            
-        
