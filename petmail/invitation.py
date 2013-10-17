@@ -160,8 +160,8 @@ class Invitation:
         self.my_messages = splitMessages(res["my_messages"])
         self.their_messages = splitMessages(res["their_messages"])
 
-    def get_addressbook_id(self):
-        c = self.db.execute("SELECT addressbook_id FROM invitations"
+    def get_channel_id(self):
+        c = self.db.execute("SELECT channel_id FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return c.fetchone()[0]
 
@@ -342,7 +342,7 @@ class Invitation:
         them = json.loads(payload_for_us_json)
         me = self.get_my_private_data()
         cid = self.agent.invitation_done(me, them, their_verfkey)
-        self.db.update("UPDATE invitations SET addressbook_id=?"
+        self.db.update("UPDATE invitations SET channel_id=?"
                        " WHERE id=?", (cid, self.iid),
                        "invitations", self.iid)
 
@@ -355,7 +355,7 @@ class Invitation:
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
         petname = self.get_my_private_data()["petname"]
-        self.agent.invitation_acked(self.get_addressbook_id())
+        self.agent.invitation_acked(self.get_channel_id())
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
         # we no longer care about the channel

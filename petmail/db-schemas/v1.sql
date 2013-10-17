@@ -112,7 +112,7 @@ CREATE TABLE `invitations` -- data on all pending invitations
 
  -- these two are retained long-term, in the addressbook entry
  `my_signkey` VARCHAR, -- Ed25519 privkey (long-term), for this peer
- `addressbook_id` INTEGER, -- to correlate with an addressbook entry
+ `channel_id` INTEGER, -- to correlate with an addressbook entry
 
  -- they'll get this payload in M2
  --  .channel_pubkey, .CID_key,
