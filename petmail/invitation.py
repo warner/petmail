@@ -142,23 +142,23 @@ class Invitation:
         self.db = db
         self.manager = manager
         self.agent = agent
-        c = self.db.execute("SELECT inviteID, invite_key," # 0,1
-                            " their_temp_pubkey," # 2
-                            " next_expected_message," # 3
-                            " my_messages," # 4
-                            " their_messages" # 5
+        c = self.db.execute("SELECT inviteID, invite_key,"
+                            " their_temp_pubkey,"
+                            " next_expected_message,"
+                            " my_messages,"
+                            " their_messages"
                             " FROM invitations WHERE id = ?", (iid,))
         res = c.fetchone()
         if not res:
             raise KeyError("no pending Invitation for '%d'" % iid)
-        self.inviteID = str(res[0])
-        self.invite_key = SigningKey(res[1].decode("hex"))
+        self.inviteID = str(res["inviteID"])
+        self.invite_key = SigningKey(res["invite_key"].decode("hex"))
         self.their_temp_pubkey = None
-        if res[2]:
-            self.their_temp_pubkey = PublicKey(res[2].decode("hex"))
-        self.next_expected_message = int(res[3])
-        self.my_messages = splitMessages(res[4])
-        self.their_messages = splitMessages(res[5])
+        if res["their_temp_pubkey"]:
+            self.their_temp_pubkey = PublicKey(res["their_temp_pubkey"].decode("hex"))
+        self.next_expected_message = int(res["next_expected_message"])
+        self.my_messages = splitMessages(res["my_messages"])
+        self.their_messages = splitMessages(res["their_messages"])
 
     def get_addressbook_id(self):
         c = self.db.execute("SELECT addressbook_id FROM invitations"
