@@ -128,5 +128,10 @@ setup(name="petmail",
       author_email="warner-petmail@lothar.com",
       license="MIT",
       url="https://github.com/warner/petmail",
+      packages=["petmail", "petmail.mailbox",
+                "petmail.rendezvous", "petmail.scripts", "petmail.test"],
+      entry_points={
+          'console_scripts': [ 'petmail = petmail.scripts.runner:entry' ],
+          },
       cmdclass=commands,
       )

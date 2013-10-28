@@ -1,13 +1,14 @@
-
 *.py[cod]
+/build/
+/MANIFEST
 /deps-venv/
 /support/deps/
-.rendezvous
 /_trial_temp/
 /.coverage
 /.coverage.el
 /.coverage-html/
 
+.rendezvous
 /n1/
 /n2/
 /n3/

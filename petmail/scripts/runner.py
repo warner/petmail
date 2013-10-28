@@ -283,6 +283,10 @@ DISPATCH = {"create-node": create_node,
             }
 
 def run(args, stdout, stderr, petmail=None):
+    """This is invoked directly by bin/petmail, which configures sys.path to
+    contain everything necessary to run petmail from a source tree (e.g. the
+    deps-venv's site-packages directory, and the source tree itself). It can
+    also invoked by entry() below."""
     config = Options()
     try:
         config.parseOptions(args)
@@ -308,3 +312,8 @@ def run(args, stdout, stderr, petmail=None):
     except NoNodeError, e:
         print >>stderr, e
         return 1
+
+def entry():
+    """This is used by a setuptools entry_point. When invoked this way,
+    setuptools has already put the installed package on sys.path ."""
+    return run(sys.argv[1:], sys.stdout, sys.stderr, petmail=sys.argv[0])
