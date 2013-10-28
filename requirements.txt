@@ -1,0 +1,4 @@
+
+zope.interface=4.0.5
+Twisted=13.1.0
+PyNaCl=https://github.com/dstufft/pynacl/archive/ca86742a9560d31eedf4bdc7d8f67ba0d9591946.zip
