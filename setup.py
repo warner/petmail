@@ -133,5 +133,6 @@ setup(name="petmail",
       entry_points={
           'console_scripts': [ 'petmail = petmail.scripts.runner:entry' ],
           },
+      install_requires=["Twisted >= 13.1.0", "PyNaCl >= 0.2.3"],
       cmdclass=commands,
       )
