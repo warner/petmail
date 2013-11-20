@@ -1,6 +1,6 @@
 
 import sys, os, hashlib, urllib2, subprocess, shutil
-from distutils.core import setup, Command
+from setuptools import setup, Command
 
 import versioneer
 versioneer.versionfile_source = "petmail/_version.py"
@@ -11,6 +11,7 @@ versioneer.parentdir_prefix = "petmail-"
 commands = versioneer.get_cmdclass()
 
 def run_command(args, cwd=None, verbose=False):
+    print "running '%s'" % " ".join(args)
     try:
         # remember shell=False, so use e.g. git.cmd on windows, not just git
         p = subprocess.Popen(args, cwd=cwd)
@@ -87,39 +88,37 @@ class FetchDeps(Command):
         print "All dependencies fetched and verified"
 commands["fetch_deps"] = FetchDeps
 
-class BuildDeps(Command):
-    description = "build dependencies"
+class SafeInstall(Command):
+    description = "safely install dependencies and petmail into virtualenv"
     user_options = []
 
     def initialize_options(self):
         pass
     def finalize_options(self):
         pass
+
     def run(self):
         if os.path.exists("venv"):
             shutil.rmtree("venv") # clobber it
         cmd = [sys.executable, "support/virtualenv.py",
                "--distribute", "--never-download",
-               "deps-venv"]
+               "venv"]
         if not run_command(cmd):
             print "error while creating deps-venv"
             sys.exit(1)
-        print "deps-venv created"
-        verify_deps()
-        for (name, hash, url, fn, depfn) in parse_deps_txt():
-            cmd = ["deps-venv/bin/pip", "install", depfn]
-            if not run_command(cmd):
-                print "error installing %s" % name
-                sys.exit(1)
-        # Touch zope/__init__.py to allow zope.interface to be imported. This
-        # is normally done by a z.i-provided *-nspkg.pth, and works if we run
-        # the venv's bin/python, but not when we merely add its directory to
-        # sys.path like bin/petmail does.
-        pyver = "python"+sys.version[0:3]
-        venv_sitedir = os.path.join("deps-venv/lib", pyver, "site-packages")
-        open(os.path.join(venv_sitedir, "zope", "__init__.py"),"w").close()
-        print "deps installed into deps-venv"
-commands["build_deps"] = BuildDeps
+        print "venv created"
+        cmd = ["venv/bin/python", "support/peep.py",
+               "install", "-r", "requirements.txt"]
+        if not run_command(cmd):
+            print "error while installing dependencies"
+            sys.exit(1)
+        cmd = ["venv/bin/python", "setup.py", "develop"]
+        if not run_command(cmd):
+            print "error while installing dependencies"
+            sys.exit(1)
+        print "dependencies and petmail installed into venv"
+
+commands["safe_install"] = SafeInstall
 
 setup(name="petmail",
       version=versioneer.get_version(),

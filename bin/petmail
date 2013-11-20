@@ -6,21 +6,13 @@ import sys, os
 # directory
 me = os.path.abspath(os.path.realpath(sys.argv[0]))
 root = os.path.dirname(os.path.dirname(me))
-venv_root = os.path.join(root, "deps-venv")
+venv_root = os.path.join(root, "venv")
+real_petmail = os.path.join(venv_root, "bin", "petmail")
 
-# if present, we include the deps-venv site-packages directory
-if os.path.isdir(venv_root):
-    activate_this = os.path.join(venv_root, "bin", "activate_this.py")
-    execfile(activate_this, dict(__file__=activate_this))
+print os.getcwd()
+if not os.path.exists(real_petmail):
+    print ("No virtualenv detected (no executable in venv/bin/petmail).\n"
+           "Please run 'python setup.py safe_install' first.\n")
+    sys.exit(1)
 
-# Then we want to add $ROOT to sys.path, so we can import $ROOT/petmail
-sys.path.insert(0, root)
-
-# thus this should always work:
-from petmail.scripts.runner import run
-
-# Delegate everything else off to scripts.runner, which must be careful to
-# not import too much unless the command specifically asks for it.
-
-rc = run(sys.argv[1:], sys.stdout, sys.stderr, petmail=sys.argv[0])
-sys.exit(rc)
+os.execv(real_petmail, [real_petmail])

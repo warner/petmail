@@ -1,0 +1,18 @@
+
+# sha256: GnyEcWu9mYGRW2SoHYo_B2pZNKjI30IkZVRps1ZJQMw
+zope.interface==4.0.5
+
+# sha256: EQ6Vfdj8TG6rqKvk8Ed-YLKHPjzxwmAyWGP9LvaTQcY
+Twisted==13.1.0
+
+# sha256: N8MuTzCIbny5_KU3v6yvkqathrS_masfPazzMOHsv5Y
+PyNaCl==0.2.3
+
+# sha256: lX2YtmHAtktYCrb5SxJeCbZxQVTuUd5AvKFtPwB2uGw
+pycparser==2.10
+
+# sha256: wzbuJoMaydosDtDqCUlB0vxYd8NGjn7nAwR8VxGA3eM
+cffi==0.8
+
+# sha256: 8EWv1t_7dVzAQRrLfOmsxN4OcSYdS1-R3i5o2apfg2c
+six==1.4.1

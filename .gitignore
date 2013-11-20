@@ -1,8 +1,7 @@
 *.py[cod]
 /build/
 /MANIFEST
-/deps-venv/
-/support/deps/
+/venv/
 /_trial_temp/
 /.coverage
 /.coverage.el
