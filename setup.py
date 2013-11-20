@@ -71,6 +71,7 @@ class FetchDeps(Command):
     def finalize_options(self):
         pass
     def run(self):
+        raise NotImplementedError("closed for maintenance")
         if not os.path.isdir("support/deps"):
             os.mkdir("support/deps")
         for (name, hash, url, fn, depfn) in parse_deps_txt():
@@ -88,8 +89,9 @@ class FetchDeps(Command):
         print "All dependencies fetched and verified"
 commands["fetch_deps"] = FetchDeps
 
-class SafeInstall(Command):
-    description = "safely install dependencies and petmail into virtualenv"
+
+class SafeDevelop(Command):
+    description = "safely install everything into a local virtualenv"
     user_options = []
 
     def initialize_options(self):
@@ -104,7 +106,7 @@ class SafeInstall(Command):
                "--distribute", "--never-download",
                "venv"]
         if not run_command(cmd):
-            print "error while creating deps-venv"
+            print "error while creating virtualenv in ./venv"
             sys.exit(1)
         print "venv created"
         cmd = ["venv/bin/python", "support/peep.py",
@@ -117,8 +119,10 @@ class SafeInstall(Command):
             print "error while installing dependencies"
             sys.exit(1)
         print "dependencies and petmail installed into venv"
+        print "Now use './bin/petmail' to create and launch a node."
 
-commands["safe_install"] = SafeInstall
+commands["safe_develop"] = SafeDevelop
+
 
 setup(name="petmail",
       version=versioneer.get_version(),
