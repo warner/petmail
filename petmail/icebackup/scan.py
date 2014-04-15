@@ -200,10 +200,11 @@ class Scanner:
     MINCHUNK = 1*1000*1000
     MAXCHUNK = 100*1000*1000
 
-    def __init__(self, rootpath, dbfile):
+    def __init__(self, rootpath, dbfile, reporter=None):
         assert isinstance(rootpath, unicode)
         self.rootpath = os.path.abspath(rootpath)
         self.dbfile = dbfile
+        self.reporter = reporter
         self.db = dbutil.get_db(dbfile, create_version=(schema, 1),
                                 synchronous="OFF")
         self.prev_snapshotid, self.prev_rootid = None, None
@@ -214,6 +215,10 @@ class Scanner:
             self.prev_snapshotid = row["id"]
             self.prev_rootid = row["root_id"]
         print "PREV_SNAPSHOTID", self.prev_snapshotid
+
+    def report(self, *args, **kwargs):
+        if self.reporter:
+            self.reporter(*args, **kwargs)
 
     def scan(self):
         started = time.time()
@@ -229,6 +234,7 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
+        self.report("scan complete", cumulative_size, cumulative_items)
         return (cumulative_size, cumulative_items)
 
     def process_directory(self, snapshotid, localpath, parentid, prevnode):
