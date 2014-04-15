@@ -228,3 +228,7 @@ class Agent(service.MultiService):
                   "payload": json.loads(row["payload_json"]),
                   }
                 for row in c.fetchall()]
+
+    def command_start_backup(self):
+        print "starting backup"
+        return "fake-started"

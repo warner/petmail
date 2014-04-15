@@ -93,6 +93,15 @@ function main() {
     d3.select("#send-message-body")[0][0].value = "";
   };
 
+  d3.select("#start-backup")[0][0].onclick = function(e) {
+    console.log("start-backup!");
+    var req = {"token": token, "args": {}};
+    d3.json("/api/v1/start-backup").post(JSON.stringify(req),
+                                         function(err, r) {
+                                           console.log("start-backup returned:", r.ok);
+                                           });
+  };
+
   console.log("setup done");
 }
 

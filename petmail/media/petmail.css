@@ -33,6 +33,15 @@ div#send-message {
     bottom: 10px;
 }
 
+div#three {
+    height: 80%;
+    width: 200px;
+    padding: 5px;
+    border: 2px solid green;
+    position: absolute;
+    left: 660px;
+}
+
 
 .reload-form {
  right: 20px;

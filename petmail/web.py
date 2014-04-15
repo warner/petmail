@@ -204,6 +204,11 @@ class FetchMessages(BaseHandler):
                 "messages": self.agent.command_fetch_all_messages()}
 handlers["fetch-messages"] = FetchMessages
 
+class StartBackup(BaseHandler):
+    def handle(self, payload):
+        return self.agent.command_start_backup()
+handlers["start-backup"] = StartBackup
+
 class API(resource.Resource):
     def __init__(self, access_token, db, agent):
         resource.Resource.__init__(self)
