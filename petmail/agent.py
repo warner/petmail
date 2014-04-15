@@ -232,8 +232,17 @@ class Agent(service.MultiService):
 
     def command_start_backup(self):
         print "starting backup"
+        from twisted.internet import threads
+        from twisted.python import log
         from .icebackup import scan
-        s = scan.Scanner(os.path.expanduser(u"~/Music"),
-                         os.path.join(self.basedir, "icebackup.db"))
-        size,items = s.scan()
-        return {"ok": True, "size": size, "items": items}
+        def do_scan():
+            s = scan.Scanner(os.path.expanduser(u"~/Music"),
+                             os.path.join(self.basedir, "icebackup.db"))
+            return s.scan()
+        d = threads.deferToThread(do_scan)
+        def done(res):
+            size,items = res
+            print "scan done", size, items
+        d.addCallback(done)
+        d.addErrback(log.err)
+        return {"ok": "scan started"}

@@ -99,7 +99,7 @@ function main() {
     d3.json("/api/v1/start-backup").post(JSON.stringify(req),
                                          function(err, r) {
                                            console.log("start-backup returned:", r);
-                                           d3.select("div#backup-status").text("scan complete: "+r.items+" items, "+r.size+" bytes");
+                                           d3.select("div#backup-status").text(JSON.stringify(r));
                                            });
   };
 
