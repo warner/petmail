@@ -219,10 +219,14 @@ class Scanner:
 
     def report(self, *args, **kwargs):
         now = time.time()
-        if now - self._last_reported < 0.010:
+        if now - self._last_reported < 0.10:
             return
         self._last_reported = now
-        # at most one event every 10ms
+        # at most one event every 100ms
+        if self.reporter:
+            self.reporter(*args, **kwargs)
+
+    def report_really(self, *args, **kwargs):
         if self.reporter:
             self.reporter(*args, **kwargs)
 
@@ -241,8 +245,8 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
-        self.report("scan complete",
-                    size=cumulative_size, items=cumulative_items)
+        self.report_really("scan complete",
+                           size=cumulative_size, items=cumulative_items)
         return (cumulative_size, cumulative_items)
 
     def process_directory(self, snapshotid, localpath, parentid, prevnode):
