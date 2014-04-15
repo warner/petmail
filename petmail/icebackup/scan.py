@@ -254,7 +254,7 @@ class Scanner:
         # localpath is relative to self.rootpath
         abspath = os.path.join(self.rootpath, localpath)
         #print "%sDIR: %s" % (" "*(len(localpath.split(os.sep))-1), localpath)
-        self.report("entering directory", self._dirpath)
+        #self.report("entering directory", dirpath=self._dirpath)
         s = os.stat(abspath)
         size = s.st_size # good enough for now
         name = os.path.basename(os.path.abspath(abspath))
@@ -297,7 +297,8 @@ class Scanner:
                     " WHERE snapshotid=? AND parentid=? AND name=?",
                     (self.prev_snapshotid, prevnode, child)).fetchone()
                 prevchildnode = row["id"] if row else None
-                self.report(" processing file", self._dirpath, name=child, i=i)
+                self.report("processing file",
+                            dirpath=self._dirpath, name=child, i=i)
                 file_size = self.process_file(snapshotid,
                                               childpath, dirid,
                                               prevchildnode)
@@ -313,7 +314,7 @@ class Scanner:
                         " WHERE id=?",
                         (cumulative_size, cumulative_items,
                          dirid))
-        self.report("exiting directory", self._dirpath)
+        #self.report("exiting directory", dirpath=self._dirpath)
         return dirid, cumulative_size, cumulative_items
 
     def process_file(self, snapshotid, localpath, parentid, prevnodeid):

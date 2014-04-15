@@ -241,10 +241,12 @@ class Agent(service.MultiService):
         from twisted.internet import threads, reactor
         from twisted.python import log
         from .icebackup import scan
-        def report(*args, **kwargs):
-            print "report", args, kwargs
+        def report(msgtype, **kwargs):
+            print "report", msgtype, kwargs
             for s in self.backup_scan_progress_subscribers:
-                s({"args": args, "kwargs": kwargs})
+                j = {"msgtype": msgtype}
+                j.update(kwargs)
+                s(j)
         def report_from_thread(*args, **kwargs):
             reactor.callFromThread(report, *args, **kwargs)
         def do_scan():
