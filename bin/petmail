@@ -20,4 +20,4 @@ if not os.path.exists(real_petmail):
            "Please run 'python setup.py safe_develop' first.\n")
     sys.exit(1)
 
-os.execv(real_petmail, [real_petmail])
+os.execv(real_petmail, [real_petmail] + sys.argv[1:])
