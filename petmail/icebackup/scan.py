@@ -205,6 +205,7 @@ class Scanner:
         self.rootpath = os.path.abspath(rootpath)
         self.dbfile = dbfile
         self.reporter = reporter
+        self._last_reported = 0
         self.db = dbutil.get_db(dbfile, create_version=(schema, 1),
                                 synchronous="OFF")
         self.prev_snapshotid, self.prev_rootid = None, None
@@ -217,6 +218,11 @@ class Scanner:
         print "PREV_SNAPSHOTID", self.prev_snapshotid
 
     def report(self, *args, **kwargs):
+        now = time.time()
+        if now - self._last_reported < 0.010:
+            return
+        self._last_reported = now
+        # at most one event every 10ms
         if self.reporter:
             self.reporter(*args, **kwargs)
 
@@ -225,6 +231,7 @@ class Scanner:
         snapshotid = self.db.execute("INSERT INTO snapshots"
                                      " (started) VALUES (?)",
                                      (started,)).lastrowid
+        self._dirpath = [{"name": u"."}]
         (rootid, cumulative_size, cumulative_items) = \
               self.process_directory(snapshotid, u".", None, self.prev_rootid)
         scan_finished = time.time()
@@ -234,14 +241,16 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
-        self.report("scan complete", cumulative_size, cumulative_items)
+        self.report("scan complete",
+                    size=cumulative_size, items=cumulative_items)
         return (cumulative_size, cumulative_items)
 
     def process_directory(self, snapshotid, localpath, parentid, prevnode):
         assert isinstance(localpath, unicode)
         # localpath is relative to self.rootpath
         abspath = os.path.join(self.rootpath, localpath)
-        print "%sDIR: %s" % (" "*(len(localpath.split(os.sep))-1), localpath)
+        #print "%sDIR: %s" % (" "*(len(localpath.split(os.sep))-1), localpath)
+        self.report("entering directory", self._dirpath)
         s = os.stat(abspath)
         size = s.st_size # good enough for now
         name = os.path.basename(os.path.abspath(abspath))
@@ -253,7 +262,9 @@ class Scanner:
             ).lastrowid
         cumulative_size = size
         cumulative_items = 1
-        for child in os.listdir(abspath):
+        children = os.listdir(abspath)
+        self._dirpath[-1]["num_children"] = len(children)
+        for i,child in enumerate(children):
             childpath = os.path.join(localpath, child)
             abschildpath = os.path.join(self.rootpath, childpath)
 
@@ -263,6 +274,7 @@ class Scanner:
                     " WHERE snapshotid=? AND parentid=? AND name=?",
                     (self.prev_snapshotid, prevnode, child)).fetchone()
                 prevchildnode = row["id"] if row else None
+                self._dirpath.append({"name": child, "num": i})
                 try:
                     new_dirid, subtree_size, subtree_items = \
                                self.process_directory(snapshotid,
@@ -272,13 +284,16 @@ class Scanner:
                     cumulative_items += subtree_items
                 except OSError as e:
                     print e
+                    self._dirpath.pop()
                     continue
+                self._dirpath.pop()
             elif os.path.isfile(abschildpath):
                 row = self.db.execute(
                     "SELECT * FROM filetable"
                     " WHERE snapshotid=? AND parentid=? AND name=?",
                     (self.prev_snapshotid, prevnode, child)).fetchone()
                 prevchildnode = row["id"] if row else None
+                self.report(" processing file", self._dirpath, name=child, i=i)
                 file_size = self.process_file(snapshotid,
                                               childpath, dirid,
                                               prevchildnode)
@@ -294,13 +309,14 @@ class Scanner:
                         " WHERE id=?",
                         (cumulative_size, cumulative_items,
                          dirid))
+        self.report("exiting directory", self._dirpath)
         return dirid, cumulative_size, cumulative_items
 
     def process_file(self, snapshotid, localpath, parentid, prevnodeid):
         assert isinstance(localpath, unicode)
         abspath = os.path.join(self.rootpath, localpath)
         name = os.path.basename(os.path.abspath(abspath))
-        print "%sFILE %s" % (" "*(len(localpath.split(os.sep))-1), name)
+        #print "%sFILE %s" % (" "*(len(localpath.split(os.sep))-1), name)
 
         s = os.stat(abspath)
         size = s.st_size
