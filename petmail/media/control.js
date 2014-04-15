@@ -98,7 +98,8 @@ function main() {
     var req = {"token": token, "args": {}};
     d3.json("/api/v1/start-backup").post(JSON.stringify(req),
                                          function(err, r) {
-                                           console.log("start-backup returned:", r.ok);
+                                           console.log("start-backup returned:", r);
+                                           d3.select("div#backup-status").text("scan complete: "+r.items+" items, "+r.size+" bytes");
                                            });
   };
 

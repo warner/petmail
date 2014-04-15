@@ -12,6 +12,7 @@ class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
         service.MultiService.__init__(self)
         self.db = db
+        self.basedir = basedir
         self.mailbox_server = mailbox_server
 
         self.mailbox_retrievers = set()
@@ -231,4 +232,8 @@ class Agent(service.MultiService):
 
     def command_start_backup(self):
         print "starting backup"
-        return "fake-started"
+        from .icebackup import scan
+        s = scan.Scanner(os.path.expanduser(u"~/Music"),
+                         os.path.join(self.basedir, "icebackup.db"))
+        size,items = s.scan()
+        return {"ok": True, "size": size, "items": items}

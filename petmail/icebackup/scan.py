@@ -3,7 +3,7 @@
 import os, time, base64, argparse
 from hashlib import sha256
 from . import dbutil
-from abbreviate import abbreviate_space
+from .abbreviate import abbreviate_space
 
 # glossary:
 #  snapshotid: DB id of a given snapshot
