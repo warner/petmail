@@ -110,6 +110,28 @@ class AddressBookView(BaseView):
                             "new_value": new_value,
                             })
 
+class BackupScanView(resource.Resource):
+    def __init__(self, agent):
+        resource.Resource.__init__(self)
+        self.agent = agent
+
+    # subclasses must define render_event(), which accepts a Notice and
+    # returns a JSON-serializable object
+
+    def render_GET(self, request):
+        if "text/event-stream" in (request.getHeader("accept") or ""):
+            request.setHeader("content-type", "text/event-stream")
+            p = EventsProtocol(request, self.render_event)
+            self.agent.subscribe_backup_scan_reporter(p.notify)
+            def _done(_):
+                self.agent.unsubscribe_backup_scan_reporter(p.notify)
+            request.notifyFinish().addErrback(_done)
+            return server.NOT_DONE_YET
+        return "backup-scan progress only available as an EventStream"
+
+    def render_event(self, notice):
+        return json.dumps(notice)
+
 class ViewDispatcher(resource.Resource):
     def __init__(self, db, agent):
         resource.Resource.__init__(self)
@@ -121,6 +143,8 @@ class ViewDispatcher(resource.Resource):
             return MessageView(self.db, self.agent)
         if path == "addressbook":
             return AddressBookView(self.db, self.agent)
+        if path == "backup-scan":
+            return BackupScanView(self.agent)
         request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
         return "Unknown Event Type"
 

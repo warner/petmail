@@ -14,6 +14,7 @@ class Agent(service.MultiService):
         self.db = db
         self.basedir = basedir
         self.mailbox_server = mailbox_server
+        self.backup_scan_progress_subscribers = set()
 
         self.mailbox_retrievers = set()
         c = self.db.execute("SELECT * FROM agent_profile").fetchone()
@@ -230,6 +231,11 @@ class Agent(service.MultiService):
                   }
                 for row in c.fetchall()]
 
+    def subscribe_backup_scan_reporter(self, subscriber):
+        self.backup_scan_progress_subscribers.add(subscriber)
+    def unsubscribe_backup_scan_reporter(self, subscriber):
+        self.backup_scan_progress_subscribers.remove(subscriber)
+
     def command_start_backup(self):
         print "starting backup"
         from twisted.internet import threads, reactor
@@ -237,6 +243,8 @@ class Agent(service.MultiService):
         from .icebackup import scan
         def report(*args, **kwargs):
             print "report", args, kwargs
+            for s in self.backup_scan_progress_subscribers:
+                s({"args": args, "kwargs": kwargs})
         def report_from_thread(*args, **kwargs):
             reactor.callFromThread(report, *args, **kwargs)
         def do_scan():

@@ -69,6 +69,12 @@ function main() {
     s.exit().remove();
   };
 
+  ev = new EventSource("/api/v1/views/backup-scan?token="+token);
+  ev.onmessage = function(e) {
+    var data = JSON.parse(e.data);
+    console.log("backup-progress", JSON.stringify(data));
+  };
+
   d3.select("#invite-go")[0][0].onclick = function(e) {
     var petname = d3.select("#invite-petname")[0][0].value;
     var code = d3.select("#invite-code")[0][0].value;
