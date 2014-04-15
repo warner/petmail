@@ -4,7 +4,9 @@ from twisted.python import log
 from twisted.application import service
 from .hkdf import HKDF
 from .errors import CommandError
-from nacl.signing import SigningKey, VerifyKey, BadSignatureError
+#from nacl.signing import SigningKey, VerifyKey, BadSignatureError
+from nacl.signing import SigningKey, VerifyKey
+from nacl.exceptions import BadSignatureError
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.encoding import HexEncoder as Hex
 

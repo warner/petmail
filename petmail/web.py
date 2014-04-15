@@ -1,7 +1,9 @@
 import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
-from nacl.signing import VerifyKey, BadSignatureError
+#from nacl.signing import VerifyKey, BadSignatureError
+from nacl.signing import VerifyKey
+from nacl.exceptions import BadSignatureError
 from .database import Notice
 from .util import equal
 from .errors import CommandError
