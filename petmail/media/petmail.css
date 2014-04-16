@@ -42,6 +42,16 @@ div#three {
     left: 660px;
 }
 
+div#backup-status {
+ border: 1px solid #aaa;
+ height: 50px;
+ margin: 3px;
+}
+
+div#backup-progress {
+ border: 1px solid #aaa;
+ height: 200px;
+}
 
 .reload-form {
  right: 20px;

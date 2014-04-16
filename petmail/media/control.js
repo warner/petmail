@@ -12,6 +12,64 @@ function set_current_addressbook(e) {
                                      + " [" + current_cid + "]");
 }
 
+function update_scan_progress(data) {
+  //console.log("backup-progress", JSON.stringify(data));
+  var boxg = d3.select("#backup-progress svg g.box-group");
+  var lineg = d3.select("#backup-progress svg g.line-group");
+  var pathg = d3.select("#backup-progress svg g.path-group");
+  var dirpath, i;
+  if (data["msgtype"] == "processing file") {
+    dirpath = data["dirpath"];
+    i = data["i"];
+  } else if (data["msgtype"] == "scan complete") {
+    dirpath = [];
+  }
+  if (dirpath) {
+    var boxes = boxg.selectAll("rect.box")
+          .data(dirpath);
+    boxes.exit().remove();
+    boxes.enter().append("svg:rect").attr("class", "box");
+    boxes.attr("width", 100)
+      .attr("height", 15)
+      .attr("stroke", "black")
+      .attr("fill", "#ddf")
+      .attr("transform", function(d,i) {
+        return "translate(0,"+15*i+")";
+      })
+    ;
+    //console.log(" bp set-rows");
+    var lines = lineg.selectAll("rect.line")
+          .data(dirpath);
+    lines.exit().remove();
+    lines.enter().append("svg:rect").attr("class", "line");
+    lines.attr("width", 3)
+      .attr("height", 10)
+      .attr("stroke", "black")
+      .attr("fill", "black")
+      .attr("transform", function(d,i) {
+        var fraction = d.num / d.num_siblings;
+        return "translate("+(100 * fraction)+","+(3+15*i)+")";
+      })
+    ;
+
+    var paths = pathg.selectAll("text.path")
+          .data(dirpath);
+    paths.exit().remove();
+    paths.enter().append("svg:text").attr("class", "path");
+    paths.attr("text-anchor", "start")
+      .attr("fill", "black")
+      .text(function (d) {return d.name;})
+      .attr("x", 105)
+      .attr("y", function(d,i) {return 15+15*i;})
+      /*.attr("transform", function(d,i) {
+        var fraction = d.num / d.num_siblings;
+        return "translate(105,"+(3+15*i)+")";
+      })*/
+    ;
+  }
+  //console.log(" progress done");
+};
+
 function main() {
   console.log("onload");
 
@@ -69,10 +127,15 @@ function main() {
     s.exit().remove();
   };
 
+  var st = d3.select("#backup-progress");
+  var st2 = st.append("svg:svg");
+  var boxg = st2.append("svg:g").attr("class", "box-group");
+  var lineg = st2.append("svg:g").attr("class", "line-group");
+  var pathg = st2.append("svg:g").attr("class", "path-group");
+
   ev = new EventSource("/api/v1/views/backup-scan?token="+token);
   ev.onmessage = function(e) {
-    var data = JSON.parse(e.data);
-    console.log("backup-progress", JSON.stringify(data));
+    update_scan_progress(JSON.parse(e.data));
   };
 
   d3.select("#invite-go")[0][0].onclick = function(e) {
