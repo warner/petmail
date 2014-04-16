@@ -240,6 +240,7 @@ class Scanner:
               self.process_directory(snapshotid, u".", [],
                                      None, self.prev_rootid)
         scan_finished = time.time()
+        elapsed = scan_finished - started
         self.db.execute("UPDATE snapshots"
                         " SET scan_finished=?, rootpath=?, root_id=?"
                         " WHERE id=?",
@@ -247,8 +248,9 @@ class Scanner:
                          snapshotid))
         self.db.commit()
         self.report_really("scan complete",
-                           size=cumulative_size, items=cumulative_items)
-        return (cumulative_size, cumulative_items)
+                           size=cumulative_size, items=cumulative_items,
+                           elapsed=elapsed)
+        return (cumulative_size, cumulative_items, elapsed)
 
     def process_directory(self, snapshotid,
                           localpath, dirpath,

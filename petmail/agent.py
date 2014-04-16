@@ -256,8 +256,8 @@ class Agent(service.MultiService):
             return s.scan()
         d = threads.deferToThread(do_scan)
         def done(res):
-            size,items = res
-            print "scan done", size, items
+            size,items,elapsed = res
+            print "scan done", size, items, elapsed
         d.addCallback(done)
         d.addErrback(log.err)
         return {"ok": "scan started"}

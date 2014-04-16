@@ -23,6 +23,9 @@ function update_scan_progress(data) {
     i = data["i"];
   } else if (data["msgtype"] == "scan complete") {
     dirpath = [];
+    d3.select("div#backup-status").text("took "+d3.format(".3g")(data.elapsed)+
+                                        "s, scanned "+d3.format(".4s")(data.size) +
+                                        " bytes, in "+data.items+" items");
   }
   if (dirpath) {
     var boxes = boxg.selectAll("rect.box")
