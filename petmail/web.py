@@ -228,10 +228,25 @@ class FetchMessages(BaseHandler):
                 "messages": self.agent.command_fetch_all_messages()}
 handlers["fetch-messages"] = FetchMessages
 
-class StartBackup(BaseHandler):
+class BackupStartScan(BaseHandler):
     def handle(self, payload):
-        return self.agent.command_start_backup()
-handlers["start-backup"] = StartBackup
+        return self.agent.command_backup_start_scan()
+handlers["start-backup-scan"] = BackupStartScan
+
+class BackupStartHash(BaseHandler):
+    def handle(self, payload):
+        return self.agent.command_backup_start_hash()
+handlers["start-backup-hash"] = BackupStartHash
+
+class BackupStartSchedule(BaseHandler):
+    def handle(self, payload):
+        return self.agent.command_backup_start_schedule()
+handlers["start-backup-schedule"] = BackupStartSchedule
+
+class BackupStartUpload(BaseHandler):
+    def handle(self, payload):
+        return self.agent.command_backup_start_upload()
+handlers["start-backup-upload"] = BackupStartUpload
 
 class API(resource.Resource):
     def __init__(self, access_token, db, agent):

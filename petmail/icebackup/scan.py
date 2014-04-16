@@ -247,8 +247,10 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
+        need_to_hash = self.db.execute("SELECT COUNT(*) FROM need_to_hash").fetchone()[0]
         self.report_really("scan complete",
                            size=cumulative_size, items=cumulative_items,
+                           need_to_hash=need_to_hash,
                            elapsed=elapsed)
         return (cumulative_size, cumulative_items, elapsed)
 
@@ -377,14 +379,18 @@ class Scanner:
     #    file which does not match the size/mtime of the previous scan.
 
     def hash_files(self):
-        count = self.db.execute("SELECT COUNT(*) FROM need_to_hash").fetchone()[0]
-        print "need_to_hash: %d" % count
+        started = time.time()
+        need_to_hash = self.db.execute("SELECT COUNT(*) FROM need_to_hash").fetchone()[0]
+        print "need_to_hash: %d" % need_to_hash
+        done = 0
+        self.report("hash_files", complete=done, total=need_to_hash)
         while True:
             next_batch = list(self.db.execute("SELECT * FROM need_to_hash"
                                               " ORDER BY id ASC"
                                               " LIMIT 200").fetchall())
             if not next_batch:
                 break
+            done += len(next_batch)
             for row in next_batch:
                 #print row["localpath"].encode("utf-8")
                 self.hash_file(row)
@@ -393,8 +399,13 @@ class Scanner:
             self.db.execute("DELETE FROM need_to_hash WHERE %s" % where_clause,
                             values)
             self.db.commit()
-        count = self.db.execute("SELECT COUNT(*) FROM need_to_upload").fetchone()[0]
-        print "need_to_upload: %d" % count
+            self.report("hash_files", complete=done, total=need_to_hash)
+        elapsed = time.time() - started
+        need_to_upload = self.db.execute("SELECT COUNT(*) FROM need_to_upload").fetchone()[0]
+        print "need_to_upload: %d" % need_to_upload
+        self.report_really("hash_files done", need_to_upload=need_to_upload,
+                           elapsed=elapsed)
+        return (need_to_hash, need_to_upload, elapsed)
 
     def hash_file(self, row):
         size = self.db.execute("SELECT size FROM filetable WHERE id=?",
@@ -443,9 +454,11 @@ class Scanner:
     def schedule_uploads(self):
         # the actual upload algorithm will batch together small files, and
         # split large ones. For now, we just pretend.
+        started = time.time()
         DBX = self.db.execute
-        count = DBX("SELECT COUNT(*) FROM need_to_upload").fetchone()[0]
-        print "need_to_upload: %d" % count
+        files_to_upload = DBX("SELECT COUNT(*) FROM need_to_upload").fetchone()[0]
+        print "files_to_upload: %d" % files_to_upload
+        bytes_to_upload = 0
         # begin transaction
         agg = Aggregator(self.db, self.MAXCHUNK)
         for row in DBX("SELECT * FROM need_to_upload ORDER BY id ASC"):
@@ -458,6 +471,7 @@ class Scanner:
             elif size < self.MINCHUNK: # small, so aggregate
                 # the Aggregator adds rows to 'upload_schedule', but we add
                 # rows to 'upload_schedule_files' here
+                bytes_to_upload += size
                 upid, filenum = agg.get_upid()
                 DBX("INSERT INTO upload_schedule_files"
                     " (upload_schedule_id, filenum, size,"
@@ -469,6 +483,7 @@ class Scanner:
             else: # large, not aggregated
                 # either one segment, or split into multiple segments
                 #print "large file", size
+                bytes_to_upload += size
                 for filenum,offset in enumerate(range(0, size, self.MAXCHUNK)):
                     length = min(size - offset, self.MAXCHUNK)
                     #print " adding", offset, length, "as filenum", filenum
@@ -485,12 +500,21 @@ class Scanner:
         # end transaction
         DBX("DELETE FROM need_to_upload")
         self.db.commit()
-        count = DBX("SELECT COUNT(*) FROM upload_schedule").fetchone()[0]
-        aggregate_count = DBX("SELECT COUNT(*) FROM upload_schedule"
-                              " WHERE aggregate=?",
-                              (CLOSED_AGGREGATE,)).fetchone()[0]
+        elapsed = time.time() - started
+        objects = DBX("SELECT COUNT(*) FROM upload_schedule").fetchone()[0]
+        aggregate_objects = DBX("SELECT COUNT(*) FROM upload_schedule"
+                                " WHERE aggregate=?",
+                                (CLOSED_AGGREGATE,)).fetchone()[0]
         print "upload objects: %d (of which %d hold aggregates)" \
-              % (count, aggregate_count)
+              % (objects, aggregate_objects)
+        print "bytes_to_upload: %d" % bytes_to_upload
+        self.report_really("schedule_uploads done",
+                           files_to_upload=files_to_upload,
+                           bytes_to_upload=bytes_to_upload,
+                           objects=objects,
+                           aggregate_objects=aggregate_objects,
+                           elapsed=elapsed)
+        return (files_to_upload, bytes_to_upload, objects, aggregate_objects)
 
     # after schedule_uploads(), 'need_to_upload' will be empty, and
     # 'upload_schedule'/'upload_schedule'files' will be populated with the
@@ -500,8 +524,16 @@ class Scanner:
 
     def upload_files(self):
         DBX = self.db.execute
-        count = DBX("SELECT COUNT(*) FROM upload_schedule").fetchone()[0]
-        print "uploads scheduled: %d" % count
+        objects_to_upload = DBX("SELECT COUNT(*) FROM upload_schedule").fetchone()[0]
+        print "uploads scheduled: %d" % objects_to_upload
+        objects_uploaded = 0
+        bytes_uploaded = 0
+        bytes_to_upload = DBX("SELECT SUM(size) FROM upload_schedule_files").fetchone()[0]
+        self.report("upload", objects_uploaded=objects_uploaded,
+                    objects_to_upload=objects_to_upload,
+                    bytes_uploaded=bytes_uploaded,
+                    bytes_to_upload=bytes_to_upload)
+        started = time.time()
         while True:
             next_batch = list(DBX("SELECT * FROM upload_schedule"
                                   " ORDER BY id ASC"
@@ -514,10 +546,21 @@ class Scanner:
                 objectpath, size = self.prepare_upload(upid)
                 objectcap = self.upload_object(objectpath, size)
                 # TODO: store it somewhere, update some stuff
+                objects_uploaded += 1
+                bytes_uploaded += size
                 DBX("DELETE FROM upload_schedule WHERE id=?", (upid,))
                 DBX("DELETE FROM upload_schedule_files WHERE upload_schedule_id=?", (upid,))
+            self.report("upload", objects_uploaded=objects_uploaded,
+                        objects_to_upload=objects_to_upload,
+                        bytes_uploaded=bytes_uploaded,
+                        bytes_to_upload=bytes_to_upload)
         self.db.commit()
+        elapsed = time.time() - started
         print "done"
+        self.report_really("upload done", elapsed=elapsed,
+                           objects_uploaded=objects_uploaded,
+                           bytes_uploaded=bytes_uploaded)
+        return (elapsed,)
 
     def prepare_upload(self, upid):
         DBX = self.db.execute

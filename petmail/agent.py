@@ -1,4 +1,7 @@
 import os.path, json, time
+from twisted.internet import threads, reactor
+from twisted.python import log
+from .icebackup import scan
 from twisted.application import service
 from nacl.public import PrivateKey
 from nacl.signing import SigningKey
@@ -236,28 +239,61 @@ class Agent(service.MultiService):
     def unsubscribe_backup_scan_reporter(self, subscriber):
         self.backup_scan_progress_subscribers.remove(subscriber)
 
-    def command_start_backup(self):
-        print "starting backup"
-        from twisted.internet import threads, reactor
-        from twisted.python import log
-        from .icebackup import scan
-        def report(msgtype, **kwargs):
-            #print "report", msgtype, kwargs
-            for s in self.backup_scan_progress_subscribers:
-                j = {"msgtype": msgtype}
-                j.update(kwargs)
-                s(j)
-        def report_from_thread(*args, **kwargs):
-            reactor.callFromThread(report, *args, **kwargs)
-        def do_scan():
-            s = scan.Scanner(os.path.expanduser(u"~/Music"),
-                             os.path.join(self.basedir, "icebackup.db"),
-                             report_from_thread)
-            return s.scan()
-        d = threads.deferToThread(do_scan)
+    def backup_make_scanner(self):
+        s = scan.Scanner(os.path.expanduser(u"~/Music"),
+                         os.path.join(self.basedir, "icebackup.db"),
+                         self.report_from_thread)
+        return s
+
+    def backup_report(self, msgtype, **kwargs):
+        #print "report", msgtype, kwargs
+        for s in self.backup_scan_progress_subscribers:
+            j = {"msgtype": msgtype}
+            j.update(kwargs)
+            s(j)
+    def report_from_thread(self, *args, **kwargs):
+        reactor.callFromThread(self.backup_report, *args, **kwargs)
+
+    def command_backup_start_scan(self):
+        print "starting backup scan"
+        d = threads.deferToThread(lambda:
+                                  self.backup_make_scanner().scan())
         def done(res):
             size,items,elapsed = res
             print "scan done", size, items, elapsed
         d.addCallback(done)
         d.addErrback(log.err)
         return {"ok": "scan started"}
+
+    def command_backup_start_hash(self):
+        print "starting backup hash"
+        d = threads.deferToThread(lambda:
+                                  self.backup_make_scanner().hash_files())
+        def done(res):
+            need_to_hash, need_to_upload, elapsed = res
+            print "hash done", need_to_hash, need_to_upload, elapsed
+        d.addCallback(done)
+        d.addErrback(log.err)
+        return {"ok": "hash_files started"}
+
+    def command_backup_start_schedule(self):
+        print "starting backup schedule-uploads"
+        d = threads.deferToThread(lambda:
+                                  self.backup_make_scanner().schedule_uploads())
+        def done(res):
+            (files_to_upload, bytes_to_upload, objects, aggregate_objects)=res
+            print "schedule done", files_to_upload, bytes_to_upload, objects, aggregate_objects
+        d.addCallback(done)
+        d.addErrback(log.err)
+        return {"ok": "schedule_uploads started"}
+
+    def command_backup_start_upload(self):
+        print "starting backup upload-files"
+        d = threads.deferToThread(lambda:
+                                  self.backup_make_scanner().upload_files())
+        def done(res):
+            (elapsed,)=res
+            print "upload done", elapsed
+        d.addCallback(done)
+        d.addErrback(log.err)
+        return {"ok": "upload_files started"}
