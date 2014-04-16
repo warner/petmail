@@ -242,7 +242,7 @@ class Agent(service.MultiService):
         from twisted.python import log
         from .icebackup import scan
         def report(msgtype, **kwargs):
-            print "report", msgtype, kwargs
+            #print "report", msgtype, kwargs
             for s in self.backup_scan_progress_subscribers:
                 j = {"msgtype": msgtype}
                 j.update(kwargs)
