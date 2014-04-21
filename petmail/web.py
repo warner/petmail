@@ -248,6 +248,10 @@ class BackupStartUpload(BaseHandler):
         return self.agent.command_backup_start_upload()
 handlers["start-backup-upload"] = BackupStartUpload
 
+class MyErrorPage(resource.ErrorPage):
+    def __init__(self, code, brief):
+        resource.ErrorPage.__init__(self, code, brief, brief)
+
 class API(resource.Resource):
     def __init__(self, access_token, db, agent):
         resource.Resource.__init__(self)
@@ -260,17 +264,14 @@ class API(resource.Resource):
         if path == "views":
             # Server-Sent Events use a GET, token must live in queryargs
             if not equal(request.args["token"][0], self.access_token):
-                request.setResponseCode(http.UNAUTHORIZED, "bad token")
-                return "Invalid token"
+                return MyErrorPage(http.UNAUTHORIZED, "bad token")
             return ViewDispatcher(self.db, self.agent)
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
-            request.setResponseCode(http.UNAUTHORIZED, "bad token")
-            return "Invalid token"
+            return MyErrorPage(http.UNAUTHORIZED, "bad token")
         rclass = handlers.get(path)
         if not rclass:
-            request.setResponseCode(http.NOT_FOUND, "unknown method")
-            return "Unknown method"
+            return MyErrorPage(http.NOT_FOUND, "unknown API method")
         r = rclass(self.db, self.agent, payload)
         return r
 
@@ -392,9 +393,7 @@ class Relay(resource.Resource):
 
     def getChild(self, path, request):
         if not VALID_INVITEID.search(path):
-            return resource.ErrorPage(http.BAD_REQUEST,
-                                      "invalid channel id",
-                                      "invalid channel id")
+            return MyErrorPage(http.BAD_REQUEST, "invalid channel id")
         return Channel(path, self.channels, self.destroy_messages,
                        self.subscribers, self.enable_eventsource,
                        self.reverse_messages)
