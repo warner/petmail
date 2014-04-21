@@ -248,6 +248,11 @@ class BackupStartUpload(BaseHandler):
         return self.agent.command_backup_start_upload()
 handlers["start-backup-upload"] = BackupStartUpload
 
+class BackupGetWholeTree(BaseHandler):
+    def handle(self, payload):
+        return self.agent.command_backup_get_whole_tree()
+handlers["get-whole-backup-tree"] = BackupGetWholeTree
+
 class MyErrorPage(resource.ErrorPage):
     def __init__(self, code, brief):
         resource.ErrorPage.__init__(self, code, brief, brief)
@@ -300,8 +305,9 @@ class ControlOpener(resource.Resource):
         return read_media("login.html") % self.access_token
 
 class Control(resource.Resource):
-    def __init__(self, access_token):
+    def __init__(self, filename, access_token):
         resource.Resource.__init__(self)
+        self.filename = filename
         self.access_token = access_token
 
     def render_POST(self, request):
@@ -310,7 +316,7 @@ class Control(resource.Resource):
             request.setHeader("content-type", "text/plain")
             return ("Sorry, this access token is expired,"
                     " please run 'petmail open' again\n")
-        return read_media("control.html") % {"token": token}
+        return read_media(self.filename) % {"token": token}
 
 
 class Channel(resource.Resource):
@@ -424,7 +430,8 @@ class WebPort(service.MultiService):
     def enable_agent(self, agent, db):
         token = self.access_token
         self.root.putChild("open-control", ControlOpener(db, token))
-        self.root.putChild("control", Control(token))
+        self.root.putChild("control", Control("control.html", token))
+        self.root.putChild("files", Control("files.html", token))
         api = resource.Resource() # /api
         self.root.putChild("api", api)
         api.putChild("v1", API(token, db, agent)) # /api/v1

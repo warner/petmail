@@ -1,0 +1,36 @@
+<html>
+<head>
+ <meta charset="utf-8">
+ <title>Filesystem Browser</title>
+ <link rel="stylesheet" href="/media/petmail.css" type="text/css" />
+ <script type="text/javascript" src="/media/d3-3.2.7.min.js"></script>
+ <script type="text/javascript" src="/media/files.js" charset="utf-8"></script>
+</head>
+
+<body>
+ <script>
+   var token = "%(token)s";
+ </script>
+
+ <form class="reload-form" action="files" method="post">
+  <input type="hidden" name="token" value="%(token)s">
+  <input type="submit" value="Reload" name="submit">
+ </form>
+
+<div id="backup-narrowbox">
+  <h3>Backups</h3>
+  <input id="backup-scan"     type="submit" value="Scan"/>
+  <input id="backup-show"     type="submit" value="Show Sunburst"/>
+  <input id="backup-hash"     type="submit" value="Hash"/>
+  <input id="backup-schedule" type="submit" value="Schedule"/>
+  <input id="backup-upload"   type="submit" value="Upload"/>
+  <div id="backup-status"></div>
+  <div id="backup-progress"></div>
+</div>
+
+<div id="backup-bigbox">
+  <p>bigbox</p>
+</div>
+
+</body>
+</html>

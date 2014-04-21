@@ -14,7 +14,12 @@
 
  <form class="reload-form" action="control" method="post">
   <input type="hidden" name="token" value="%(token)s">
-  <input type="submit" value="Reload Control Panel" name="submit">
+  <input type="submit" value="Reload" name="submit">
+ </form>
+
+ <form class="files-form" action="files" method="post">
+  <input type="hidden" name="token" value="%(token)s">
+  <input type="submit" value="Open Files Panel" name="submit">
  </form>
 
 <div id="one">
@@ -40,16 +45,6 @@
     </p>
   </div>
   <ul id="messages"></ul>
-</div>
-
-<div id="three">
-  <h3>Backups</h3>
-  <input id="backup-scan"     type="submit" value="Scan"/>
-  <input id="backup-hash"     type="submit" value="Hash"/>
-  <input id="backup-schedule" type="submit" value="Schedule"/>
-  <input id="backup-upload"   type="submit" value="Upload"/>
-  <div id="backup-status"></div>
-  <div id="backup-progress"></div>
 </div>
 
 

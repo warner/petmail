@@ -591,6 +591,23 @@ class Scanner:
     # after upload_files(), 'upload_schedule' will be empty, and all fileids
     # in 'filetable' should have filecaps in 'captable'.
 
+    def get_latest_snapshot(self):
+        def makerow(row):
+            return {"id": row["id"],
+                    "parentid": row["parentid"],
+                    "name": row["name"],
+                    "cumulative_size": row["cumulative_size"],
+                    "cumulative_items": row["cumulative_items"],
+                    }
+        root = self.db.execute("SELECT id,parentid,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=? AND id=?",
+                               (self.prev_snapshotid, self.prev_rootid)).fetchone()
+        print "ROOT", root
+        rootnode = makerow(root)
+        rows = self.db.execute("SELECT id,parentid,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=?", (self.prev_snapshotid,))
+        return {"rootid": self.prev_rootid,
+                "root": rootnode,
+                "nodes": [makerow(row) for row in rows] }
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dbname")

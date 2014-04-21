@@ -33,18 +33,18 @@ div#send-message {
     bottom: 10px;
 }
 
-div#three {
-    height: 80%;
+div#backup-narrowbox {
+    height: 90%;
     width: 200px;
     padding: 5px;
     border: 2px solid green;
     position: absolute;
-    left: 660px;
+    left: 20px;
 }
 
 div#backup-status {
  border: 1px solid #aaa;
- height: 50px;
+ height: 60px;
  margin: 3px;
 }
 
@@ -53,9 +53,38 @@ div#backup-progress {
  height: 200px;
 }
 
+div#backup-bigbox {
+    height: 90%;
+    width: 700px;
+    padding: 5px;
+    border: 2px solid red;
+    position: absolute;
+    left: 240px;
+}
+
+svg.filetree {
+    height: 600px;
+    width: 600px;
+}
+
+/*g.sunburst {
+    transform: translate(300,300);
+}*/
+
+path.arc {
+    stroke: blue;
+    fill: white;
+}
+
 .reload-form {
  right: 20px;
  top: 20px;
+ position: absolute;
+}
+
+.files-form {
+ right: 20px;
+ top: 40px;
  position: absolute;
 }
 

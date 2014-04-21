@@ -12,85 +12,6 @@ function set_current_addressbook(e) {
                                      + " [" + current_cid + "]");
 }
 
-function update_scan_progress(data) {
-  //console.log("backup-progress", JSON.stringify(data));
-  var boxg = d3.select("#backup-progress svg g.box-group");
-  var lineg = d3.select("#backup-progress svg g.line-group");
-  var pathg = d3.select("#backup-progress svg g.path-group");
-  var dirpath;
-  if (data["msgtype"] == "processing file") {
-    dirpath = data["dirpath"];
-  } else if (data["msgtype"] == "scan complete") {
-    dirpath = [];
-    d3.select("div#backup-status").text("took "+d3.format(".3g")(data.elapsed)+
-                                        "s, scanned "+d3.format(".4s")(data.size) +
-                                        " bytes, in "+data.items+" items. "+
-                                       "Need to hash "+data.need_to_hash+
-                                        " files");
-  } else if (data["msgtype"] == "hash_files done") {
-    d3.select("div#backup-status").text("took "+d3.format(".3g")(data.elapsed)+
-                                        "s, need_to_upload "+d3.format("g")(data.need_to_upload) +
-                                        " files");
-  } else if (data["msgtype"] == "schedule_uploads done") {
-    d3.select("div#backup-status").text("took "+d3.format(".3g")(data.elapsed)+
-                                        "s, need_to_upload "+d3.format(".4s")(data.bytes_to_upload)+" bytes in "+d3.format("g")(data.files_to_upload) + " files"
-                                        + " (in "+d3.format("g")(data.objects)
-                                        + " loose objects and "+
-                                        d3.format("g")(data.aggregate_objects)
-                                        +" aggregate objects)"
-                                       );
-  } else if (data["msgtype"] == "upload done") {
-    d3.select("div#backup-status").text("took "+d3.format(".3g")(data.elapsed)+
-                                        "s, to upload "+d3.format(".4s")(data.bytes_uploaded) + " bytes in "+d3.format("g")(data.objects_uploaded) + " objects");
-  } else {
-    console.log(data);
-  }
-  if (dirpath) {
-    var boxes = boxg.selectAll("rect.box")
-          .data(dirpath);
-    boxes.exit().remove();
-    boxes.enter().append("svg:rect").attr("class", "box");
-    boxes.attr("width", 100)
-      .attr("height", 15)
-      .attr("stroke", "black")
-      .attr("fill", "#ddf")
-      .attr("transform", function(d,i) {
-        return "translate(0,"+15*i+")";
-      })
-    ;
-    //console.log(" bp set-rows");
-    var lines = lineg.selectAll("rect.line")
-          .data(dirpath);
-    lines.exit().remove();
-    lines.enter().append("svg:rect").attr("class", "line");
-    lines.attr("width", 3)
-      .attr("height", 10)
-      .attr("stroke", "black")
-      .attr("fill", "black")
-      .attr("transform", function(d,i) {
-        var fraction = d.num / d.num_siblings;
-        return "translate("+(100 * fraction)+","+(3+15*i)+")";
-      })
-    ;
-
-    var paths = pathg.selectAll("text.path")
-          .data(dirpath);
-    paths.exit().remove();
-    paths.enter().append("svg:text").attr("class", "path");
-    paths.attr("text-anchor", "start")
-      .attr("fill", "black")
-      .text(function (d) {return d.name;})
-      .attr("x", 105)
-      .attr("y", function(d,i) {return 15+15*i;})
-      /*.attr("transform", function(d,i) {
-        var fraction = d.num / d.num_siblings;
-        return "translate(105,"+(3+15*i)+")";
-      })*/
-    ;
-  }
-  //console.log(" progress done");
-};
-
 function main() {
   console.log("onload");
 
@@ -148,17 +69,6 @@ function main() {
     s.exit().remove();
   };
 
-  var st = d3.select("#backup-progress");
-  var st2 = st.append("svg:svg");
-  var boxg = st2.append("svg:g").attr("class", "box-group");
-  var lineg = st2.append("svg:g").attr("class", "line-group");
-  var pathg = st2.append("svg:g").attr("class", "path-group");
-
-  ev = new EventSource("/api/v1/views/backup-scan?token="+token);
-  ev.onmessage = function(e) {
-    update_scan_progress(JSON.parse(e.data));
-  };
-
   d3.select("#invite-go")[0][0].onclick = function(e) {
     var petname = d3.select("#invite-petname")[0][0].value;
     var code = d3.select("#invite-code")[0][0].value;
@@ -181,50 +91,6 @@ function main() {
                                          console.log("sent", r.ok);
                                        });
     d3.select("#send-message-body")[0][0].value = "";
-  };
-
-  d3.select("#backup-scan")[0][0].onclick = function(e) {
-    console.log("backup: start scan");
-    var req = {"token": token, "args": {}};
-    d3.json("/api/v1/start-backup-scan").post(
-      JSON.stringify(req),
-      function(err, r) {
-        console.log("start-backup-scan returned:", r);
-        d3.select("div#backup-status").text(JSON.stringify(r));
-      });
-  };
-
-  d3.select("#backup-hash")[0][0].onclick = function(e) {
-    console.log("backup: start hash");
-    var req = {"token": token, "args": {}};
-    d3.json("/api/v1/start-backup-hash").post(
-      JSON.stringify(req),
-      function(err, r) {
-        console.log("start-backup-hash returned:", r);
-        d3.select("div#backup-status").text(JSON.stringify(r));
-      });
-  };
-
-  d3.select("#backup-schedule")[0][0].onclick = function(e) {
-    console.log("backup: start schedule");
-    var req = {"token": token, "args": {}};
-    d3.json("/api/v1/start-backup-schedule").post(
-      JSON.stringify(req),
-      function(err, r) {
-        console.log("start-backup-schedule returned:", r);
-        d3.select("div#backup-status").text(JSON.stringify(r));
-      });
-  };
-
-  d3.select("#backup-upload")[0][0].onclick = function(e) {
-    console.log("backup: start upload");
-    var req = {"token": token, "args": {}};
-    d3.json("/api/v1/start-backup-upload").post(
-      JSON.stringify(req),
-      function(err, r) {
-        console.log("start-backup-upload returned:", r);
-        d3.select("div#backup-status").text(JSON.stringify(r));
-      });
   };
 
   console.log("setup done");
