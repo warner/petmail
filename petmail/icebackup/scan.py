@@ -597,15 +597,16 @@ class Scanner:
         def makerow(row):
             return {"id": row["id"],
                     "parentid": row["parentid"],
+                    "depth": row["depth"],
                     "name": row["name"],
                     "cumulative_size": row["cumulative_size"],
                     "cumulative_items": row["cumulative_items"],
                     }
-        root = self.db.execute("SELECT id,parentid,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=? AND id=?",
+        root = self.db.execute("SELECT id,parentid,depth,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=? AND id=?",
                                (self.prev_snapshotid, self.prev_rootid)).fetchone()
         print "ROOT", root
         rootnode = makerow(root)
-        rows = self.db.execute("SELECT id,parentid,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=?", (self.prev_snapshotid,))
+        rows = self.db.execute("SELECT id,parentid,depth,name,cumulative_size,cumulative_items FROM dirtable WHERE snapshotid=?", (self.prev_snapshotid,))
         return {"rootid": self.prev_rootid,
                 "root": rootnode,
                 "nodes": [makerow(row) for row in rows] }
