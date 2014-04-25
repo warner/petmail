@@ -39,6 +39,7 @@ CREATE TABLE `dirtable`
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `snapshotid` INTEGER,
  `parentid` INTEGER, -- or NULL for a root
+ `depth` INTEGER, -- 0 for root
  `name` VARCHAR,
  `cumulative_size` INTEGER, -- includes space for the dirnode itself
  `cumulative_items` INTEGER -- includes 1 for the direnode itself
@@ -51,6 +52,7 @@ CREATE TABLE `filetable`
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `snapshotid` INTEGER,
  `parentid` INTEGER NOT NULL,
+ `depth` INTEGER, -- 1 for files in root directory
  `name` VARCHAR,
  `size` INTEGER,
  `mtime` INTEGER,
@@ -237,7 +239,7 @@ class Scanner:
                                      " (started) VALUES (?)",
                                      (started,)).lastrowid
         (rootid, cumulative_size, cumulative_items) = \
-              self.process_directory(snapshotid, u".", [],
+              self.process_directory(snapshotid, 0, u".", [],
                                      None, self.prev_rootid)
         scan_finished = time.time()
         elapsed = scan_finished - started
@@ -254,7 +256,7 @@ class Scanner:
                            elapsed=elapsed)
         return (cumulative_size, cumulative_items, elapsed)
 
-    def process_directory(self, snapshotid,
+    def process_directory(self, snapshotid, depth,
                           localpath, dirpath,
                           parentid, prevnode):
         assert isinstance(localpath, unicode)
@@ -267,9 +269,9 @@ class Scanner:
         name = os.path.basename(os.path.abspath(abspath))
         dirid = self.db.execute(
             "INSERT INTO dirtable"
-            " (snapshotid, parentid, name)"
-            " VALUES (?,?,?)",
-            (snapshotid, parentid, name)
+            " (snapshotid, depth, parentid, name)"
+            " VALUES (?,?,?,?)",
+            (snapshotid, depth, parentid, name)
             ).lastrowid
         cumulative_size = size
         cumulative_items = 1
@@ -290,7 +292,7 @@ class Scanner:
                                          }]
                 try:
                     new_dirid, subtree_size, subtree_items = \
-                               self.process_directory(snapshotid,
+                               self.process_directory(snapshotid, depth+1,
                                                       childpath, newdirpath,
                                                       dirid, prevchildnode)
                     cumulative_size += subtree_size
@@ -308,7 +310,7 @@ class Scanner:
                                          "num": i,
                                          "num_siblings": len(children),
                                          }]
-                file_size = self.process_file(snapshotid,
+                file_size = self.process_file(snapshotid, depth+1,
                                               childpath, newdirpath,
                                               dirid, prevchildnode)
                 cumulative_size += file_size
@@ -326,7 +328,7 @@ class Scanner:
         #self.report("exiting directory", dirpath=dirpath)
         return dirid, cumulative_size, cumulative_items
 
-    def process_file(self, snapshotid,
+    def process_file(self, snapshotid, depth,
                      localpath, dirpath,
                      parentid, prevnodeid):
         self.report("processing file", dirpath=dirpath)
@@ -338,10 +340,10 @@ class Scanner:
         s = os.stat(abspath)
         size = s.st_size
         ftid = self.db.execute("INSERT INTO filetable"
-                               " (snapshotid, parentid, name,"
+                               " (snapshotid, depth, parentid, name,"
                                "  size, mtime)"
-                               " VALUES (?,?,?, ?,?)",
-                               (snapshotid, parentid, name,
+                               " VALUES (?,?,?,?, ?,?)",
+                               (snapshotid, depth, parentid, name,
                                 s.st_size, s.st_mtime)
                                ).lastrowid
 
