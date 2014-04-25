@@ -67,15 +67,6 @@ svg.filetree {
     width: 600px;
 }
 
-/*g.sunburst {
-    transform: translate(300,300);
-}*/
-
-path.arc {
-    stroke: blue;
-    fill: white;
-}
-
 .reload-form {
  right: 20px;
  top: 20px;

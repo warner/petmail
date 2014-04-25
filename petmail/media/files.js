@@ -142,7 +142,7 @@ function main() {
   var bb = d3.select("#backup-bigbox").append("svg:svg").attr("class", "filetree");
   bb.append("svg:g")
     .attr("class", "sunburst")
-    .attr("transform", "translate(200, 150)");
+    .attr("transform", "translate(300, 300)");
   ;
 
   d3.select("#backup-show").on("click", function() {
@@ -153,10 +153,15 @@ function main() {
         console.log("get-whole-backup-tree returned "+r.data.length+" rows");
         //console.log(JSON.stringify(r.data));
         var rootnode = r.data.root;
+        var nodes = r.data.nodes;
+        nodes = nodes.filter(function(n) { return n.depth < 5; });
+        console.log(nodes.length, "nodes");
+        console.log(nodes[0]);
         var nodes_by_parent = d3.nest().key(function(d) {
           return d.parentid;
-        }).map(r.data.nodes);
+        }).map(nodes);
         //console.log(nodes_by_parent);
+        // adapted from http://bl.ocks.org/mbostock/4063423
         var p = d3.layout.partition()
               .children(function (d) {
                 return nodes_by_parent[d.id];
@@ -171,18 +176,19 @@ function main() {
         // x (value), y (depth), name, depth
         // x is scaled [0,1]
         // y is scaled from [0,1], since default .size() had y=1, depth
-        var maxdepth = d3.max(layout, function(n){return n.depth;});
-        console.log("maxdepth", maxdepth);
-        layout =  layout.filter(function(n){return n.depth<5;});
+        //var maxdepth = d3.max(layout, function(n){return n.depth;});
+        //console.log("maxdepth", maxdepth);
+        //layout =  layout.filter(function(n){return n.depth<5;});
         //console.log(layout);
         var RADIUS = 300;
         var xscale = d3.scale.linear()
               .range([0, 2*Math.PI]);
         var yscale = d3.scale.linear()
               .range([0, RADIUS]);
+        var color = d3.scale.category20c();
         var arc = d3.svg.arc()
               .innerRadius(function(n) {return yscale(n.y);})
-              .outerRadius(function(n) {return yscale(n.y+0.8*n.dy);})
+              .outerRadius(function(n) {return yscale(n.y+n.dy)-RADIUS/100;})
               .startAngle(function(n) {return xscale(n.x);})
               .endAngle(function(n) {return xscale(n.x+0.99*n.dx);})
         ;
@@ -190,7 +196,12 @@ function main() {
         arcs.exit().remove();
         arcs.enter().append("svg:path").attr("class", "arc");
         arcs
+          .attr("display", function(d) { return d.depth ? null : "none";})
           .attr("d", arc)
+          .style("stroke", "#fff")
+          .style("fill",
+                 function(d) { return color((d.children ? d : d.parent).name);})
+          .style("fill-rule", "evenodd")
           .attr("title", function(d) {return d.name;});
         ;
       });
