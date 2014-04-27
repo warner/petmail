@@ -248,10 +248,10 @@ class BackupStartUpload(BaseHandler):
         return self.agent.command_backup_start_upload()
 handlers["start-backup-upload"] = BackupStartUpload
 
-class BackupGetWholeTree(BaseHandler):
+class BackupSendLatestSnapshot(BaseHandler):
     def handle(self, payload):
-        return self.agent.command_backup_get_whole_tree()
-handlers["get-whole-backup-tree"] = BackupGetWholeTree
+        return self.agent.command_backup_send_latest_snapshot()
+handlers["backup-send-latest-snapshot"] = BackupSendLatestSnapshot
 
 class MyErrorPage(resource.ErrorPage):
     def __init__(self, code, brief):

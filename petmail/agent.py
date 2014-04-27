@@ -298,7 +298,12 @@ class Agent(service.MultiService):
         d.addErrback(log.err)
         return {"ok": "upload_files started"}
 
-    def command_backup_get_whole_tree(self):
-        data = self.backup_make_scanner().get_latest_snapshot()
-        return {"ok": "ok",
-                "data": data}
+    def command_backup_send_latest_snapshot(self):
+        d = threads.deferToThread(lambda:
+                                  self.backup_make_scanner().send_latest_snapshot())
+        def done(res):
+            (elapsed,)=res
+            print "snapshot sent", elapsed
+        d.addCallback(done)
+        d.addErrback(log.err)
+        return {"ok": "send-snapshot started"}

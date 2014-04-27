@@ -3,6 +3,7 @@
 import os, time, base64, argparse
 from hashlib import sha256
 from . import dbutil
+from .. import pylru
 from .abbreviate import abbreviate_space
 
 # glossary:
@@ -58,19 +59,16 @@ CREATE TABLE `filetable`
  `name` VARCHAR,
  `size` INTEGER,
  `mtime` INTEGER,
- `fileid` VARCHAR -- hash of file, or random until we want efficient renames
+ -- fileid is NULL if we need to hash the file. Otherwise it's random (for
+ -- now), or a hash of the file contents (when we want efficient renames)
+ `fileid` VARCHAR,
+ `need_hash` INTEGER -- actually a boolean
 );
 CREATE INDEX `filetable_snapshotid_parentid_name` ON `filetable`
  (`snapshotid`, `parentid`, `name`);
 CREATE INDEX `filetable_fileid` ON `filetable` (`fileid`);
-
-CREATE TABLE `need_to_hash`
-(
- `id` INTEGER PRIMARY KEY AUTOINCREMENT,
- `filetable_id` INTEGER, -- filetable row to update with fileid
- `localpath` VARCHAR,
- `mtime` INTEGER
-);
+CREATE INDEX `filetable_snapshotid_fileid` ON `filetable` (`snapshotid`, `fileid`);
+CREATE INDEX `filetable_snapshotid_need_hash` ON `filetable` (`snapshotid`, `need_hash`);
 
 CREATE TABLE `need_to_upload`
 (
@@ -210,6 +208,7 @@ class Scanner:
         self.dbfile = dbfile
         self.reporter = reporter
         self._last_reported = 0
+        self.dirname_cache = pylru.lrucache(100)
         self.db = dbutil.get_db(dbfile, create_version=(schema, 1),
                                 synchronous="OFF")
         self.prev_snapshotid, self.prev_rootid = None, None
@@ -223,13 +222,14 @@ class Scanner:
 
     def report(self, *args, **kwargs):
         #print "report", args, kwargs
+        if not self.reporter:
+            return
         now = time.time()
         if now - self._last_reported < 0.10:
             return
         self._last_reported = now
         # at most one event every 100ms
-        if self.reporter:
-            self.reporter(*args, **kwargs)
+        self.reporter(*args, **kwargs)
 
     def report_really(self, *args, **kwargs):
         if self.reporter:
@@ -243,7 +243,8 @@ class Scanner:
         (rootid, cumulative_size, cumulative_items,
          cumulative_need_hash_size, cumulative_need_hash_items) = \
          self.process_directory(snapshotid, 0, u".", [],
-                                None, self.prev_rootid)
+                                None, self.prev_rootid,
+                                truncated=False)
         scan_finished = time.time()
         elapsed = scan_finished - started
         self.db.execute("UPDATE snapshots"
@@ -252,7 +253,7 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
-        need_to_hash = self.db.execute("SELECT COUNT(*) FROM need_to_hash").fetchone()[0]
+        need_to_hash = self.count_need_to_hash(snapshotid)
         self.report_really("scan complete",
                            size=cumulative_size, items=cumulative_items,
                            need_to_hash=need_to_hash,
@@ -263,7 +264,7 @@ class Scanner:
 
     def process_directory(self, snapshotid, depth,
                           localpath, dirpath,
-                          parentid, prevnode):
+                          parentid, prevnode, truncated):
         assert isinstance(localpath, unicode)
         # localpath is relative to self.rootpath
         abspath = os.path.join(self.rootpath, localpath)
@@ -284,6 +285,10 @@ class Scanner:
         cumulative_need_hash_items = 0
 
         children = os.listdir(abspath)
+        self.report_really("scan-enter-dir",
+                           localpath=localpath,
+                           children=children)
+
         for i,child in enumerate(children):
             childpath = os.path.join(localpath, child)
             abschildpath = os.path.join(self.rootpath, childpath)
@@ -303,7 +308,8 @@ class Scanner:
                      subtree_hash_size, subtree_hash_items) = \
                      self.process_directory(snapshotid, depth+1,
                                             childpath, newdirpath,
-                                            dirid, prevchildnode)
+                                            dirid, prevchildnode,
+                                            truncated)
                     cumulative_size += subtree_size
                     cumulative_items += subtree_items
                     cumulative_need_hash_size += subtree_hash_size
@@ -325,6 +331,10 @@ class Scanner:
                            self.process_file(snapshotid, depth+1,
                                              childpath, newdirpath,
                                              dirid, prevchildnode)
+                self.report_really("scan-file",
+                                   childpath=childpath,
+                                   size=file_size,
+                                   need_hash=need_hash)
                 cumulative_size += file_size
                 cumulative_items += 1
                 if need_hash:
@@ -345,7 +355,12 @@ class Scanner:
                          cumulative_need_hash_size,
                          cumulative_need_hash_items,
                          dirid))
-        #self.report("exiting directory", dirpath=dirpath)
+        self.report_really("scan-exit-dir",
+                           localpath=localpath,
+                           cumulative_size=cumulative_size,
+                           cumulative_items=cumulative_items,
+                           cumulative_need_hash_size=cumulative_need_hash_size,
+                           cumulative_need_hash_items=cumulative_need_hash_items)
         return (dirid,
                 cumulative_size, cumulative_items,
                 cumulative_need_hash_size, cumulative_need_hash_items)
@@ -361,13 +376,6 @@ class Scanner:
 
         s = os.stat(abspath)
         size = s.st_size
-        ftid = self.db.execute("INSERT INTO filetable"
-                               " (snapshotid, depth, parentid, name,"
-                               "  size, mtime)"
-                               " VALUES (?,?,?,?, ?,?)",
-                               (snapshotid, depth, parentid, name,
-                                s.st_size, s.st_mtime)
-                               ).lastrowid
 
         # if the file looks old (the previous snapshot had a file with the
         # same path, size, and mtime), then we're allowed to assume it hasn't
@@ -380,50 +388,69 @@ class Scanner:
         if (prevnode and
             prevnode["size"] == size and
             prevnode["mtime"] == s.st_mtime):
-            self.db.execute("UPDATE filetable SET fileid=? WHERE id=?",
-                            (prevnode["fileid"], ftid))
-            need_hash = False
+            fileid, need_hash = prevnode["fileid"], False
         else:
             # otherwise, schedule it for hashing, which will produce the
             # fileid. If that fileid is not one we've previously uploaded,
             # we'll schedule it for uploading.
-            self.db.execute("INSERT INTO need_to_hash"
-                            " (filetable_id, localpath, mtime)"
-                            " VALUES (?,?,?)",
-                            (ftid, localpath, s.st_mtime))
-            need_hash = True
+            fileid, need_hash = None, True
 
+        self.db.execute("INSERT INTO filetable"
+                        " (snapshotid, depth, parentid, name,"
+                        "  size, mtime, fileid, need_hash)"
+                        " VALUES (?,?,?,?, ?,?,?,?)",
+                        (snapshotid, depth, parentid, name,
+                         s.st_size, s.st_mtime, fileid, need_hash)
+                        )
         return size, need_hash
 
     # after scan() (process_directory/process_file) completes, the
     # 'snapshots' row will be done (scan_finished!=NULL), and the dirtable
     # will be complete (all data in all rows will be present). The filetable
-    # will contain all rows, however:
-    #
-    #  * some rows will not have a fileid. These rows should each have a
-    #    matching entry in 'need_to_hash'. Each represents a new file or a
-    #    file which does not match the size/mtime of the previous scan.
+    # will contain all rows, however some rows will not have a fileid. These
+    # rows will have need_hash=True, and each one represents a new file or a
+    # file which does not match the size/mtime of the previous scan.
 
-    def hash_files(self):
+    def get_localpath_for_filetable(self, row):
+        path = [row["name"]]
+        here = row["parentid"]
+        while here:
+            if here in self.dirname_cache:
+                (parentid, name) = self.dirname_cache[here]
+            else:
+                r = self.db.execute("SELECT parentid,name FROM dirtable"
+                                    " WHERE id=?", (here,)).fetchone()
+                (parentid, name) = (r["parentid"], r["name"])
+                self.dirname_cache[here] = (parentid, name)
+            path.append(name)
+            here = parentid
+        path.reverse()
+        return "/".join(path)
+
+    def count_need_to_hash(self, snapshotid):
+        return self.db.execute("SELECT COUNT(*) FROM filetable"
+                               " WHERE snapshotid=? AND need_hash=?",
+                               (snapshotid, True)).fetchone()[0]
+
+    def hash_files(self, snapshotid):
         started = time.time()
-        need_to_hash = self.db.execute("SELECT COUNT(*) FROM need_to_hash").fetchone()[0]
+        need_to_hash = self.count_need_to_hash(snapshotid)
         print "need_to_hash: %d" % need_to_hash
         done = 0
         self.report("hash_files", complete=done, total=need_to_hash)
         while True:
-            next_batch = list(self.db.execute("SELECT * FROM need_to_hash"
+            print done
+            next_batch = list(self.db.execute("SELECT * FROM filetable"
+                                              " WHERE snapshotid=? AND need_hash=?"
                                               " ORDER BY id ASC"
-                                              " LIMIT 200").fetchall())
+                                              " LIMIT 200",
+                                              (snapshotid, True)).fetchall())
             if not next_batch:
                 break
             done += len(next_batch)
             for row in next_batch:
                 #print row["localpath"].encode("utf-8")
                 self.hash_file(row)
-            where_clause = " OR ".join(["id=?" for row in next_batch])
-            values = tuple([row["id"] for row in next_batch])
-            self.db.execute("DELETE FROM need_to_hash WHERE %s" % where_clause,
-                            values)
             self.db.commit()
             self.report("hash_files", complete=done, total=need_to_hash)
         elapsed = time.time() - started
@@ -434,12 +461,11 @@ class Scanner:
         return (need_to_hash, need_to_upload, elapsed)
 
     def hash_file(self, row):
-        size = self.db.execute("SELECT size FROM filetable WHERE id=?",
-                               (row["filetable_id"],)
-                               ).fetchone()["size"]
-        fileid = self.hash_fileid(row["localpath"], row["mtime"], size)
-        self.db.execute("UPDATE filetable SET fileid=? WHERE id=?",
-                        (row["filetable_id"], fileid))
+        localpath = self.get_localpath_for_filetable(row)
+        size, filetable_id, mtime = row["size"], row["id"], row["mtime"]
+        fileid = self.hash_fileid(localpath, row["mtime"], size)
+        self.db.execute("UPDATE filetable SET fileid=?, need_hash=?"
+                        " WHERE id=?", (fileid, False, filetable_id))
 
         uploaded = self.db.execute("SELECT * FROM captable"
                                    " WHERE fileid=?",
@@ -456,7 +482,7 @@ class Scanner:
             return
 
         #print " need to upload"
-        path = os.path.join(self.rootpath, row["localpath"])
+        path = os.path.join(self.rootpath, localpath)
         self.db.execute("INSERT INTO need_to_upload"
                         " (path, fileid, size)"
                         " VALUES (?,?,?)",
@@ -617,33 +643,76 @@ class Scanner:
     # after upload_files(), 'upload_schedule' will be empty, and all fileids
     # in 'filetable' should have filecaps in 'captable'.
 
-    def get_latest_snapshot(self):
-        def makerow(row):
-            return dict([(name, row[name])
-                         for name in
-                         ["id", "parentid", "depth", "name",
-                          "cumulative_size", "cumulative_items",
-                          "cumulative_need_hash_size",
-                          "cumulative_need_hash_items"]
-                         ])
-        root = self.db.execute("SELECT * FROM dirtable"
-                               " WHERE snapshotid=? AND id=?",
-                               (self.prev_snapshotid, self.prev_rootid)
-                               ).fetchone()
-        print "ROOT", root
-        rootnode = makerow(root)
-        rows = self.db.execute("SELECT * FROM dirtable WHERE snapshotid=?",
-                               (self.prev_snapshotid,))
-        return {"rootid": self.prev_rootid,
-                "root": rootnode,
-                "nodes": [makerow(row) for row in rows] }
+    def send_directory(self, snapshotid, localpath, dirid):
+        childnames = []
+        filekids = {}
+        for row in self.db.execute("SELECT * FROM filetable"
+                                   " WHERE snapshotid=? AND parentid=?"
+                                   " ORDER BY name ASC",
+                                   (snapshotid, dirid)).fetchall():
+            childnames.append(row["name"])
+            filekids[row["name"]] = {
+                "localpath": os.path.join(localpath, row["name"]),
+                "size": row["size"],
+                "need_hash": row["need_hash"],
+                }
+        dirkids = {}
+        for row in self.db.execute("SELECT * FROM dirtable"
+                                   " WHERE snapshotid=? AND parentid=?"
+                                   " ORDER BY name ASC",
+                                   (snapshotid, dirid)).fetchall():
+            childnames.append(row["name"])
+            dirkids[row["name"]] = {
+                "localpath": os.path.join(localpath, row["name"]),
+                }
+            for k in ["id", "cumulative_size", "cumulative_items",
+                      "cumulative_need_hash_size",
+                      "cumulative_need_hash_items"]:
+                dirkids[row["name"]][k] = row[k]
+        childnames.sort()
+        self.report_really("scan-enter-dir",
+                           localpath=localpath,
+                           children=childnames)
+        for name in childnames:
+            if name in filekids:
+                k = filekids[name]
+                self.report_really("scan-file",
+                                   localpath=k["localpath"],
+                                   size=k["size"],
+                                   need_hash=k["need_hash"])
+            if name in dirkids:
+                k = dirkids[name]
+                self.send_directory(snapshotid, k["localpath"], k["id"])
+                self.report_really("scan-exit-dir",
+                                   localpath=k["localpath"],
+                                   cumulative_size=k["cumulative_size"],
+                                   cumulative_items=k["cumulative_items"],
+                                   cumulative_need_hash_size=k["cumulative_need_hash_size"],
+                                   cumulative_need_hash_items=k["cumulative_need_hash_items"])
 
-def main():
+    def send_latest_snapshot(self):
+        self.send_directory(self.prev_snapshotid, u".", self.prev_rootid)
+        row = self.db.execute("SELECT * FROM snapshots WHERE id=?",
+                              (self.prev_snapshotid,)).fetchone()
+        elapsed = row["scan_finished"]-row["started"]
+        row = self.db.execute("SELECT * FROM dirtable"
+                              " WHERE snapshotid=? AND id=?",
+                              (self.prev_snapshotid, self.prev_rootid)
+                              ).fetchone()
+        self.report_really("scan complete",
+                           cumulative_size=row["cumulative_size"],
+                           cumulative_items=row["cumulative_items"],
+                           cumulative_need_hash_size=row["cumulative_need_hash_size"],
+                           cumulative_need_hash_items=row["cumulative_need_hash_items"],
+                           elapsed=elapsed)
+        print "done sending latest snapshot"
+
+def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("dbname")
     ap.add_argument("root")
     ap.add_argument("command")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     dbname = args.dbname
     assert dbname.endswith(".sqlite"), dbname
     root = args.root.decode("utf-8")
@@ -661,11 +730,16 @@ def main():
               (cumulative_need_hash_items,
                abbreviate_space(cumulative_need_hash_size))
     elif command == "hash_files":
-        s.hash_files()
+        s.hash_files(s.prev_snapshotid)
     elif command == "schedule_uploads":
         s.schedule_uploads()
     elif command == "upload":
         s.upload_files()
+    elif command == "dump":
+        def report(*args, **kwargs):
+            print args, kwargs
+        s.reporter = report
+        s.send_latest_snapshot()
     else:
         print "unknown command", command
 
