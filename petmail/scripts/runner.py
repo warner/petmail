@@ -124,6 +124,10 @@ class TestOptions(usage.Options):
         else:
             self.test_args = list(test_args)
 
+class BackupScanOptions(usage.Options):
+    def parseArgs(self, *args):
+        self.all_args = args
+
 class Options(usage.Options):
     synopsis = "\nUsage: petmail <command>"
     optParameters = [
@@ -148,6 +152,7 @@ class Options(usage.Options):
                    ("follow-messages", None, NoOptions, "Fetch messages"),
 
                    ("test", None, TestOptions, "Run unit tests"),
+                   ("backup-scan", None, BackupScanOptions, "Test backup scanner"),
                    ]
 
     def opt_version(self):
@@ -218,6 +223,10 @@ def test(so, stdout, stderr):
     twisted_trial.run() # this does not return
     sys.exit(0) # just in case
 
+def backup_scan(so, stdout, stderr):
+    from ..icebackup import scan
+    scan.main(so.all_args)
+
 def render_text(result):
     return result["ok"]+"\n"
 def render_all(result):
@@ -267,6 +276,7 @@ DISPATCH = {"create-node": create_node,
             "restart": restart,
             "open": open_control_panel,
             "test": test,
+            "backup-scan": backup_scan,
 
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
