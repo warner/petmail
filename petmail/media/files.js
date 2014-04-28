@@ -1,11 +1,137 @@
 
+/* 'scantree_root' is the superroot of a tree, always containing exactly one
+ child (named ".") which is the real root. Each non-leaf node is {name,
+ children:[], scanning:bool}. Each leaf node is either {type:directory, name,
+ items, size, need_hash_items, need_hash_size} (for truncated directories),
+ or {type:file, name, size, need_hash:bool}.
+ */
+var scantree_root = {name: "<superroot>", children: [], scanning: false};
+var partition; // a d3.layout.partition() for the sunburst
+
+function update_sunburst() {
+  var layout = partition.nodes(scantree_root.children[0]);
+  // adapted from http://bl.ocks.org/mbostock/4063423
+  // x (value), y (depth), name, depth
+  // x is scaled [0,1]
+  // y is scaled from [0,1], since default .size() had y=1, depth
+  //var maxdepth = d3.max(layout, function(n){return n.depth;});
+  //console.log("maxdepth", maxdepth);
+  //layout =  layout.filter(function(n){return n.depth<5;});
+  //console.log(layout);
+  var RADIUS = 300;
+  var xscale = d3.scale.linear()
+        .range([0, 2*Math.PI]);
+  var yscale = d3.scale.linear()
+        .range([0, RADIUS]);
+  var color = d3.scale.category20c();
+  var arc = d3.svg.arc()
+        .innerRadius(function(n) {return yscale(n.y);})
+        .outerRadius(function(n) {return yscale(n.y+n.dy)-RADIUS/100;})
+        .startAngle(function(n) {return xscale(n.x);})
+        .endAngle(function(n) {return xscale(n.x+0.99*n.dx);})
+  ;
+  var arcs = d3.select("g.sunburst").selectAll("path.arc").data(layout);
+  arcs.exit().remove();
+  arcs.enter().append("svg:path").attr("class", "arc");
+  arcs
+    .attr("display", function(d) { return d.depth ? null : "none";})
+    .attr("d", arc)
+    .style("stroke", "#fff")
+    .style("fill",
+           function(d) { return color((d.children ? d : d.parent).name);})
+    .style("fill-rule", "evenodd")
+    .attr("title", function(d) {return d.name;});
+  ;
+}
+
+function find_in_children(parent, name) {
+  // note: Array.prototype.find is an ES6 feature that's in FF24, Chrome30,
+  // and IE11, but needs a polyfill for older browsers. See
+  // http://kangax.github.io/es5-compat-table/es6/ and
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find
+  return parent.children.find(function(e) { return e.name === name; });
+}
+
+function find_scantree_node(root, localpath_pieces) {
+  // the node will always exist
+  var here = root;
+  // [0] is always "."
+  localpath_pieces.forEach(function(name) {
+    here = find_in_children(here, name);
+  });
+  return here;
+}
+
+function scan_update_enter_dir(root, localpath, childnames) {
+  var localpath_pieces = localpath.split("/");
+  if (localpath_pieces[0] !== ".") {
+    console.log("Hey, localpath didn't start with ./", localpath);
+    return;
+  }
+  var parentnode = find_scantree_node(root, localpath_pieces.slice(0, -1));
+  var name = localpath_pieces[localpath_pieces.length-1];
+  var oldnode = find_in_children(parentnode, name); // or undefined
+  // TODO: looking up children in oldnode is O(n^2), worst for large dirs
+  var placeholders_to_add;
+  var newnode = { name: name,
+                  scanning: true,
+                  children: [] };
+  if (oldnode === undefined) {
+    parentnode.children.push(newnode);
+    placeholders_to_add = childnames;
+  } else {
+    // re-use children from the old node, add placeholders for the rest
+    placeholders_to_add = [];
+    childnames.forEach(function(newchildname) {
+      var oldchild = find_in_children(oldnode, newchildname);
+      console.log("looking for", newchildname, "found", oldchild);
+      if (oldchild !== undefined) {
+        oldchild.scanning = true;
+        newnode.children.push(oldchild);
+      } else {
+        placeholders_to_add.push(newchildname);
+      }
+    });
+  }
+
+  placeholders_to_add.forEach(function(childname) {
+    // make a placeholder for the child, filled in later
+    console.log(" placeholder for", childname);
+    newnode.children.push({name: childname, scanning: false, children: []});
+    console.log(" newnode", newnode);
+  });
+}
+
+function scan_update_file(root, childpath, size, need_hash) {
+}
+
+function scan_update_exit_dir(root, localpath, cumulative_size) {
+}
+
 function update_scan_progress(data) {
   //console.log("backup-progress", JSON.stringify(data));
   var boxg = d3.select("#backup-progress svg g.box-group");
   var lineg = d3.select("#backup-progress svg g.line-group");
   var pathg = d3.select("#backup-progress svg g.path-group");
   var dirpath;
-  if (data["msgtype"] == "processing file") {
+  if (false) {
+  } else if (data["msgtype"] == "scan-enter-dir") {
+    scan_update_enter_dir(scantree_root, data["localpath"], data["childnames"]);
+    // then maybe update layout
+    return;
+  } else if (data["msgtype"] == "scan-file") {
+    scan_update_file(scantree_root, data["childpath"],
+                     data["size"], data["need_hash"]);
+    // then maybe update layout
+    return;
+  } else if (data["msgtype"] == "scan-exit-dir") {
+    scan_update_exit_dir(scantree_root,
+                         data["localpath"], data["cumulative_size"]
+                         // also: items need_hash_size need_hash_items
+                         );
+    // then maybe update layout
+    return;
+  } else if (data["msgtype"] == "processing file") {
     dirpath = data["dirpath"];
   } else if (data["msgtype"] == "scan complete") {
     dirpath = [];
@@ -144,66 +270,22 @@ function main() {
     .attr("class", "sunburst")
     .attr("transform", "translate(300, 300)");
   ;
+  partition = d3.layout.partition()
+    .value(function(d) {
+      return d.size;
+    });
+              //.children(function (d) {
+              //  return nodes_by_parent[d.id];
+              //})
+              //.sort(SOMETHING) // by d.name
+              //.size([rootnode.cumulative_items, 5])
 
   d3.select("#backup-show").on("click", function() {
     var req = {"token": token, "args": {}};
-    d3.json("/api/v1/get-whole-backup-tree").post(
+    d3.json("/api/v1/backup-send-latest-snapshot").post(
       JSON.stringify(req),
       function(err, r) {
-        console.log("get-whole-backup-tree returned "+r.data.length+" rows");
-        //console.log(JSON.stringify(r.data));
-        var rootnode = r.data.root;
-        var nodes = r.data.nodes;
-        nodes = nodes.filter(function(n) { return n.depth < 5; });
-        console.log(nodes.length, "nodes");
-        console.log(nodes[0]);
-        var nodes_by_parent = d3.nest().key(function(d) {
-          return d.parentid;
-        }).map(nodes);
-        //console.log(nodes_by_parent);
-        // adapted from http://bl.ocks.org/mbostock/4063423
-        var p = d3.layout.partition()
-              .children(function (d) {
-                return nodes_by_parent[d.id];
-              })
-              .value(function (d) {
-                return d.cumulative_items;
-              })
-              //.sort(SOMETHING) // by d.name
-              //.size([rootnode.cumulative_items, 5])
-        ;
-        var layout = p.nodes(rootnode);
-        // x (value), y (depth), name, depth
-        // x is scaled [0,1]
-        // y is scaled from [0,1], since default .size() had y=1, depth
-        //var maxdepth = d3.max(layout, function(n){return n.depth;});
-        //console.log("maxdepth", maxdepth);
-        //layout =  layout.filter(function(n){return n.depth<5;});
-        //console.log(layout);
-        var RADIUS = 300;
-        var xscale = d3.scale.linear()
-              .range([0, 2*Math.PI]);
-        var yscale = d3.scale.linear()
-              .range([0, RADIUS]);
-        var color = d3.scale.category20c();
-        var arc = d3.svg.arc()
-              .innerRadius(function(n) {return yscale(n.y);})
-              .outerRadius(function(n) {return yscale(n.y+n.dy)-RADIUS/100;})
-              .startAngle(function(n) {return xscale(n.x);})
-              .endAngle(function(n) {return xscale(n.x+0.99*n.dx);})
-        ;
-        var arcs = d3.select("g.sunburst").selectAll("path.arc").data(layout);
-        arcs.exit().remove();
-        arcs.enter().append("svg:path").attr("class", "arc");
-        arcs
-          .attr("display", function(d) { return d.depth ? null : "none";})
-          .attr("d", arc)
-          .style("stroke", "#fff")
-          .style("fill",
-                 function(d) { return color((d.children ? d : d.parent).name);})
-          .style("fill-rule", "evenodd")
-          .attr("title", function(d) {return d.name;});
-        ;
+        console.log("backup-sent-latest-snapshot returned:", r);
       });
   });
 
