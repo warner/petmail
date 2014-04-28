@@ -287,7 +287,7 @@ class Scanner:
         children = os.listdir(abspath)
         self.report_really("scan-enter-dir",
                            localpath=localpath,
-                           children=children)
+                           childnames=children)
 
         for i,child in enumerate(children):
             childpath = os.path.join(localpath, child)
@@ -672,7 +672,7 @@ class Scanner:
         childnames.sort()
         self.report_really("scan-enter-dir",
                            localpath=localpath,
-                           children=childnames)
+                           childnames=childnames)
         for name in childnames:
             if name in filekids:
                 k = filekids[name]
