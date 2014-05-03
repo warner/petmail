@@ -1,11 +1,10 @@
 
-/* 'scantree_root' is the superroot of a tree, always containing exactly one
- child (named ".") which is the real root. Each non-leaf node is {name,
- children:[], scanning:bool}. Each leaf node is either {type:directory, name,
- items, size, need_hash_items, need_hash_size} (for truncated directories),
- or {type:file, name, size, need_hash:bool}.
+/* 'scantree_root' is the root of a tree. Each node has a (name, type,
+ scanning) properties. "type" is [placeholder, directory, file]. Directory
+ nodes have children=[] and eventually (items, size, need_hash_items,
+ need_hash_size). File nodes have (size, need_hash=bool).
  */
-var scantree_root = {name: "<superroot>", children: [], scanning: false};
+var scantree_root = {name: ".", children: [], scanning: false};
 var partition; // a d3.layout.partition() for the sunburst
 
 function update_sunburst() {
@@ -45,61 +44,97 @@ function update_sunburst() {
 }
 
 function find_in_children(parent, name) {
-  // note: Array.prototype.find is an ES6 feature that's in FF24, Chrome30,
+  // note: Array.prototype.findIndex is an ES6 feature that's in FF24, Chrome30,
   // and IE11, but needs a polyfill for older browsers. See
   // http://kangax.github.io/es5-compat-table/es6/ and
-  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find
-  return parent.children.find(function(e) { return e.name === name; });
+  // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/findIndex
+
+  // returns -1 if the given name is not in the parent's children
+  return parent.children.findIndex(function(e) { return e.name === name; });
 }
 
-function find_scantree_node(root, localpath_pieces) {
-  // the node will always exist
+function find_scantree_parent_of(root, localpath_pieces) {
+  // We will never be called with just ["."]. The parent node will always
+  // exist (and be a directory). The target node might not exist, but we
+  // don't look for it. localpath_pieces[0] is always "."
+  if (localpath_pieces[0] !== ".") {
+    console.log("err: find_scantree_parent_of given", localpath_pieces);
+    throw new Error("find_scantree_parent_of given non-dot prefix");
+  }
+  if (localpath_pieces.length < 2) {
+    console.log("err: find_scantree_parent_of too short", localpath_pieces);
+    throw new Error("find_scantree_parent_of given short path");
+  }
   var here = root;
-  // [0] is always "."
-  localpath_pieces.forEach(function(name) {
-    here = find_in_children(here, name);
-  });
+  localpath_pieces.slice(1, localpath_pieces.length-1).forEach(
+    function(name) {
+      var i = find_in_children(here, name);
+      if (i === -1) {
+        console.log("err: find_scantree_parent_of didn't find child", localpath_pieces, name, here.children);
+        throw new Error("find_scantree_parent_of didn't find child");
+      }
+      here = here.children[i];
+    });
   return here;
 }
 
 function scan_update_enter_dir(root, localpath, childnames) {
-  var localpath_pieces = localpath.split("/");
-  if (localpath_pieces[0] !== ".") {
-    console.log("Hey, localpath didn't start with ./", localpath);
-    return;
-  }
-  var parentnode = find_scantree_node(root, localpath_pieces.slice(0, -1));
-  var name = localpath_pieces[localpath_pieces.length-1];
-  var oldnode = find_in_children(parentnode, name); // or undefined
-  // TODO: looking up children in oldnode is O(n^2), worst for large dirs
-  var placeholders_to_add;
-  var newnode = { name: name,
-                  scanning: true,
-                  children: [] };
-  if (oldnode === undefined) {
-    parentnode.children.push(newnode);
-    placeholders_to_add = childnames;
+  var node;
+  if (localpath === ".") {
+    node = root;
   } else {
-    // re-use children from the old node, add placeholders for the rest
-    placeholders_to_add = [];
-    childnames.forEach(function(newchildname) {
-      var oldchild = find_in_children(oldnode, newchildname);
-      console.log("looking for", newchildname, "found", oldchild);
-      if (oldchild !== undefined) {
-        oldchild.scanning = true;
-        newnode.children.push(oldchild);
-      } else {
-        placeholders_to_add.push(newchildname);
+    // the parent node will always exist, and will be a directory
+    var localpath_pieces = localpath.split("/");
+    var name = localpath_pieces[localpath_pieces.length-1];
+    var parentnode = find_scantree_parent_of(root, localpath_pieces);
+    var oldindex = find_in_children(parentnode, name);
+    var oldnode;
+    if (oldindex !== -1) {
+      oldnode = parentnode.children[oldindex];
+      //console.log("target "+name+" already exists at ["+oldindex+"], type="+oldnode.type);
+    }
+    if (oldnode && oldnode.type === "directory") {
+      //console.log(" oldnode is directory, yay");
+      node = oldnode;
+    } else {
+      if (oldnode) {
+        // must remove the old non-directory node
+        //console.log(" oldnode is not directory, removing");
+        //console.log("  children was: "+JSON.stringify(parentnode.children));
+        parentnode.children.splice(oldindex, 1);
+        //console.log("  children now: "+JSON.stringify(parentnode.children));
       }
-    });
+      //console.log(" inserting newnode");
+      // now insert the new node
+      node = { type: "directory",
+               name: name,
+               children: [],
+               scanning: true
+             };
+      parentnode.children.push(node);
+      //console.log("  children now: "+JSON.stringify(parentnode.children));
+    }
   }
 
-  placeholders_to_add.forEach(function(childname) {
-    // make a placeholder for the child, filled in later
-    console.log(" placeholder for", childname);
-    newnode.children.push({name: childname, scanning: false, children: []});
-    console.log(" newnode", newnode);
+  var newchildren = [];
+  // re-use children from the old node, add placeholders for the rest
+  childnames.forEach(function(newchildname) {
+    // TODO: looking up children in oldnode is O(n^2), worst for large dirs.
+    // Better O(n) approach is to keep everything sorted and walk both old
+    // and new lists in parallel, like an insertion sort.
+    var oldchild = find_in_children(node, newchildname);
+    //console.log("looking for", newchildname, "found", oldchild);
+    if (oldchild === -1) {
+      var newnode = { type: "placeholder",
+                      name: newchildname,
+                      scanning: false
+                    };
+      newchildren.push(newnode);
+    } else {
+      newchildren.push(node.children[oldchild]);
+    }
   });
+  node.children = newchildren;
 }
 
 function scan_update_file(root, childpath, size, need_hash) {
