@@ -4,7 +4,7 @@
  nodes have children=[] and eventually (items, size, need_hash_items,
  need_hash_size). File nodes have (size, need_hash=bool).
  */
-var scantree_root = {name: ".", children: [], scanning: false};
+var scantree_root = {type: "directory", name: ".", children: [], scanning: false};
 var partition; // a d3.layout.partition() for the sunburst
 
 function update_sunburst() {
@@ -138,6 +138,23 @@ function scan_update_enter_dir(root, localpath, childnames) {
 }
 
 function scan_update_file(root, childpath, size, need_hash) {
+  // the parent node will always exist, and will be a directory
+  var localpath_pieces = childpath.split("/");
+  var name = localpath_pieces[localpath_pieces.length-1];
+  var parentnode = find_scantree_parent_of(root, localpath_pieces);
+  if (parentnode.type !== "directory") {
+    console.log("err: scan_update_file parent isn't dir", localpath_pieces);
+    throw new Error("scan_update_file parent isn't dir");
+  }
+  var oldindex = find_in_children(parentnode, name);
+  if (oldindex === -1) {
+    console.log("err: scan_update_file didn't find node", localpath_pieces);
+    throw new Error("scan_update_file didn't find node");
+  }
+  parentnode.children[oldindex] = { type: "file",
+                                    name: name,
+                                    size: size,
+                                    need_hash: need_hash };
 }
 
 function scan_update_exit_dir(root, localpath, cumulative_size) {
