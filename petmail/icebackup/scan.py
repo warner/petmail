@@ -42,10 +42,11 @@ CREATE TABLE `dirtable`
  `parentid` INTEGER, -- or NULL for a root
  `depth` INTEGER, -- 0 for root
  `name` VARCHAR,
- `cumulative_size` INTEGER, -- includes space for the dirnode itself
- `cumulative_items` INTEGER, -- includes 1 for the direnode itself
- `cumulative_need_hash_size` INTEGER,
- `cumulative_need_hash_items` INTEGER
+ `size_items` INTEGER, -- includes 1 for the dirnode itself
+ `size_file_items` INTEGER, -- just the files, not directories
+ `size_file_bytes` INTEGER, -- total space of all files
+ `size_hash_items` INTEGER,
+ `size_hash_bytes` INTEGER
 );
 CREATE INDEX `dirtable_snapshotid_parentid_name` ON `dirtable`
  (`snapshotid`, `parentid`, `name`);
@@ -197,6 +198,34 @@ class Aggregator:
                         " WHERE id=?", (CLOSED_AGGREGATE, self.upid,))
         self.upid = None
 
+class Size:
+    def __init__(self, file_of_size=None, need_hash=False):
+        self.items = 1 # files and directories
+        self.file_items = 0 # just files
+        self.file_bytes = 0
+        self.hash_items = 0 # files which need hashing
+        self.hash_bytes = 0
+        if file_of_size:
+            self.file_items = 1
+            self.file_bytes = file_of_size
+            if need_hash:
+                self.hash_items = 1
+                self.hash_bytes = file_of_size
+
+    def increment(self, them):
+        self.items += them.items
+        self.file_items += them.file_items
+        self.file_bytes += them.file_bytes
+        self.hash_items += them.hash_items
+        self.hash_bytes += them.hash_bytes
+
+    def as_dict(self):
+        return { "items": self.items,
+                 "file_bytes": self.file_bytes,
+                 "file_items": self.file_items,
+                 "hash_bytes": self.hash_bytes,
+                 "hash_items": self.hash_items,
+                 }
 
 class Scanner:
     MINCHUNK = 1*1000*1000
@@ -240,8 +269,7 @@ class Scanner:
         snapshotid = self.db.execute("INSERT INTO snapshots"
                                      " (started) VALUES (?)",
                                      (started,)).lastrowid
-        (rootid, cumulative_size, cumulative_items,
-         cumulative_need_hash_size, cumulative_need_hash_items) = \
+        (rootid, total_size) = \
          self.process_directory(snapshotid, 0, u".", [],
                                 None, self.prev_rootid,
                                 truncated=False)
@@ -253,25 +281,28 @@ class Scanner:
                         (scan_finished, self.rootpath, rootid,
                          snapshotid))
         self.db.commit()
-        need_to_hash = self.count_need_to_hash(snapshotid)
         self.report_really("scan complete",
-                           size=cumulative_size, items=cumulative_items,
-                           need_to_hash=need_to_hash,
+                           size=total_size.file_bytes,
+                           items=total_size.items,
+                           need_to_hash=total_size.hash_items,
                            elapsed=elapsed)
-        return (cumulative_size, cumulative_items,
-                cumulative_need_hash_size, cumulative_need_hash_items,
-                elapsed)
+        return (total_size, elapsed)
 
     def process_directory(self, snapshotid, depth,
                           localpath, dirpath,
                           parentid, prevnode, truncated):
         assert isinstance(localpath, unicode)
+        truncate_child = (depth >= 3)
         # localpath is relative to self.rootpath
         abspath = os.path.join(self.rootpath, localpath)
-        #print "%sDIR: %s" % (" "*(len(localpath.split(os.sep))-1), localpath)
+        if True:
+            print "%d%s%s%sDIR: %s" % (depth,
+                                       str(truncated)[0],
+                                       str(truncate_child)[0],
+                                       " "*(len(localpath.split(os.sep))-1),
+                                       localpath)
         #self.report("entering directory", dirpath=dirpath)
-        s = os.stat(abspath)
-        size = s.st_size # good enough for now
+        my_size = Size()
         name = os.path.basename(os.path.abspath(abspath))
         dirid = self.db.execute(
             "INSERT INTO dirtable"
@@ -279,15 +310,12 @@ class Scanner:
             " VALUES (?,?,?,?)",
             (snapshotid, depth, parentid, name)
             ).lastrowid
-        cumulative_size = size
-        cumulative_items = 1
-        cumulative_need_hash_size = 0
-        cumulative_need_hash_items = 0
 
         children = os.listdir(abspath)
-        self.report_really("scan-enter-dir",
-                           localpath=localpath,
-                           childnames=children)
+        if not truncated:
+            self.report_really("scan-enter-dir",
+                               localpath=localpath,
+                               childnames=[] if truncate_child else children)
 
         for i,child in enumerate(children):
             childpath = os.path.join(localpath, child)
@@ -304,16 +332,12 @@ class Scanner:
                                          "num_siblings": len(children),
                                          }]
                 try:
-                    (new_dirid, subtree_size, subtree_items,
-                     subtree_hash_size, subtree_hash_items) = \
+                    (new_dirid, new_size) = \
                      self.process_directory(snapshotid, depth+1,
                                             childpath, newdirpath,
                                             dirid, prevchildnode,
-                                            truncated)
-                    cumulative_size += subtree_size
-                    cumulative_items += subtree_items
-                    cumulative_need_hash_size += subtree_hash_size
-                    cumulative_need_hash_items += subtree_hash_items
+                                            truncate_child)
+                    my_size.increment(new_size)
                 except OSError as e:
                     print e
                     continue
@@ -327,43 +351,33 @@ class Scanner:
                                          "num": i,
                                          "num_siblings": len(children),
                                          }]
-                file_size, need_hash = \
-                           self.process_file(snapshotid, depth+1,
-                                             childpath, newdirpath,
-                                             dirid, prevchildnode)
-                self.report_really("scan-file",
-                                   childpath=childpath,
-                                   size=file_size,
-                                   need_hash=need_hash)
-                cumulative_size += file_size
-                cumulative_items += 1
-                if need_hash:
-                    cumulative_need_hash_size += file_size
-                    cumulative_need_hash_items += 1
+                file_size = self.process_file(snapshotid, depth+1,
+                                              childpath, newdirpath,
+                                              dirid, prevchildnode)
+                my_size.increment(file_size)
+                if not truncated and not truncate_child:
+                    self.report_really("scan-file",
+                                       childpath=childpath,
+                                       size=file_size.as_dict())
             elif os.path.islink(abschildpath):
                 pass
             else:
                 print "ignoring non-file/dir/link %s" % abschildpath
 
         self.db.execute("UPDATE dirtable"
-                        " SET cumulative_size=?,"
-                        "  cumulative_items=?,"
-                        "  cumulative_need_hash_size=?,"
-                        "  cumulative_need_hash_items=?"
+                        " SET size_items=?,"
+                        "  size_file_items=?, size_file_bytes=?,"
+                        "  size_hash_items=?, size_hash_bytes=?"
                         " WHERE id=?",
-                        (cumulative_size, cumulative_items,
-                         cumulative_need_hash_size,
-                         cumulative_need_hash_items,
+                        (my_size.items,
+                         my_size.items, my_size.file_bytes,
+                         my_size.hash_items, my_size.hash_bytes,
                          dirid))
-        self.report_really("scan-exit-dir",
-                           localpath=localpath,
-                           cumulative_size=cumulative_size,
-                           cumulative_items=cumulative_items,
-                           cumulative_need_hash_size=cumulative_need_hash_size,
-                           cumulative_need_hash_items=cumulative_need_hash_items)
-        return (dirid,
-                cumulative_size, cumulative_items,
-                cumulative_need_hash_size, cumulative_need_hash_items)
+        if not truncated:
+            self.report_really("scan-exit-dir",
+                               localpath=localpath,
+                               size=my_size.as_dict())
+        return (dirid, my_size)
 
     def process_file(self, snapshotid, depth,
                      localpath, dirpath,
@@ -374,8 +388,7 @@ class Scanner:
         name = os.path.basename(os.path.abspath(abspath))
         #print "%sFILE %s" % (" "*(len(localpath.split(os.sep))-1), name)
 
-        s = os.stat(abspath)
-        size = s.st_size
+        stat = os.stat(abspath)
 
         # if the file looks old (the previous snapshot had a file with the
         # same path, size, and mtime), then we're allowed to assume it hasn't
@@ -386,8 +399,8 @@ class Scanner:
                 "SELECT * FROM filetable WHERE id=?",
                 (prevnodeid,)).fetchone()
         if (prevnode and
-            prevnode["size"] == size and
-            prevnode["mtime"] == s.st_mtime):
+            prevnode["size"] == stat.st_size and
+            prevnode["mtime"] == stat.st_mtime):
             fileid, need_hash = prevnode["fileid"], False
         else:
             # otherwise, schedule it for hashing, which will produce the
@@ -400,9 +413,16 @@ class Scanner:
                         "  size, mtime, fileid, need_hash)"
                         " VALUES (?,?,?,?, ?,?,?,?)",
                         (snapshotid, depth, parentid, name,
-                         s.st_size, s.st_mtime, fileid, need_hash)
+                         stat.st_size, stat.st_mtime, fileid, need_hash)
                         )
-        return size, need_hash
+
+        size = Size()
+        size.file_items = 1
+        size.file_bytes = stat.st_size
+        if need_hash:
+            size.hash_items = 1
+            size.hash_bytes = stat.st_size
+        return size
 
     # after scan() (process_directory/process_file) completes, the
     # 'snapshots' row will be done (scan_finished!=NULL), and the dirtable
@@ -449,7 +469,7 @@ class Scanner:
                 break
             done += len(next_batch)
             for row in next_batch:
-                #print row["localpath"].encode("utf-8")
+                #print self.get_localpath_for_filetable(row).encode("utf-8")
                 self.hash_file(row)
             self.db.commit()
             self.report("hash_files", complete=done, total=need_to_hash)
@@ -663,12 +683,15 @@ class Scanner:
                                    (snapshotid, dirid)).fetchall():
             childnames.append(row["name"])
             dirkids[row["name"]] = {
+                "id": row["id"],
                 "localpath": os.path.join(localpath, row["name"]),
+                "size": {"items": row["size_items"],
+                         "file_items": row["size_file_items"],
+                         "file_bytes": row["size_file_bytes"],
+                         "hash_items": row["size_hash_items"],
+                         "hash_bytes": row["size_hash_bytes"],
+                         },
                 }
-            for k in ["id", "cumulative_size", "cumulative_items",
-                      "cumulative_need_hash_size",
-                      "cumulative_need_hash_items"]:
-                dirkids[row["name"]][k] = row[k]
         childnames.sort()
         self.report_really("scan-enter-dir",
                            localpath=localpath,
@@ -676,19 +699,16 @@ class Scanner:
         for name in childnames:
             if name in filekids:
                 k = filekids[name]
+                s = Size(file_of_size=k["size"], need_hash=k["need_hash"])
                 self.report_really("scan-file",
                                    localpath=k["localpath"],
-                                   size=k["size"],
-                                   need_hash=k["need_hash"])
+                                   size=s.as_dict())
             if name in dirkids:
                 k = dirkids[name]
                 self.send_directory(snapshotid, k["localpath"], k["id"])
                 self.report_really("scan-exit-dir",
                                    localpath=k["localpath"],
-                                   cumulative_size=k["cumulative_size"],
-                                   cumulative_items=k["cumulative_items"],
-                                   cumulative_need_hash_size=k["cumulative_need_hash_size"],
-                                   cumulative_need_hash_items=k["cumulative_need_hash_items"])
+                                   size=k["size"])
 
     def send_latest_snapshot(self):
         self.send_directory(self.prev_snapshotid, u".", self.prev_rootid)
@@ -700,10 +720,10 @@ class Scanner:
                               (self.prev_snapshotid, self.prev_rootid)
                               ).fetchone()
         self.report_really("scan complete",
-                           cumulative_size=row["cumulative_size"],
-                           cumulative_items=row["cumulative_items"],
-                           cumulative_need_hash_size=row["cumulative_need_hash_size"],
-                           cumulative_need_hash_items=row["cumulative_need_hash_items"],
+                           cumulative_size=row["size_file_bytes"],
+                           cumulative_items=row["size_items"],
+                           cumulative_need_hash_size=row["size_hash_bytes"],
+                           cumulative_need_hash_items=row["size_hash_items"],
                            elapsed=elapsed)
         print "done sending latest snapshot"
 
@@ -717,18 +737,21 @@ def main(argv=None):
     assert dbname.endswith(".sqlite"), dbname
     root = args.root.decode("utf-8")
     assert os.path.isdir(root), root
-    s = Scanner(root, dbname)
     command = args.command
+
+    s = Scanner(root, dbname)
+    if command == "dump" or command == "scan":
+        def report(*args, **kwargs):
+            print args, kwargs
+        s.reporter = report
+
     if command == "scan":
-        (cumulative_size, cumulative_items,
-         cumulative_need_hash_size, cumulative_need_hash_items,
-         elapsed) = s.scan()
-        print "cumulative_size %d (%s)" % (cumulative_size,
-                                           abbreviate_space(cumulative_size))
-        print "cumulative_items %d" % cumulative_items
+        (size, elapsed) = s.scan()
+        print "%d items (%d files)" % (size.items, size.file_items)
+        print "files: %d (%s)" % (size.file_bytes,
+                                  abbreviate_space(size.file_bytes))
         print "need to hash %d files (%s bytes)" % \
-              (cumulative_need_hash_items,
-               abbreviate_space(cumulative_need_hash_size))
+              (size.hash_items, abbreviate_space(size.hash_bytes))
     elif command == "hash_files":
         s.hash_files(s.prev_snapshotid)
     elif command == "schedule_uploads":
@@ -736,9 +759,6 @@ def main(argv=None):
     elif command == "upload":
         s.upload_files()
     elif command == "dump":
-        def report(*args, **kwargs):
-            print args, kwargs
-        s.reporter = report
         s.send_latest_snapshot()
     else:
         print "unknown command", command
