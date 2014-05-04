@@ -293,6 +293,7 @@ class Scanner:
                           parentid, prevnode, truncated):
         assert isinstance(localpath, unicode)
         truncate_child = (depth >= 3)
+        truncate_child = False
         # localpath is relative to self.rootpath
         abspath = os.path.join(self.rootpath, localpath)
         if True:

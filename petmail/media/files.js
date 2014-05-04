@@ -109,7 +109,7 @@ function scan_update_ancestors(ancestors) {
         newsize[mode] += c.size[mode];
       });
     });
-    a.size.items += 1; // for the directory itself
+    newsize.items += 1; // for the directory itself
     a.size = newsize;
   });
 }
