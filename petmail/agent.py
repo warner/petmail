@@ -259,8 +259,8 @@ class Agent(service.MultiService):
         d = threads.deferToThread(lambda:
                                   self.backup_make_scanner().scan())
         def done(res):
-            size,items,hash_size,hash_items,elapsed = res
-            print "scan done", size, items, hash_size, hash_items, elapsed
+            size,elapsed = res
+            print "scan done", size.as_dict(), elapsed
         d.addCallback(done)
         d.addErrback(log.err)
         return {"ok": "scan started"}

@@ -1,14 +1,33 @@
 
+var d3, token; // provided by the .html file that loads us
+
 /* 'scantree_root' is the root of a tree. Each node has a (name, type,
  scanning) properties. "type" is [placeholder, directory, file]. Directory
  nodes have children=[] and eventually (items, size, need_hash_items,
  need_hash_size). File nodes have (size, need_hash=bool).
  */
-var scantree_root = {type: "directory", name: ".", children: [], scanning: false};
+
+function create_node(type, name, scanning) {
+  return {name: name,
+          type: type,
+          scanning: scanning,
+          size: { items: 1,
+                  file_bytes: 0,
+                  file_items: 0,
+                  hash_bytes: 0,
+                  hash_items: 0
+                },
+          children: []
+         };
+}
+
+var scantree_root = create_node("directory", ".", false);
 var partition; // a d3.layout.partition() for the sunburst
+var size_modes = ["items", "file_bytes", "file_items", "hash_bytes", "hash_items"];
+var partition_size_mode = "items";
 
 function update_sunburst() {
-  var layout = partition.nodes(scantree_root.children[0]);
+  var layout = partition.nodes(scantree_root);
   // adapted from http://bl.ocks.org/mbostock/4063423
   // x (value), y (depth), name, depth
   // x is scaled [0,1]
@@ -36,8 +55,7 @@ function update_sunburst() {
     .attr("display", function(d) { return d.depth ? null : "none";})
     .attr("d", arc)
     .style("stroke", "#fff")
-    .style("fill",
-           function(d) { return color((d.children ? d : d.parent).name);})
+    .style("fill", function(d) { return color(d.name);})
     .style("fill-rule", "evenodd")
     .attr("title", function(d) {return d.name;});
   ;
@@ -53,40 +71,60 @@ function find_in_children(parent, name) {
   return parent.children.findIndex(function(e) { return e.name === name; });
 }
 
-function find_scantree_parent_of(root, localpath_pieces) {
+function find_scantree_ancestors_of(root, localpath_pieces) {
   // We will never be called with just ["."]. The parent node will always
   // exist (and be a directory). The target node might not exist, but we
   // don't look for it. localpath_pieces[0] is always "."
   if (localpath_pieces[0] !== ".") {
-    console.log("err: find_scantree_parent_of given", localpath_pieces);
-    throw new Error("find_scantree_parent_of given non-dot prefix");
+    console.log("err: find_scantree_ancestors_of given", localpath_pieces);
+    throw new Error("find_scantree_ancestors_of given non-dot prefix");
   }
   if (localpath_pieces.length < 2) {
-    console.log("err: find_scantree_parent_of too short", localpath_pieces);
-    throw new Error("find_scantree_parent_of given short path");
+    console.log("err: find_scantree_ancestors_of too short", localpath_pieces);
+    throw new Error("find_scantree_ancestors_of given short path");
   }
+  var ancestors = [root];
   var here = root;
   localpath_pieces.slice(1, localpath_pieces.length-1).forEach(
     function(name) {
       var i = find_in_children(here, name);
       if (i === -1) {
-        console.log("err: find_scantree_parent_of didn't find child", localpath_pieces, name, here.children);
-        throw new Error("find_scantree_parent_of didn't find child");
+        console.log("err: find_scantree_ancestors_of didn't find child", localpath_pieces, name, here.children);
+        throw new Error("find_scantree_ancestors_of didn't find child");
       }
       here = here.children[i];
+      ancestors.push(here);
     });
-  return here;
+  ancestors.reverse();
+  return ancestors;
+}
+
+function scan_update_ancestors(ancestors) {
+  // now walk up the ancestor chain and recalculate .size on everything
+  ancestors.forEach(function(a) {
+    var newsize = {};
+    size_modes.forEach(function(mode) {
+      newsize[mode] = 0;
+      a.children.forEach(function(c) {
+        newsize[mode] += c.size[mode];
+      });
+    });
+    a.size.items += 1; // for the directory itself
+    a.size = newsize;
+  });
 }
 
 function scan_update_enter_dir(root, localpath, childnames) {
-  var node;
+  var node, ancestors;
   if (localpath === ".") {
     node = root;
+    ancestors = [root];
   } else {
     // the parent node will always exist, and will be a directory
     var localpath_pieces = localpath.split("/");
     var name = localpath_pieces[localpath_pieces.length-1];
-    var parentnode = find_scantree_parent_of(root, localpath_pieces);
+    ancestors = find_scantree_ancestors_of(root, localpath_pieces);
+    var parentnode = ancestors[0];
     var oldindex = find_in_children(parentnode, name);
     var oldnode;
     if (oldindex !== -1) {
@@ -106,11 +144,7 @@ function scan_update_enter_dir(root, localpath, childnames) {
       }
       //console.log(" inserting newnode");
       // now insert the new node
-      node = { type: "directory",
-               name: name,
-               children: [],
-               scanning: true
-             };
+      node = create_node("directory", name, true);
       parentnode.children.push(node);
       //console.log("  children now: "+JSON.stringify(parentnode.children));
     }
@@ -125,23 +159,21 @@ function scan_update_enter_dir(root, localpath, childnames) {
     var oldchild = find_in_children(node, newchildname);
     //console.log("looking for", newchildname, "found", oldchild);
     if (oldchild === -1) {
-      var newnode = { type: "placeholder",
-                      name: newchildname,
-                      scanning: false
-                    };
-      newchildren.push(newnode);
+      newchildren.push(create_node("placeholder", newchildname, false));
     } else {
       newchildren.push(node.children[oldchild]);
     }
   });
   node.children = newchildren;
+  scan_update_ancestors(ancestors);
 }
 
-function scan_update_file(root, childpath, size, need_hash) {
+function scan_update_file(root, childpath, size) {
   // the parent node will always exist, and will be a directory
   var localpath_pieces = childpath.split("/");
   var name = localpath_pieces[localpath_pieces.length-1];
-  var parentnode = find_scantree_parent_of(root, localpath_pieces);
+  var ancestors = find_scantree_ancestors_of(root, localpath_pieces);
+  var parentnode = ancestors[0];
   if (parentnode.type !== "directory") {
     console.log("err: scan_update_file parent isn't dir", localpath_pieces);
     throw new Error("scan_update_file parent isn't dir");
@@ -153,18 +185,38 @@ function scan_update_file(root, childpath, size, need_hash) {
   }
   parentnode.children[oldindex] = { type: "file",
                                     name: name,
-                                    size: size,
-                                    need_hash: need_hash };
+                                    size: size };
+  scan_update_ancestors(ancestors);
 }
 
 function scan_update_exit_dir(root, localpath, cumulative_size) {
+  var node, ancestors;
+  if (localpath === ".") {
+    node = root;
+    ancestors = [root];
+  } else {
+    // the parent node will always exist, and will be a directory
+    var localpath_pieces = localpath.split("/");
+    var name = localpath_pieces[localpath_pieces.length-1];
+    ancestors = find_scantree_ancestors_of(root, localpath_pieces);
+    var parentnode = ancestors[0];
+    if (parentnode.type !== "directory") {
+      console.log("err: scan_update_exit_dir parent isn't dir", localpath_pieces);
+      throw new Error("scan_update_exit_dir parent isn't dir");
+    }
+    var oldindex = find_in_children(parentnode, name);
+    if (oldindex === -1) {
+      console.log("err: scan_update_exit_dir didn't find node", localpath_pieces);
+      throw new Error("scan_update_exit_dir didn't find node");
+    }
+    node = parentnode.children[oldindex];
+  }
+  node.scanning = false;
+  scan_update_ancestors(ancestors);
 }
 
 function update_scan_progress(data) {
   //console.log("backup-progress", JSON.stringify(data));
-  var boxg = d3.select("#backup-progress svg g.box-group");
-  var lineg = d3.select("#backup-progress svg g.line-group");
-  var pathg = d3.select("#backup-progress svg g.path-group");
   var dirpath;
   if (false) {
   } else if (data["msgtype"] == "scan-enter-dir") {
@@ -172,8 +224,7 @@ function update_scan_progress(data) {
     // then maybe update layout
     return;
   } else if (data["msgtype"] == "scan-file") {
-    scan_update_file(scantree_root, data["childpath"],
-                     data["size"], data["need_hash"]);
+    scan_update_file(scantree_root, data["childpath"], data["size"]);
     // then maybe update layout
     return;
   } else if (data["msgtype"] == "scan-exit-dir") {
@@ -210,53 +261,58 @@ function update_scan_progress(data) {
   } else {
     console.log(data);
   }
-  if (dirpath) {
-    var boxes = boxg.selectAll("rect.box")
-          .data(dirpath);
-    boxes.exit().remove();
-    boxes.enter().append("svg:rect").attr("class", "box");
-    boxes.attr("width", 100)
-      .attr("height", 15)
-      .attr("stroke", "black")
-      .attr("fill", "#ddf")
-      .attr("transform", function(d,i) {
-        return "translate(0,"+15*i+")";
-      })
-    ;
-    //console.log(" bp set-rows");
-    var lines = lineg.selectAll("rect.line")
-          .data(dirpath);
-    lines.exit().remove();
-    lines.enter().append("svg:rect").attr("class", "line");
-    lines.attr("width", 3)
-      .attr("height", 10)
-      .attr("stroke", "black")
-      .attr("fill", "black")
-      .attr("transform", function(d,i) {
-        var fraction = d.num / d.num_siblings;
-        return "translate("+(100 * fraction)+","+(3+15*i)+")";
-      })
-    ;
 
-    var paths = pathg.selectAll("text.path")
-          .data(dirpath);
-    paths.exit().remove();
-    paths.enter().append("svg:text").attr("class", "path");
-    paths.attr("text-anchor", "start")
-      .attr("fill", "black")
-      .text(function (d) {return d.name;})
-      .attr("x", 105)
-      .attr("y", function(d,i) {return 15+15*i;})
-      /*.attr("transform", function(d,i) {
-        var fraction = d.num / d.num_siblings;
-        return "translate(105,"+(3+15*i)+")";
-      })*/
-    ;
-  }
+  if (dirpath)
+    update_scan_boxes(dirpath);
   //console.log(" progress done");
 };
 
+function update_scan_boxes(dirpath) {
+  var boxg = d3.select("#backup-progress svg g.box-group");
+  var lineg = d3.select("#backup-progress svg g.line-group");
+  var pathg = d3.select("#backup-progress svg g.path-group");
+  var boxes = boxg.selectAll("rect.box")
+        .data(dirpath);
+  boxes.exit().remove();
+  boxes.enter().append("svg:rect").attr("class", "box");
+  boxes.attr("width", 100)
+    .attr("height", 15)
+    .attr("stroke", "black")
+    .attr("fill", "#ddf")
+    .attr("transform", function(d,i) {
+      return "translate(0,"+15*i+")";
+    })
+  ;
+  //console.log(" bp set-rows");
+  var lines = lineg.selectAll("rect.line")
+        .data(dirpath);
+  lines.exit().remove();
+  lines.enter().append("svg:rect").attr("class", "line");
+  lines.attr("width", 3)
+    .attr("height", 10)
+    .attr("stroke", "black")
+    .attr("fill", "black")
+    .attr("transform", function(d,i) {
+      var fraction = d.num / d.num_siblings;
+      return "translate("+(100 * fraction)+","+(3+15*i)+")";
+    })
+  ;
 
+  var paths = pathg.selectAll("text.path")
+        .data(dirpath);
+  paths.exit().remove();
+  paths.enter().append("svg:text").attr("class", "path");
+  paths.attr("text-anchor", "start")
+    .attr("fill", "black")
+    .text(function (d) {return d.name;})
+    .attr("x", 105)
+    .attr("y", function(d,i) {return 15+15*i;})
+  /*.attr("transform", function(d,i) {
+   var fraction = d.num / d.num_siblings;
+   return "translate(105,"+(3+15*i)+")";
+   })*/
+  ;
+}
 
 
 function main() {
@@ -324,21 +380,27 @@ function main() {
   ;
   partition = d3.layout.partition()
     .value(function(d) {
-      return d.size;
-    });
-              //.children(function (d) {
-              //  return nodes_by_parent[d.id];
-              //})
-              //.sort(SOMETHING) // by d.name
-              //.size([rootnode.cumulative_items, 5])
+      // d3.partition does not sum anything for you. The parent's .value must
+      // be equal or greater than the sum of .children (if greater, the
+      // children will be clustered in the front portion of the parent's
+      // range, and there will be empty space in the back)
+
+      // all nodes will have .size.*, however for nodes with .scaning=true
+      // those values are estimates
+
+      return d.size[partition_size_mode];
+    })
+    .sort(function(a,b) { return b > a; })
+  ;
 
   d3.select("#backup-show").on("click", function() {
-    var req = {"token": token, "args": {}};
+    update_sunburst();
+    /*var req = {"token": token, "args": {}};
     d3.json("/api/v1/backup-send-latest-snapshot").post(
       JSON.stringify(req),
       function(err, r) {
         console.log("backup-sent-latest-snapshot returned:", r);
-      });
+      }); */
   });
 
 
