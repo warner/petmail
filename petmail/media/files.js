@@ -26,8 +26,52 @@ var partition; // a d3.layout.partition() for the sunburst
 var size_modes = ["items", "file_bytes", "file_items", "hash_bytes", "hash_items"];
 var partition_size_mode = "items";
 
+var RADIUS = 300;
+var xscale = d3.scale.linear()
+      .range([0, 2*Math.PI]);
+var yscale = d3.scale.linear()
+      .range([0, RADIUS]);
+var color = d3.scale.category20c();
+var arc = d3.svg.arc()
+      .innerRadius(function(n) {return yscale(n.y);})
+      .outerRadius(function(n) {return yscale(n.y+n.dy)-RADIUS/100;})
+      .startAngle(function(n) {return xscale(n.x);})
+      .endAngle(function(n) {return xscale(n.x+0.99*n.dx);})
+;
+
+function change_sunburst_mode(new_mode) {
+  partition_size_mode = new_mode;
+
+  // Interpolate the arcs in data space.
+  function arcTween(a) {
+    var i = d3.interpolate({x: a.x0, dx: a.dx0}, a);
+    return function(t) {
+      var b = i(t);
+      a.x0 = b.x;
+      a.dx0 = b.dx;
+      return arc(b);
+    };
+  }
+
+  var layout = partition.nodes(scantree_root);
+  path.data(partition.nodes)
+    .transition()
+    .duration(1500)
+    .attrTween("d", arcTween)
+  ;
+  // after transition, re-stash ??
+}
+
 function update_sunburst() {
   var layout = partition.nodes(scantree_root);
+
+  // Stash the old values for transition.
+  function stash(d) {
+    d.x0 = d.x;
+    d.dx0 = d.dx;
+  }
+  layout.each(stash); // for the next transition
+
   // adapted from http://bl.ocks.org/mbostock/4063423
   // x (value), y (depth), name, depth
   // x is scaled [0,1]
@@ -36,18 +80,6 @@ function update_sunburst() {
   //console.log("maxdepth", maxdepth);
   //layout =  layout.filter(function(n){return n.depth<5;});
   //console.log(layout);
-  var RADIUS = 300;
-  var xscale = d3.scale.linear()
-        .range([0, 2*Math.PI]);
-  var yscale = d3.scale.linear()
-        .range([0, RADIUS]);
-  var color = d3.scale.category20c();
-  var arc = d3.svg.arc()
-        .innerRadius(function(n) {return yscale(n.y);})
-        .outerRadius(function(n) {return yscale(n.y+n.dy)-RADIUS/100;})
-        .startAngle(function(n) {return xscale(n.x);})
-        .endAngle(function(n) {return xscale(n.x+0.99*n.dx);})
-  ;
   var arcs = d3.select("g.sunburst").selectAll("path.arc").data(layout);
   arcs.exit().remove();
   arcs.enter().append("svg:path").attr("class", "arc");
