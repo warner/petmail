@@ -1,6 +1,13 @@
 
 import sys, os, hashlib, urllib2, subprocess, shutil
-from setuptools import setup, Command
+# the initial "setup.py safe_develop" doesn't require setuptools, and should
+# work on a system that does not have it. But at the end of safe_develop, it
+# runs "venv/bin/python setup.py develop", which *does* require setuptools.
+# This conditional import is meant to work that second time around.
+try:
+    from setuptools import setup, Command
+except ImportError:
+    from distutils.core import setup, Command
 
 import versioneer
 versioneer.versionfile_source = "petmail/_version.py"
