@@ -48,13 +48,27 @@ To run from source, you will need Python (2.x) and the development headers
 (python-dev). You will then build the dependencies, create and start a node,
 and open the web-based control panel like so:
 
-* `python setup.py build_deps`
+* `python setup.py safe_develop`
 * `./bin/petmail create-node`
 * `./bin/petmail start`
 * `./bin/petmail open`
 
 Users are encouraged to run a pre-packaged application instead. Once you
 start this application, use the menu item to open the control panel.
+
+The node's working files are stored in a "basedir", which defaults to
+`~/.petmail` in your home directory. Petmail does not modify or use any files
+outside of this base directory. If you'd like to create a node somewhere
+else, use `./bin/petmail create-node OTHERDIR`. The basedir includes a copy
+of the `petmail` executable that knows where its basedir is, so once you've
+created a node in OTHERDIR, you can run e.g. `OTHERDIR/petmail start` and
+`OTHERDIR/petmail open` to launch and access the node's control panel.
+
+(Note: the `safe_develop` command will install hash-verified dependency
+tarballs into a local virtualenv named "venv/", then uses the setuptools
+"develop" command to link the petmail sources into this virtualenv. The
+`./bin/petmail` script looks in "venv/" for its source code.)
+
 
 Theory Of Operation
 -------------------

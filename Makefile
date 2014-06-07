@@ -4,8 +4,8 @@ all:
 	@echo "This Makefile only contains some shortcuts for use during development"
 	exit 1
 
-# this python knows to look in deps-venv for our dependencies
-PYTHON=deps-venv/bin/python
+# this python knows to look in venv for our dependencies
+PYTHON=venv/bin/python
 
 BASEURL="`./bin/petmail -d relay print-baseurl`"
 
@@ -73,11 +73,6 @@ dump-ren:
 pyflakes:
 	pyflakes petmail
 
-# this is temporary, until there's an upstream release of pynacl that is
-# pip-installable (without a system-wide libsodium)
-install-pynacl:
-	deps-venv/bin/pip install "https://github.com/warner/pynacl-1/zipball/embed4"
-
 test-pynacl:
 	$(PYTHON) -c "from nacl.public import PrivateKey; print PrivateKey.generate().encode().encode('hex');"
 test:
@@ -91,7 +86,7 @@ coverage-html:
 	coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*,petmail/_version.py"
 open-coverage:
 	open .coverage-html/index.html
-# you may need to run "deps-venv/bin/pip install coverage" to use this,
+# you may need to run "venv/bin/pip install coverage" to use this,
 # and you'll want to load misc/coverage.el in your emacs.
 .coverage.el: .coverage misc/coverage2el.py
 	python misc/coverage2el.py
