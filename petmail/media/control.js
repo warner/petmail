@@ -15,6 +15,12 @@ function set_current_addressbook(e) {
 function main() {
   console.log("onload");
 
+    $("ul.nav a").click(function (e) {
+        e.preventDefault();
+        $(this).tab("show");
+    });
+
+
   var ev = new EventSource("/api/v1/views/messages?token="+token);
   ev.onmessage = function(e) {
     var data = JSON.parse(e.data); // .action, .id, .new_value

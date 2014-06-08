@@ -1,47 +1,100 @@
 <html>
 <head>
  <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
  <title>Petmail Control Panel</title>
+ <!-- Bootstrap -->
+ <link rel="stylesheet" href="/media/css/bootstrap.min.css" type="text/css">
  <link rel="stylesheet" href="/media/petmail.css" type="text/css" />
- <script type="text/javascript" src="/media/d3-3.2.7.min.js"></script>
- <script type="text/javascript" src="/media/control.js" charset="utf-8"></script>
 </head>
 
 <body>
+
+<nav class="navbar navbar-default" role="navigation">
+ <div class="container-fluid">
+  <!-- Brand and toggle get grouped for better mobile display -->
+  <div class="navbar-header">
+   <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+    <span class="sr-only">Toggle navigation</span>
+    <span class="icon-bar"></span>
+    <span class="icon-bar"></span>
+    <span class="icon-bar"></span>
+   </button>
+   <!-- <a class="navbar-brand" href="#">Petmail</a> -->
+   <span class="navbar-brand">Petmail</span>
+  </div>
+
+  <!-- Collect the nav links, forms, and other content for toggling -->
+  <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+   <ul class="nav navbar-nav">
+    <li class="active">
+     <a href="#addressbook" data-toggle="tab" id="tab-addressbook">Addressbook</a></li>
+    <li><a href="#rooms" data-toggle="tab" id="tab-rooms">Rooms</a></li>
+    <li><a href="#files" data-toggle="tab" id="tab-files">Files</a></li>
+   </ul>
+   <ul class="nav navbar-nav navbar-right">
+    <li class="dropdown">
+     <a href="#" class="dropdown-toggle" data-toggle="dropdown">Options <b class="caret"></b></a>
+     <ul class="dropdown-menu">
+      <li>
+       <form class="reload-form" action="control" method="post">
+        <input type="hidden" name="token" value="%(token)s">
+        <input type="submit" value="Reload Control Panel" name="submit">
+       </form>
+      </li>
+      <li><a href="#">Action</a></li>
+      <li><a href="#">Another action</a></li>
+      <li><a href="#">Something else here</a></li>
+      <li class="divider"></li>
+      <li><a href="#">Separated link</a></li>
+     </ul>
+    </li>
+   </ul>
+  </div><!-- /.navbar-collapse -->
+ </div><!-- /.container-fluid -->
+</nav>
+
+<div class="tab-content">
+  <div class="tab-pane fade in active" id="addressbook">
+    <h2>Address Book</h2>
+    <div id="invite">
+      <div><b><center>Invitation</center></b></div>
+      <div>Petname: <input id="invite-petname" type="text"/></div>
+      <div>Code: <input id="invite-code" type="text"/></div>
+      <input id="invite-go"  type="submit" value="Invite!"/>
+    </div>
+    <div id="address-book-sidebar">
+      <ul id="address-book"></ul>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="rooms">
+    <h2>Messages</h2>
+    <div id="send-message">
+      <h3>Send Message</h3>
+      <p>To: <span id="send-message-to">?</span></p>
+      <p>Message:
+        <input id="send-message-body" type="text"/>
+        <input id="send-message-go"  type="submit" value="Send!"/>
+      </p>
+    </div>
+    <ul id="messages"></ul>
+  </div>
+
+  <div class="tab-pane fade" id="files">
+    <h2>Files</h2>
+  </div>
+</div>
+
  <script>
    var token = "%(token)s";
  </script>
-
- <form class="reload-form" action="control" method="post">
-  <input type="hidden" name="token" value="%(token)s">
-  <input type="submit" value="Reload Control Panel" name="submit">
- </form>
-
-<div id="one">
-  <h3>Address Book</h3>
-  <div id="invite">
-    <div><b><center>Invitation</center></b></div>
-    <div>Petname: <input id="invite-petname" type="text"/></div>
-    <div>Code: <input id="invite-code" type="text"/></div>
-    <input id="invite-go"  type="submit" value="Invite!"/>
-  </div>
-  <div id="address-book-sidebar">
-    <ul id="address-book"></ul>
-  </div>
-</div>
-
-<div id="two">
-  <h3>Messages</h3>
-  <div id="send-message">
-    <h3>Send Message</h3>
-    <p>To: <span id="send-message-to">?</span></p>
-    <p>Message: <input id="send-message-body" type="text"/>
-    <input id="send-message-go"  type="submit" value="Send!"/>
-    </p>
-  </div>
-  <ul id="messages"></ul>
-</div>
-
-
+ <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+ <script src="/media/js/jquery-2.1.1.min.js"></script>
+ <!-- Include all compiled plugins (below), or include individual files as needed -->
+ <script src="/media/js/bootstrap.min.js"></script>
+ <script src="/media/js/d3-3.4.8.min.js"></script>
+ <script src="/media/js/main.js"></script>
+ <script src="/media/control.js" charset="utf-8"></script>
 </body>
 </html>
