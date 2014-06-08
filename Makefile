@@ -7,7 +7,7 @@ all:
 # this python knows to look in venv for our dependencies
 PYTHON=venv/bin/python
 
-BASEURL="`./bin/petmail -d relay print-baseurl`"
+BASEURL="`./relay/petmail print-baseurl`"
 
 .PHONY: relay n1 n2 n3 s4 stop bounce-all bounce rebuild
 relay:
