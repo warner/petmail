@@ -11,19 +11,19 @@ BASEURL="`./relay/petmail print-baseurl`"
 
 .PHONY: relay n1 n2 n3 s4 stop bounce-all bounce rebuild
 relay:
-	-./bin/petmail stop relay
+	-./relay/petmail stop relay
 	rm -rf relay
 	./bin/petmail create-relay relay
 n1:
-	-./bin/petmail stop n1
+	-./n1/petmail stop n1
 	rm -rf n1
 	./bin/petmail create-node --relay-url=$(BASEURL) --local-mailbox n1
 n2:
-	-./bin/petmail stop n2
+	-./n2/petmail stop n2
 	rm -rf n2
 	./bin/petmail create-node --relay-url=$(BASEURL) --local-mailbox n2
 n3:
-	-./bin/petmail stop n3
+	-./n3/petmail stop n3
 	rm -rf n3
 	./bin/petmail create-node --relay-url=$(BASEURL) n3
 s4:
@@ -32,37 +32,38 @@ s4:
 	./bin/petmail create-node --relay-url=$(BASEURL) --local-mailbox s4
 
 stop:
-	-./bin/petmail stop n1
-	-./bin/petmail stop n2
-	-./bin/petmail stop n3
-	-./bin/petmail stop s4
-	-./bin/petmail stop relay
+	-./n1/petmail stop n1
+	-./n2/petmail stop n2
+	-./n3/petmail stop n3
+	-./s4/petmail stop s4
+	-./relay/petmail stop relay
 bounce-all:
-	-./bin/petmail restart relay
-	-./bin/petmail restart n1
-	-./bin/petmail restart n2
-	-./bin/petmail restart n3
-	-./bin/petmail restart s4
+	-./relay/petmail restart relay
+	-./n1/petmail restart n1
+	-./n2/petmail restart n2
+	-./n3/petmail restart n3
+	-./s4/petmail restart s4
 bounce:
-	-./bin/petmail restart n1
-	-./bin/petmail restart n2
-	-./bin/petmail restart n3
-	-./bin/petmail restart s4
+	-./n1/petmail restart n1
+	-./n2/petmail restart n2
+	-./n3/petmail restart n3
+	-./s4/petmail restart s4
 
-rebuild: stop relay n1 n2 n3 s4
-	rm -rf .rendezvous
+rebuild: stop
+	rm -rf .rendezvous relay n1 n2 n3 s4
+	$(MAKE) relay n1 n2 n3 s4
 	$(MAKE) bounce-all
 
 # ./s4/petmail offer-mailbox carol -> CODE
 # ./n3/petmail accept-mailbox CODE
 
 connect:
-	./bin/petmail invite -d n1 -n Bob code1
-	./bin/petmail invite -d n2 -n Alice code1
-	./bin/petmail invite -d n1 -n Carol code2
-	./bin/petmail invite -d n3 -n Alice code2
-	./bin/petmail invite -d n2 -n Carol code3
-	./bin/petmail invite -d n3 -n Bob code3
+	./n1/petmail invite -d n1 -n Bob code1
+	./n2/petmail invite -d n2 -n Alice code1
+	./n1/petmail invite -d n1 -n Carol code2
+	./n3/petmail invite -d n3 -n Alice code2
+	./n2/petmail invite -d n2 -n Carol code3
+	./n3/petmail invite -d n3 -n Bob code3
 
 dump-n1:
 	sqlite3 n1/petmail.db .dump
