@@ -14,6 +14,14 @@ def get_schema(version):
                              "db-schemas", "v%d.sql" % version)
     return open(schema_fn, "r").read()
 
+def serialize(row):
+    if row is None:
+        return None
+    out = {}
+    for k in row.keys():
+        out[k] = row[k]
+    return out
+
 class ObservableDatabase:
     def __init__(self, connection):
         self.conn = connection
@@ -39,7 +47,7 @@ class ObservableDatabase:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
                                   (new_id,))
             self.pending_notifications.append(Notice(table, "insert", new_id,
-                                                     c.fetchone()))
+                                                     serialize(c.fetchone())))
         return new_id
 
     def update(self, sql, values, table=None, id=None):
@@ -47,8 +55,10 @@ class ObservableDatabase:
         if table:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
                                   (id,))
-            self.pending_notifications.append(Notice(table, "update", id,
-                                                     c.fetchone()))
+            new_value = serialize(c.fetchone())
+            if new_value:
+                self.pending_notifications.append(Notice(table, "update", id,
+                                                         new_value))
 
     def delete(self, sql, values, table, id):
         self.conn.execute(sql, values)

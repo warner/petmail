@@ -81,20 +81,20 @@ class BaseView(resource.Resource):
         request.setHeader("content-type", "application/json; charset=utf-8")
         return json.dumps(results).encode("utf-8")
 
-def serialize_row(row, keys=None):
-    if not row:
+def some_keys(value, keys=None):
+    if value is None:
         return None
-    if not keys:
-        keys = row.keys()
-    return dict([(key, row[key]) for key in keys])
+    if keys is None:
+        return value
+    return dict([(key, value[key]) for key in keys])
 
 class MessageView(BaseView):
     table = "inbound_messages"
     def render_event(self, notice):
-        new_value = serialize_row(notice.new_value)
+        new_value = notice.new_value
         if new_value:
             c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
-                                (notice.new_value["cid"],))
+                                (new_value["cid"],))
             new_value["petname"] = c.fetchone()["petname"]
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
@@ -104,7 +104,26 @@ class MessageView(BaseView):
 class AddressBookView(BaseView):
     table = "addressbook"
     def render_event(self, notice):
-        new_value = serialize_row(notice.new_value, ["id", "petname", "acked"])
+        new_value = some_keys(notice.new_value, ["id", "petname", "acked"])
+        return json.dumps({ "action": notice.action,
+                            "id": notice.id,
+                            "new_value": new_value,
+                            })
+
+class InvitationView(BaseView):
+    table = "invitations"
+    def render_event(self, notice):
+        if notice.action == "update" and notice.new_value is None:
+            raise ValueError(notice)
+        new_value = some_keys(notice.new_value, ["id"])
+        if new_value:
+            priv = json.loads(notice.new_value["my_private_invitation_data"])
+            context = priv["invitation_context"]
+            new_value["petname"] = priv["petname"]
+            new_value["when_invited"] = context["when_invited"]
+            new_value["code"] = context["code"]
+            their_messages = notice.new_value["their_messages"]
+            new_value["rx_msgs"] = len(their_messages.split(","))
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,
@@ -121,6 +140,8 @@ class ViewDispatcher(resource.Resource):
             return MessageView(self.db, self.agent)
         if path == "addressbook":
             return AddressBookView(self.db, self.agent)
+        if path == "invitations":
+            return InvitationView(self.db, self.agent)
         request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
         return "Unknown Event Type"
 
