@@ -1,6 +1,8 @@
 
 console.log("control.js loaded");
 
+var token; // actually interpolated into the enclosing control.html
+var $, d3; // populated in control.html
 var messages = {}; // indexed by cid
 var addressbook = {}; // indexed by cid
 var current_cid = null;
@@ -79,7 +81,7 @@ function main() {
     var petname = d3.select("#invite-petname")[0][0].value;
     var code = d3.select("#invite-code")[0][0].value;
     console.log("inviting", petname, code);
-    req = {"token": token, "args": {"petname": petname, "code": code}};
+    var req = {"token": token, "args": {"petname": petname, "code": code}};
     d3.json("/api/v1/invite").post(JSON.stringify(req),
                                    function(err, r) {
                                      console.log("invited", r.ok);
@@ -91,7 +93,7 @@ function main() {
   d3.select("#send-message-go")[0][0].onclick = function(e) {
     var msg = d3.select("#send-message-body")[0][0].value;
     console.log("sending", msg, "to", current_cid);
-    req = {"token": token, "args": {"cid": current_cid, "message": msg}};
+    var req = {"token": token, "args": {"cid": current_cid, "message": msg}};
     d3.json("/api/v1/send-basic").post(JSON.stringify(req),
                                        function(err, r) {
                                          console.log("sent", r.ok);
