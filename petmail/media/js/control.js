@@ -5,6 +5,7 @@ var token; // actually interpolated into the enclosing control.html
 var $, d3; // populated in control.html
 var messages = {}; // indexed by cid
 var addressbook = {}; // indexed by cid
+var invitations = {}; // indexed by invite-id
 var current_cid = null;
 
 function update_messages(e) {
@@ -36,24 +37,45 @@ function update_messages(e) {
 }
 
 function show_contact_details(e) {
-  current_cid = e.id;
-  console.log("current_cid", current_cid);
-  $("#contact-details-petname").text(e.petname);
-  $("#contact-details-cid").text(e.id);
-  if (e.acked) {
-    $("#contact-details-pending").hide();
+  console.log("details", e.type, e.data.id);
+  $("div.contact-details-pane").show()
+  $("#contact-details-petname").text(e.data.petname);
+  $("#contact-details-id").text(e.data.id);
+  if (e.type === "invitation") {
+    $("#contact-details-id-type").text("Invitation-ID");
+    $("#contact-details-state").text("pending invitation ("+
+                                     e.data.rx_msgs+")");
   } else {
-    $("#contact-details-pending").show();
+    $("#contact-details-id-type").text("Contact-ID");
+    if (e.data.acked) {
+      $("#contact-details-state").hide();
+    } else {
+      $("#contact-details-state").text("State: waiting for ack");
+      $("#contact-details-state").show();
+    }
   }
 }
 
 function open_contact_room(e) {
-  current_cid = e.id;
-  console.log("open_contact_room", e.id);
+  if (e.type !== "contact")
+    return;
+  current_cid = e.data.id;
+  console.log("open_contact_room", current_cid);
   d3.select("#send-message-to").text(addressbook[current_cid].petname
                                      + " [" + current_cid + "]");
 }
 
+function update_invitations(e) {
+  var data = JSON.parse(e.data); // .action, .id, .new_value
+
+  // "value" is a subset of an "invitations" row
+  if (data.action == "insert" || data.action == "update")
+    invitations[data.id] = data.new_value;
+  else if (data.action == "delete")
+    delete invitations[data.id];
+
+  update_combined_addressbook();
+}
 
 function update_addressbook(e) {
   var data = JSON.parse(e.data); // .action, .id, .new_value
@@ -64,21 +86,38 @@ function update_addressbook(e) {
   else if (data.action == "delete")
     delete addressbook[data.id];
 
-  var entries = [];
-  for (var id in addressbook)
-    entries.push(addressbook[id]);
+  update_combined_addressbook();
+}
 
-  var s = d3.select("#address-book").selectAll("div.contact")
-        .data(entries, function(e) { return e.id; })
-        .text(function(e) {return e.petname;})
-        .attr("class", function(e) { return "contact cid-"+e.id; })
+function update_combined_addressbook() {
+  var entries = [];
+  var id;
+  for (id in addressbook) // id, petname, acked
+    entries.push({type: "contact", data: addressbook[id]});
+  for (id in invitations) // id, petname, code, when_invited, rx_msgs
+    entries.push({type: "invitation", data: invitations[id]});
+
+  var s = d3.select("#address-book").selectAll("div.entry")
+        .data(entries, function(e) { return e.type + "-" + e.data.id; })
+        .text(function(e) {return e.data.petname;})
+        .attr("class", function(e) {
+          if (e.type == "contact")
+            return "entry contact cid-"+e.data.id;
+          else
+            return "entry invitation iid-"+e.data.id;
+        })
         .on("click", show_contact_details)
         .on("dblclick", open_contact_room)
   ;
 
   s.enter().append("div")
-    .text(function(e) {return e.petname;})
-    .attr("class", function(e) { return "contact cid-"+e.id; })
+    .text(function(e) {return e.data.petname;})
+    .attr("class", function(e) {
+      if (e.type == "contact")
+        return "entry contact cid-"+e.data.id;
+      else
+        return "entry invitation iid-"+e.data.id;
+    })
     .on("click", show_contact_details)
     .on("dblclick", open_contact_room)
   ;
@@ -117,15 +156,19 @@ function main() {
     $(this).tab("show");
   });
 
-  var ev = new EventSource("/api/v1/views/messages?token="+token);
-  ev.onmessage = update_messages;
+  var ev;
   ev = new EventSource("/api/v1/views/addressbook?token="+token);
   ev.onmessage = update_addressbook;
+  ev = new EventSource("/api/v1/views/invitations?token="+token);
+  ev.onmessage = update_invitations;
+  ev = new EventSource("/api/v1/views/messages?token="+token);
+  ev.onmessage = update_messages;
 
   $("#invite").hide();
   $("#add-contact").click(function(e) {
     $("#invite").toggle("clip");
   });
+  $("div.contact-details-pane").hide();
 
   d3.select("#invite-go")[0][0].onclick = handle_invite_go;
   d3.select("#send-message-go")[0][0].onclick = handle_send_message_go;
