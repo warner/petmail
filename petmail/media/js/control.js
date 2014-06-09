@@ -7,13 +7,6 @@ var messages = {}; // indexed by cid
 var addressbook = {}; // indexed by cid
 var current_cid = null;
 
-function set_current_addressbook(e) {
-  current_cid = e.id;
-  console.log("current_cid", current_cid);
-  d3.select("#send-message-to").text(addressbook[current_cid].petname
-                                     + " [" + current_cid + "]");
-}
-
 function update_messages(e) {
   var data = JSON.parse(e.data); // .action, .id, .new_value
 
@@ -42,27 +35,45 @@ function update_messages(e) {
   s.exit().remove();
 }
 
+function show_contact_details(e) {
+  current_cid = e.id;
+  console.log("current_cid", current_cid);
+  $("#contact-details-petname").text(e.petname);
+  $("#contact-details-cid").text(e.id);
+  if (e.acked) {
+    $("#contact-details-pending").hide();
+  } else {
+    $("#contact-details-pending").show();
+  }
+  /*d3.select("#send-message-to").text(addressbook[current_cid].petname
+                                     + " [" + current_cid + "]");*/
+}
+
+
 function update_addressbook(e) {
   var data = JSON.parse(e.data); // .action, .id, .new_value
+
   // "value" is a subset of an "addressbook" row
   if (data.action == "insert" || data.action == "update")
     addressbook[data.id] = data.new_value;
   else if (data.action == "delete")
     delete addressbook[data.id];
+
   var entries = [];
   for (var id in addressbook)
     entries.push(addressbook[id]);
+
   var s = d3.select("#address-book").selectAll("div.contact")
         .data(entries, function(e) { return e.id; })
         .text(function(e) {return e.petname;})
         .attr("class", function(e) { return "contact cid-"+e.id; })
-        .on("click", set_current_addressbook)
+        .on("click", show_contact_details)
   ;
 
   s.enter().append("div")
     .text(function(e) {return e.petname;})
     .attr("class", function(e) { return "contact cid-"+e.id; })
-    .on("click", set_current_addressbook)
+    .on("click", show_contact_details)
   ;
   s.exit().remove();
 }
