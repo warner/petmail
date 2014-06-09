@@ -58,12 +58,12 @@ rebuild: stop
 # ./n3/petmail accept-mailbox CODE
 
 connect:
-	./n1/petmail invite -d n1 -n Bob code1
-	./n2/petmail invite -d n2 -n Alice code1
-	./n1/petmail invite -d n1 -n Carol code2
-	./n3/petmail invite -d n3 -n Alice code2
-	./n2/petmail invite -d n2 -n Carol code3
-	./n3/petmail invite -d n3 -n Bob code3
+	./n1/petmail invite -n Bob code1
+	./n2/petmail invite -n Alice code1
+	./n1/petmail invite -n Carol code2
+	./n3/petmail invite -n Alice code2
+	./n2/petmail invite -n Carol code3
+	./n3/petmail invite -n Bob code3
 
 dump-n1:
 	sqlite3 n1/petmail.db .dump
