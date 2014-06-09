@@ -56,29 +56,47 @@
 
 <div class="tab-content">
   <div class="tab-pane fade in active" id="addressbook">
-    <h2>Address Book</h2>
-    <div id="invite">
-      <div><b><center>Invitation</center></b></div>
-      <div>Petname: <input id="invite-petname" type="text"/></div>
-      <div>Code: <input id="invite-code" type="text"/></div>
-      <input id="invite-go"  type="submit" value="Invite!"/>
-    </div>
-    <div id="address-book-sidebar">
-      <ul id="address-book"></ul>
-    </div>
+    <div class="row">
+      <div class="col-md-4">
+        <h2>Address Book</h2>
+        <div id="invite">
+          <div><b><center>Invitation</center></b></div>
+          <div>Petname: <input id="invite-petname" type="text"/></div>
+          <div>Code: <input id="invite-code" type="text"/></div>
+          <input id="invite-go"  type="submit" value="Invite!"/>
+        </div>
+        <div id="address-book-sidebar">
+          <ul id="address-book"></ul>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <h3>Contact Details</h3>
+      </div>
+    </div> <!-- .row -->
   </div>
 
   <div class="tab-pane fade" id="rooms">
-    <h2>Messages</h2>
-    <div id="send-message">
-      <h3>Send Message</h3>
-      <p>To: <span id="send-message-to">?</span></p>
-      <p>Message:
-        <input id="send-message-body" type="text"/>
-        <input id="send-message-go"  type="submit" value="Send!"/>
-      </p>
-    </div>
-    <ul id="messages"></ul>
+    <div class="row">
+      <div class="col-md-4">
+        <h2>Room List</h2>
+        <ul>
+          <li>fake room 1</li>
+          <li>fake room 2</li>
+        </ul>
+      </div>
+      <div class="col-md-8">
+        <h2>Messages</h2>
+        <div id="send-message">
+          <h3>Send Message</h3>
+          <p>To: <span id="send-message-to">?</span></p>
+          <p>Message:
+            <input id="send-message-body" type="text"/>
+            <input id="send-message-go"  type="submit" value="Send!"/>
+          </p>
+        </div>
+        <ul id="messages"></ul>
+      </div>
+    </div> <!-- .row -->
   </div>
 
   <div class="tab-pane fade" id="files">
