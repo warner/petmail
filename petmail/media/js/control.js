@@ -52,16 +52,16 @@ function update_addressbook(e) {
   var entries = [];
   for (var id in addressbook)
     entries.push(addressbook[id]);
-  var s = d3.select("#address-book").selectAll("li")
+  var s = d3.select("#address-book").selectAll("div.contact")
         .data(entries, function(e) { return e.id; })
         .text(function(e) {return e.petname;})
-        .attr("class", function(e) { return "cid-"+e.id; })
+        .attr("class", function(e) { return "contact cid-"+e.id; })
         .on("click", set_current_addressbook)
   ;
 
-  s.enter().append("li")
+  s.enter().append("div")
     .text(function(e) {return e.petname;})
-    .attr("class", function(e) { return "cid-"+e.id; })
+    .attr("class", function(e) { return "contact cid-"+e.id; })
     .on("click", set_current_addressbook)
   ;
   s.exit().remove();
