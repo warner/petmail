@@ -45,8 +45,13 @@ function show_contact_details(e) {
   } else {
     $("#contact-details-pending").show();
   }
-  /*d3.select("#send-message-to").text(addressbook[current_cid].petname
-                                     + " [" + current_cid + "]");*/
+}
+
+function open_contact_room(e) {
+  current_cid = e.id;
+  console.log("open_contact_room", e.id);
+  d3.select("#send-message-to").text(addressbook[current_cid].petname
+                                     + " [" + current_cid + "]");
 }
 
 
@@ -68,12 +73,14 @@ function update_addressbook(e) {
         .text(function(e) {return e.petname;})
         .attr("class", function(e) { return "contact cid-"+e.id; })
         .on("click", show_contact_details)
+        .on("dblclick", open_contact_room)
   ;
 
   s.enter().append("div")
     .text(function(e) {return e.petname;})
     .attr("class", function(e) { return "contact cid-"+e.id; })
     .on("click", show_contact_details)
+    .on("dblclick", open_contact_room)
   ;
   s.exit().remove();
 }
