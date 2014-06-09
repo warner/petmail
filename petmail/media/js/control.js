@@ -104,6 +104,11 @@ function main() {
   ev = new EventSource("/api/v1/views/addressbook?token="+token);
   ev.onmessage = update_addressbook;
 
+  $("#invite").hide();
+  $("#add-contact").click(function(e) {
+    $("#invite").toggle("clip");
+  });
+
   d3.select("#invite-go")[0][0].onclick = handle_invite_go;
   d3.select("#send-message-go")[0][0].onclick = handle_send_message_go;
 

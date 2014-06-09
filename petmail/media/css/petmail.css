@@ -1,12 +1,14 @@
 div#invite {
     border: 2px solid blue;
     padding: 2px;
-    position: relative;
-    bottom: 5px;
 }
 
-div#address-book {
+div#address-book-plus-invitation {
     overflow: scroll;
+}
+
+div.add-contact {
+    margin: 2px;
 }
 
 div.contact {
