@@ -137,6 +137,7 @@ function handle_invite_go(e) {
                                  });
   d3.select("#invite-petname")[0][0].value = "";
   d3.select("#invite-code")[0][0].value = "";
+  $("#invite").hide("clip");
 }
 
 function handle_send_message_go(e) {
