@@ -38,7 +38,9 @@ function update_messages(e) {
 
 function show_contact_details(e) {
   console.log("details", e.type, e.data.id);
-  $("div.contact-details-pane").show()
+  $("div.contact-details-pane").show();
+  $("#address-book div.entry").removeClass("selected");
+  $("#address-book div."+e.rowid).addClass("selected");
   $("#contact-details-petname").text(e.data.petname);
   $("#contact-details-id").text(e.data.id);
   if (e.type === "invitation") {
@@ -93,18 +95,18 @@ function update_combined_addressbook() {
   var entries = [];
   var id;
   for (id in addressbook) // id, petname, acked
-    entries.push({type: "contact", data: addressbook[id]});
+    entries.push({type: "contact", data: addressbook[id], rowid: "cid-"+id});
   for (id in invitations) // id, petname, code, when_invited, rx_msgs
-    entries.push({type: "invitation", data: invitations[id]});
+    entries.push({type: "invitation", data: invitations[id], rowid: "iid-"+id});
 
   var s = d3.select("#address-book").selectAll("div.entry")
         .data(entries, function(e) { return e.type + "-" + e.data.id; })
         .text(function(e) {return e.data.petname;})
         .attr("class", function(e) {
           if (e.type == "contact")
-            return "entry contact cid-"+e.data.id;
+            return "entry contact "+e.rowid;
           else
-            return "entry invitation iid-"+e.data.id;
+            return "entry invitation "+e.rowid;
         })
         .on("click", show_contact_details)
         .on("dblclick", open_contact_room)
