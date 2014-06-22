@@ -109,13 +109,14 @@ class SafeDevelop(Command):
     def run(self):
         if os.path.exists("venv"):
             shutil.rmtree("venv") # clobber it
-        cmd = [sys.executable, "support/virtualenv.py",
-               "--distribute", "--never-download",
-               "venv"]
+        # or add 'support' to sys.path, import virtualenv, munge sys.argv,
+        # virtualenv.main(), replace sys.argv
+        cmd = [sys.executable, "support/virtualenv.py", "venv"]
         if not run_command(cmd):
             print "error while creating virtualenv in ./venv"
             sys.exit(1)
         print "venv created"
+        # or import support/peep.py, run peep.commands["install"](args)
         cmd = ["venv/bin/python", "support/peep.py",
                "install", "-r", "requirements.txt"]
         if not run_command(cmd):

@@ -1,18 +1,19 @@
 
-# sha256: GnyEcWu9mYGRW2SoHYo_B2pZNKjI30IkZVRps1ZJQMw
-zope.interface==4.0.5
-
-# sha256: EQ6Vfdj8TG6rqKvk8Ed-YLKHPjzxwmAyWGP9LvaTQcY
-Twisted==13.1.0
-
-# sha256: N8MuTzCIbny5_KU3v6yvkqathrS_masfPazzMOHsv5Y
-PyNaCl==0.2.3
+# sha256: 1Rq4srBAKzyT9c__OQbm1MlXqQ6a9kCnzoz32oURURE
+# sha256: x7heQz7PLy3zftsBe5VMRoNCmR4Yg8ih6NhhZYS2mZg
+six==1.7.2
 
 # sha256: lX2YtmHAtktYCrb5SxJeCbZxQVTuUd5AvKFtPwB2uGw
 pycparser==2.10
 
-# sha256: wzbuJoMaydosDtDqCUlB0vxYd8NGjn7nAwR8VxGA3eM
-cffi==0.8
+# sha256: gZI5NkD3vDBM6CZps165BZJWajCru0kkRW9SB5r8GOI
+cffi==0.8.2
 
-# sha256: 8EWv1t_7dVzAQRrLfOmsxN4OcSYdS1-R3i5o2apfg2c
-six==1.4.1
+# sha256: N8MuTzCIbny5_KU3v6yvkqathrS_masfPazzMOHsv5Y
+PyNaCl==0.2.3
+
+# sha256: egPwjiap-Izq3NUd9oTKVYZDh9PE-4ZU6zwdg2V4QLg
+zope.interface==4.1.0
+
+# sha256: vf2WGsIhb1xlsH8sOl5RFvZxO4wc8HbEABDGSBDSaWM
+Twisted==14.0.0
