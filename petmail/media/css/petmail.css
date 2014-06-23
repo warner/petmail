@@ -13,13 +13,14 @@ div.add-contact {
 
 div.contact {
     background-color: #cfc;
-    margin: 2px 6px 2px 6px;
+    margin: 2px 10px 2px 10px;
     border-radius: 4px;
     border: 1px solid #bbb;
     padding: 1px;
 }
 div.contact:hover {
     margin: 2px;
+    padding-left: 9px;
 }
 div.contact.selected {
     background-color: #ada;
@@ -27,13 +28,14 @@ div.contact.selected {
 
 div.invitation {
     background-color: #ccf;
-    margin: 2px 6px 2px 6px;
+    margin: 2px 10px 2px 10px;
     border-radius: 4px;
     border: 1px solid #bbb;
     padding: 1px;
 }
 div.invitation:hover {
     margin: 2px;
+    padding-left: 9px;
 }
 div.invitation.selected {
     background-color: #aad;
