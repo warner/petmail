@@ -105,6 +105,8 @@ class AddressBookView(BaseView):
     table = "addressbook"
     def render_event(self, notice):
         new_value = some_keys(notice.new_value, ["id", "petname", "acked"])
+        if new_value:
+            new_value["invitation_context"] = json.loads(notice.new_value["invitation_context_json"])
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,

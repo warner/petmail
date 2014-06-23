@@ -47,6 +47,7 @@ function show_contact_details(e) {
     $("#contact-details-id-type").text("Invitation-ID");
     $("#contact-details-state").text("pending invitation ("+
                                      e.data.rx_msgs+")");
+    $("#contact-details-code code").text(e.data.code);
   } else {
     $("#contact-details-id-type").text("Contact-ID");
     if (e.data.acked) {
@@ -55,6 +56,7 @@ function show_contact_details(e) {
       $("#contact-details-state").text("State: waiting for ack");
       $("#contact-details-state").show();
     }
+    $("#contact-details-code code").text(e.data.invitation_context.code);
   }
 }
 
