@@ -99,6 +99,15 @@ function update_combined_addressbook() {
   for (id in invitations) // id, petname, code, when_invited, rx_msgs
     entries.push({type: "invitation", data: invitations[id], rowid: "iid-"+id});
 
+  function sorter(a,b) {
+    if (a.data.petname.toLowerCase() > b.data.petname.toLowerCase())
+      return 1;
+    if (a.data.petname.toLowerCase() < b.data.petname.toLowerCase())
+      return -1;
+    return 0;
+  }
+  entries.sort(sorter);
+
   var s = d3.select("#address-book").selectAll("div.entry")
         .data(entries, function(e) { return e.type + "-" + e.data.id; })
         .text(function(e) {return e.data.petname;})
@@ -112,7 +121,7 @@ function update_combined_addressbook() {
         .on("dblclick", open_contact_room)
   ;
 
-  s.enter().append("div")
+  s.enter().insert("div")
     .text(function(e) {return e.data.petname;})
     .attr("class", function(e) {
       if (e.type == "contact")
@@ -124,6 +133,7 @@ function update_combined_addressbook() {
     .on("dblclick", open_contact_room)
   ;
   s.exit().remove();
+  s.order();
 }
 
 function handle_invite_go(e) {
