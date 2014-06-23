@@ -100,7 +100,7 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def start_invitation(self, code, my_signkey, payload, private):
+    def start_invitation(self, cid, code, my_signkey, payload, private):
         # "payload" goes to them, "private" stays with us
         stretched = stretch(code)
         invite_key = SigningKey(stretched)
@@ -112,14 +112,16 @@ class InvitationManager(service.MultiService):
         if inviteID in [str(row[0]) for row in c.fetchall()]:
             raise CommandError("invitation code already in use")
         iid = db.insert("INSERT INTO `invitations`"
-                        " (code, invite_key,"
+                        " (channel_id,"
+                        "  code, invite_key,"
                         "  inviteID,"
                         "  my_temp_privkey, my_signkey,"
                         "  payload_for_them_json, my_private_invitation_data,"
                         "  my_messages, their_messages, "
                         "  next_expected_message)"
-                        " VALUES (?,?, ?, ?,?, ?,?, ?,?, ?)",
-                        (code.encode("hex"), stretched.encode("hex"),
+                        " VALUES (?, ?,?, ?, ?,?, ?,?, ?,?, ?)",
+                        (cid,
+                         code.encode("hex"), stretched.encode("hex"),
                          inviteID,
                          my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
                          json.dumps(payload), json.dumps(private),
@@ -341,12 +343,10 @@ class Invitation:
         if check_their_temp_pubkey != self.their_temp_pubkey.encode():
             raise ValueError("binding failure their_temp_pubkey")
 
+        cid = self.get_channel_id()
         them = json.loads(payload_for_us_json)
         me = self.get_my_private_data()
-        cid = self.agent.invitation_done(me, them, their_verfkey)
-        self.db.update("UPDATE invitations SET channel_id=?"
-                       " WHERE id=?", (cid, self.iid),
-                       "invitations", self.iid)
+        self.agent.invitation_done(cid, me, them, their_verfkey)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)

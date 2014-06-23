@@ -91,66 +91,54 @@ class Agent(service.MultiService):
         if override_transports:
             base_transports = override_transports
         transports = self.individualize_transports(base_transports)
-        tids = ",".join([str(tid) for tid in sorted(transports.keys())])
 
         channel = { "channel_pubkey": channel_key.public_key.encode(Hex),
                     "CID_key": my_CID_key.encode("hex"),
                     "transports": transports.values(),
                      }
         payload = { "channel": channel }
-        private_channel = { "my_signkey": my_signkey.encode(Hex),
-                            "my_CID_key": my_CID_key.encode("hex"),
-                            "my_old_channel_privkey": channel_key.encode(Hex),
-                            "my_new_channel_privkey": channel_key.encode(Hex),
-                            "transport_ids": tids,
-                            }
-        context = { "when_invited": time.time(),
-                    "code": code }
-        private = { "petname": petname,
-                    "channel": private_channel,
-                    "invitation_context": context,
+        private = { "petname": petname, # used by process_M3 for logging
                     }
 
         if offer_mailbox:
             tid = self.mailbox_server.allocate_transport(remote=True)
-            private["mailbox_tid"] = tid
+            private["mailbox_tid"] = tid # XXX not used?
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
         private["accept_mailbox"] = accept_mailbox
 
-        iid = self.im.start_invitation(code, my_signkey, payload, private)
+        cid = self.db.insert(
+            "INSERT INTO addressbook"
+            " (petname, acked, when_invited, invitation_code,"
+            "  next_outbound_seqnum, my_signkey,"
+            "  my_CID_key, next_CID_token,"
+            "  highest_inbound_seqnum,"
+            "  my_old_channel_privkey,"
+            "  my_new_channel_privkey)"
+            " VALUES (?,?,?,?, ?,?, ?,?, ?, ?, ?)",
+            (petname, 0, time.time(), code,
+             1, my_signkey.encode(Hex),
+             my_CID_key.encode("hex"), None,
+             0,
+             channel_key.encode(Hex),
+             channel_key.encode(Hex), # at beginning, old=new
+             ))
+
+        iid = self.im.start_invitation(cid, code, my_signkey, payload, private)
         return {"invite-id": iid, "petname": petname,
                 "ok": "invitation for %s started: invite-id: %d" %
                 (petname, iid)}
 
-    def invitation_done(self, private, them, their_verfkey):
-        channel = them["channel"]
-        context = private["invitation_context"]
-        context["when_accepted"] = time.time()
-        cid = self.db.insert(
-            "INSERT INTO addressbook"
-            " (petname, acked, invitation_context_json,"
-            "  next_outbound_seqnum, my_signkey,"
-            "  their_channel_record_json,"
-            "  my_CID_key, next_CID_token,"
-            "  highest_inbound_seqnum,"
-            "  my_old_channel_privkey, my_new_channel_privkey,"
-            "  they_used_new_channel_key, their_verfkey)"
-            " VALUES (?,?,?,"
-            "         ?,?,"
-            "         ?,"
-            "         ?,?," # my_CID_key, next_CID_token
-            "         ?,"   # highest_inbound_seqnum
-            "         ?,?,"
-            "         ?,?)",
-            (private["petname"], 0, json.dumps(context),
-             1, private["channel"]["my_signkey"],
-             json.dumps(channel),
-             private["channel"]["my_CID_key"], None,
-             0,
-             private["channel"]["my_old_channel_privkey"],
-             private["channel"]["my_new_channel_privkey"],
-             0, their_verfkey.encode().encode("hex") ),
-            "addressbook")
+    def invitation_done(self, cid, private, them, their_verfkey):
+        self.db.update(
+            "UPDATE addressbook SET"
+            " when_accepted=?,"
+            " their_channel_record_json=?,"
+            " they_used_new_channel_key=?, their_verfkey=?"
+            "WHERE id=?",
+            (time.time(),
+             json.dumps(them["channel"]),
+             0, their_verfkey.encode().encode("hex"),
+             cid), "addressbook", cid)
         mailbox = them.get("mailbox")
         if mailbox and private["accept_mailbox"]:
             mbid = self.db.insert("INSERT INTO mailboxes"
@@ -161,7 +149,8 @@ class Agent(service.MultiService):
         return cid
 
     def invitation_acked(self, cid):
-        self.db.update("UPDATE addressbook SET acked=1 WHERE id=?", (cid,),
+        self.db.update("UPDATE addressbook SET acked=1, invitation_id=NULL"
+                       " WHERE id=?", (cid,),
                        "addressbook", cid)
 
     def command_offer_mailbox(self, petname):
@@ -213,7 +202,11 @@ class Agent(service.MultiService):
             sk = SigningKey(row["my_signkey"].decode("hex"))
             entry["my_verfkey"] = sk.verify_key.encode(Hex)
             entry["acked"] = bool(row["acked"])
-            entry["invitation_context"] = json.loads(row["invitation_context_json"])
+            entry["invitation_context"] = {
+                "when_invited": row["when_invited"],
+                "when_accepted": row["when_accepted"],
+                "code": row["invitation_code"],
+                }
             resp.append(entry)
         return resp
 

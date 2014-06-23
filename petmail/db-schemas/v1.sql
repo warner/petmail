@@ -95,9 +95,15 @@ CREATE TABLE `agent_profile` -- contains one row
  `icon_data` VARCHAR
 );
 
-CREATE TABLE `invitations` -- data on all pending invitations
+-- data on all pending invitations. This row is created when the invitation
+-- code is submitted, and removed when the invitation M3 message is received
+-- (e.g. the other side has acknowledged receipt of our M2). The addressbook
+-- table will have a row pointing here until the invitation is complete.
+
+CREATE TABLE `invitations`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `channel_id` INTEGER, -- to correlate with an addressbook entry
 
  -- these are only used during the invitation process, then discarded
  `code` VARCHAR,
@@ -110,9 +116,8 @@ CREATE TABLE `invitations` -- data on all pending invitations
  `their_messages` VARCHAR, -- r0:hex,r0-hex of all processed inbound messages
  `next_expected_message` INTEGER,
 
- -- these two are retained long-term, in the addressbook entry
+ -- this is a copy of addressbook.my_signkey
  `my_signkey` VARCHAR, -- Ed25519 privkey (long-term), for this peer
- `channel_id` INTEGER, -- to correlate with an addressbook entry
 
  -- they'll get this payload in M2
  --  .channel_pubkey, .CID_key,
@@ -128,16 +133,20 @@ CREATE TABLE `addressbook`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT, -- the channelID
 
+ -- data about the invitation process
+ `invitation_id` INTEGER, -- or NULL, points at `invitations.id`
+ `when_invited` INTEGER, -- memories of how we met them
+ `when_accepted` INTEGER,
+ `invitation_code` VARCHAR,
+ `acked` INTEGER, -- don't send message until this is true
+
  -- our private notes and decisions about them
  `petname` VARCHAR,
- `acked` INTEGER,
- `invitation_context_json` VARCHAR, -- .when_invited, .when_accepted, .code
- -- public notes about them
 
  -- things used to send outbound messages
     -- these three are shared among all of the recipient's mailboxes
  `next_outbound_seqnum` INTEGER,
- `my_signkey` VARCHAR,
+ `my_signkey` VARCHAR, -- Ed25519 privkey (long-term), for this peer
  `their_channel_record_json` VARCHAR, -- .channel_pubkey, .CID_key, .transports
 
  -- things used to handle inbound messages

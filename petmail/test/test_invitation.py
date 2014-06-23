@@ -173,7 +173,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         d = flushEventualQueue()
         def _then(_):
             self.failUnlessEqual(len(nA_notices), 2)
-            self.failUnlessEqual(nA_notices[0].action, "insert")
+            self.failUnlessEqual(nA_notices[0].action, "update")
             self.failUnlessEqual(nA_notices[0].new_value["acked"], 0)
             self.failUnlessEqual(nA_notices[0].new_value["petname"],
                                  "petname-from-1")
