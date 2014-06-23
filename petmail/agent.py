@@ -121,7 +121,8 @@ class Agent(service.MultiService):
              0,
              channel_key.encode(Hex),
              channel_key.encode(Hex), # at beginning, old=new
-             ))
+             ),
+            "addressbook")
 
         iid = self.im.start_invitation(cid, code, my_signkey, payload, private)
         self.db.update("UPDATE addressbook SET invitation_id=? WHERE id=?",

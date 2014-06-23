@@ -172,15 +172,25 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(nA_notices, [])
         d = flushEventualQueue()
         def _then(_):
-            self.failUnlessEqual(len(nA_notices), 2)
-            self.failUnlessEqual(nA_notices[0].action, "update")
-            self.failUnlessEqual(nA_notices[0].new_value["acked"], 0)
+            self.failUnlessEqual(len(nA_notices), 4)
+            # 0: insert
+            self.failUnlessEqual(nA_notices[0].action, "insert")
             self.failUnlessEqual(nA_notices[0].new_value["petname"],
                                  "petname-from-1")
+            self.failUnlessEqual(nA_notices[0].new_value["invitation_id"], None)
+            self.failUnlessEqual(nA_notices[0].new_value["acked"], 0)
+            # 1: invitation_id=
             self.failUnlessEqual(nA_notices[1].action, "update")
-            self.failUnlessEqual(nA_notices[1].new_value["acked"], 1)
-            self.failUnlessEqual(nA_notices[1].new_value["petname"],
-                                 "petname-from-1")
+            self.failIfEqual(nA_notices[1].new_value["invitation_id"], None)
+            self.failUnlessEqual(nA_notices[1].new_value["acked"], 0)
+            self.failUnlessEqual(nA_notices[1].new_value["their_verfkey"], None)
+            # 2: their_verfkey=, their_channel_record_json=
+            self.failUnlessEqual(nA_notices[2].action, "update")
+            self.failIfEqual(nA_notices[2].new_value["their_verfkey"], None)
+            self.failUnlessEqual(nA_notices[2].new_value["acked"], 0)
+            # 3: acked=1
+            self.failUnlessEqual(nA_notices[3].action, "update")
+            self.failUnlessEqual(nA_notices[3].new_value["acked"], 1)
             n1.db.unsubscribe("addressbook", nA_notices.append)
         d.addCallback(_then)
         return d
