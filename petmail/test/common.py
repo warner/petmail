@@ -1,6 +1,6 @@
 import os, json
 from twisted.python import failure
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from twisted.application import service
 from StringIO import StringIO
 from nacl.public import PrivateKey
@@ -115,8 +115,7 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         relayurl = None
         if relay == "http":
             basedirR = os.path.join(self.make_basedir(), "relay")
-            self.createNode(basedirR, "relay",
-                            extra_deferreds=self.extra_deferreds)
+            self.createNode(basedirR, "relay")
             nR = self.startNode(basedirR)
             self.relay = nR
             row = nR.db.execute("SELECT baseurl FROM node").fetchone()

@@ -2,7 +2,7 @@ import os, json
 from nacl.public import PrivateKey
 from .. import rrid, database, util
 
-def create_node(so, stdout, stderr, services, extra_deferreds):
+def create_node(so, stdout, stderr, services, extra_deferreds=None, reactor=None):
     basedir = so["basedir"]
     if os.path.exists(basedir):
         print >>stderr, "basedir '%s' already exists, refusing to touch it" % basedir
@@ -14,7 +14,7 @@ def create_node(so, stdout, stderr, services, extra_deferreds):
     if not listenport:
         # pick a free local port. If you want the node to be reachable from
         # outside, choose the port at node-creation time.
-        listenport = "tcp:%d:interface=127.0.0.1" % util.allocate_port(extra_deferreds)
+        listenport = "tcp:%d:interface=127.0.0.1" % util.allocate_port(extra_deferreds, reactor)
     hostname = so["hostname"]
     port = so["port"]
     if not port:

@@ -94,8 +94,10 @@ class FakeClock:
     def removeWriter(self, _):
         pass
 
-def allocate_port(extra_deferreds=None):
-    p = tcp.Port(0, protocol.Factory(), reactor=FakeClock())
+def allocate_port(extra_deferreds=None, reactor=None):
+    if not reactor:
+        reactor = FakeClock()
+    p = tcp.Port(0, protocol.Factory(), reactor=reactor)
     p.startListening()
     port = p.getHost().port
     from twisted.python import log
