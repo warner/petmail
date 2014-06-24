@@ -125,8 +125,10 @@ class HTTPRetriever(service.MultiService):
             return
         fetch_t, delete_t, length = self.fetchable.pop(0)
         url = self.baseurl + "fetch?t=%s" % urlsafe_b64encode(fetch_t)
+        log.msg("HR.fetch", url)
         d = client.getPage(url, method="GET")
         def _fetched(page):
+            log.msg(" HR.fetched")
             if not self.running: return
             msgC = decrypt_fetch_response(self.symkey, fetch_t, page)
             self.got_msgC(msgC)
@@ -134,9 +136,11 @@ class HTTPRetriever(service.MultiService):
         def _delete(_):
             if not self.running: return
             url = self.baseurl + "delete?t=%s" % urlsafe_b64encode(delete_t)
+            log.msg("HR.delete", url)
             return client.getPage(url, method="POST")
         d.addCallback(_delete)
         def _fetch_more(_):
+            log.msg(" HR.deleted")
             if not self.running: return
             return fireEventually().addCallback(self.fetch)
         d.addCallback(_fetch_more)

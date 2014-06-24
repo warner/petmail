@@ -46,6 +46,7 @@ class EventSourceParser(basic.LineOnlyReceiver):
             self.current_lines.append(line)
 
     def fieldReceived(self, name, data):
+        log.msg(("EventSourceParser.fieldReceived", name, data))
         self.handler(name, data)
 
 class EventSourceError(Exception):
@@ -74,6 +75,7 @@ class EventSource: # TODO: service.Service
         return d
 
     def _connected(self, resp):
+        log.msg("ES._connected")
         if resp.code != 200:
             raise EventSourceError("%d: %s" % (resp.code, resp.phrase))
         if self.when_connected:
@@ -85,6 +87,7 @@ class EventSource: # TODO: service.Service
         return self.proto.done_deferred
 
     def cancel(self):
+        log.msg("ES.cancel", self.cancelled)
         self.cancelled = True
         if not self.proto.transport:
             # _connected hasn't been called yet, but that self.cancelled
@@ -97,6 +100,7 @@ class EventSource: # TODO: service.Service
         self.kill_connection()
 
     def kill_connection(self):
+        log.msg("ES.kill_connection")
         if (hasattr(self.proto.transport, "_producer")
             and self.proto.transport._producer):
             # This is gross and fragile. We need a clean way to stop the
@@ -153,16 +157,19 @@ class ReconnectingEventSource(service.MultiService,
 
     def stopService(self):
         # clears self.running
+        log.msg("RcES.stopService")
         d = defer.maybeDeferred(service.MultiService.stopService, self)
         d.addCallback(self._maybeStop)
         return d
 
     def activate(self):
+        log.msg("RcES.activate", self.active)
         assert not self.active
         self.active = True
         self._maybeStart()
 
     def deactivate(self):
+        log.msg("RcES.deactivate", self.active)
         assert self.active # XXX
         self.active = False
         return self._maybeStop()
@@ -177,6 +184,7 @@ class ReconnectingEventSource(service.MultiService,
         d.addBoth(self._stopped)
 
     def _stopped(self, res):
+        log.msg("RcES._stopped", self.active, self.running)
         self.es = None
         # we might have stopped because of a connection error, or because of
         # an intentional shutdown.
@@ -197,9 +205,12 @@ class ReconnectingEventSource(service.MultiService,
             eventually(self.es.cancel)
 
     def _maybeStop(self, _=None):
+        log.msg("RcES._maybeStop")
         self.stopTrying() # cancels timer, calls _stop_eventsource()
         if not self.es:
+            log.msg(" RcES._maybeStop not self.es")
             return defer.succeed(None)
+        log.msg(" RcES._maybeStop yes self.es")
         d = defer.Deferred()
         self.when_stopped.append(d)
         return d
