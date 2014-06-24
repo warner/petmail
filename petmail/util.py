@@ -94,16 +94,21 @@ class FakeClock:
     def removeWriter(self, _):
         pass
 
-def allocate_port():
+def allocate_port(extra_deferreds=None):
     p = tcp.Port(0, protocol.Factory(), reactor=FakeClock())
     p.startListening()
     port = p.getHost().port
+    from twisted.python import log
+    log.msg("allocate_port got %d" % port)
     # stopListening() schedules a cleanup function to run on a later reactor
     # turn, and doesn't actually close the socket until then. I want this to
     # be synchronous, so it uses the FakeClock that runs that turn right
     # away. I believe this is safe (since we aren't actually connecting
     # anything to this port, or sending any data), but I could be wrong.
-    p.stopListening() # ignore the Deferred
+    d = p.stopListening()
+    if extra_deferreds:
+        extra_deferreds.append(d)
+    # else ignore the Deferred
     return port
 
 def hex_or_none(s):

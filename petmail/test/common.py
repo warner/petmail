@@ -50,9 +50,12 @@ class NodeRunnerMixin:
     def setUp(self):
         self.sparent = service.MultiService()
         self.sparent.startService()
+        self.extra_deferreds = []
 
     def tearDown(self):
-        return self.sparent.stopService()
+        d = defer.DeferredList(self.extra_deferreds)
+        d.addCallback(lambda res: self.sparent.stopService())
+        return d
 
     def createNode(self, basedir, type="agent", relayurl=None,
                    local_mailbox=True):
@@ -65,7 +68,7 @@ class NodeRunnerMixin:
         args.append(basedir)
         so.parseOptions(args)
         out,err = StringIO(), StringIO()
-        rc = create_node(so, out, err, [type])
+        rc = create_node(so, out, err, [type], self.extra_deferreds)
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
@@ -112,7 +115,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         relayurl = None
         if relay == "http":
             basedirR = os.path.join(self.make_basedir(), "relay")
-            self.createNode(basedirR, "relay")
+            self.createNode(basedirR, "relay",
+                            extra_deferreds=self.extra_deferreds)
             nR = self.startNode(basedirR)
             self.relay = nR
             row = nR.db.execute("SELECT baseurl FROM node").fetchone()

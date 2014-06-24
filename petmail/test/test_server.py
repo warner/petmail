@@ -79,6 +79,7 @@ class Inbound(TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_two_nonlocal_TTID(self):
+        # this errored, CannotListenError, EADDRINUSE
         n = self.make_nodes(transport="local")[1]
         tid1, trec1 = self.add_recipient(n)
         tid2, trec2 = self.add_recipient(n)
