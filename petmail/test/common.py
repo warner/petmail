@@ -68,7 +68,7 @@ class NodeRunnerMixin:
         args.append(basedir)
         so.parseOptions(args)
         out,err = StringIO(), StringIO()
-        rc = create_node(so, out, err, [type], self.extra_deferreds)
+        rc = create_node(so, out, err, [type], self.extra_deferreds, reactor)
         self.failUnlessEqual(rc, 0, (rc, out, err))
         return rc, out ,err
 
