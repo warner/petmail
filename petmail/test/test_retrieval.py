@@ -156,8 +156,14 @@ class Server(TwoNodeMixin, unittest.TestCase):
         def _then2(_):
             self.failUnlessEqual(messages[2], "msgC1_third")
         d.addCallback(_then2)
+        d.addCallback(lambda _: self.poll(_messages_deleted))
 
+        # wait for the ReconnectingEventSource to become active again, which
+        # indicates that HTTPRetriever.fetch has finished grabbing all
+        # messages and is back to waiting for a new one
+        d.addCallback(lambda _: self.poll(lambda: r.source.active))
 
+        # now it's safe to shut down the retriever
         d.addCallback(lambda _: r.disownServiceParent())
         d.addCallback(lambda _: self.poll(lambda:
                                           not len(ms.listres.subscribers)
