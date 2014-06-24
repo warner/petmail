@@ -95,6 +95,8 @@ class FakeClock:
         pass
 
 def allocate_port():
+    import random
+    return random.randrange(10000,11000)
     p = tcp.Port(0, protocol.Factory(), reactor=FakeClock())
     p.startListening()
     port = p.getHost().port
