@@ -105,28 +105,28 @@ function update_addressbook(e) {
 }
 
 function handle_invite_go(e) {
-  var petname = d3.select("#invite-petname")[0][0].value;
-  var code = d3.select("#invite-code")[0][0].value;
+  var petname = $("#invite-petname").val();
+  var code = $("#invite-code").val();
   console.log("inviting", petname, code);
   var req = {"token": token, "args": {"petname": petname, "code": code}};
   d3.json("/api/v1/invite").post(JSON.stringify(req),
                                  function(err, r) {
                                    console.log("invited", r.ok);
                                  });
-  d3.select("#invite-petname")[0][0].value = "";
-  d3.select("#invite-code")[0][0].value = "";
+  $("#invite-petname").val("");
+  $("#invite-code").val("");
   $("#invite").hide("clip");
 }
 
 function handle_send_message_go(e) {
-  var msg = d3.select("#send-message-body")[0][0].value;
+  var msg = $("#send-message-body").val();
   console.log("sending", msg, "to", current_cid);
   var req = {"token": token, "args": {"cid": current_cid, "message": msg}};
   d3.json("/api/v1/send-basic").post(JSON.stringify(req),
                                      function(err, r) {
                                        console.log("sent", r.ok);
                                      });
-  d3.select("#send-message-body")[0][0].value = "";
+  $("#send-message-body").val("");
 }
 
 function main() {
@@ -153,8 +153,8 @@ function main() {
       $("#invite-go").click();
   });
 
-  d3.select("#invite-go")[0][0].onclick = handle_invite_go;
-  d3.select("#send-message-go")[0][0].onclick = handle_send_message_go;
+  $("#invite-go").on("click", handle_invite_go);
+  $("#send-message-go").on("click", handle_send_message_go);
 
   console.log("setup done");
 }
