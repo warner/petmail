@@ -148,6 +148,10 @@ function main() {
     $("#invite").toggle("clip");
   });
   $("div.contact-details-pane").hide();
+  $("#invite-code").on("keyup", function(e) {
+    if (e.keyCode == 13) // $.ui.keyCode.ENTER
+      $("#invite-go").click();
+  });
 
   d3.select("#invite-go")[0][0].onclick = handle_invite_go;
   d3.select("#send-message-go")[0][0].onclick = handle_send_message_go;
