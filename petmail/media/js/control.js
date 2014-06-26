@@ -36,9 +36,12 @@ function update_messages(e) {
   s.exit().remove();
 }
 
+var contact_details_cid;
+
 function show_contact_details(e) {
   console.log("details", e.id, e);
-  cancel_edit_petname();
+  contact_details_cid = e.id;
+  edit_petname_cancel();
   $("div.contact-details-pane").show();
   $("#address-book div.entry").removeClass("selected");
   $("#address-book div.cid-"+e.id).addClass("selected");
@@ -103,6 +106,11 @@ function update_addressbook(e) {
   ;
   s.exit().remove();
   s.order();
+
+  if (contact_details_cid !== undefined) {
+    show_contact_details(addressbook[contact_details_cid]);
+  }
+
 }
 
 function handle_invite_go(e) {
@@ -164,11 +172,33 @@ function main() {
 }
 
 var editing_petname = false;
-function cancel_edit_petname() {
+
+function edit_petname_cancel() {
   if (!editing_petname)
     return;
   $("#contact-details-petname").show("slide");
   $("#contact-details-petname-editor").hide("slide");
+}
+
+function edit_petname_done() {
+  if (!editing_petname)
+    return;
+  var old_petname = $("#contact-details-petname").text();
+  var new_petname = $("#contact-details-petname-editor").val();
+  if (old_petname !== new_petname) {
+    $("#contact-details-petname").text("<updating..>");
+    var req = {"token": token,
+               "args": {"petname": new_petname,
+                        "cid": $("#contact-details-id").text()
+                       }};
+    d3.json("/api/v1/set-petname").post(JSON.stringify(req),
+                                        function(err, r) {
+                                          console.log("set petname", r.ok);
+                                        });
+  }
+  $("#contact-details-petname").show("slide");
+  $("#contact-details-petname-editor").hide("slide");
+  editing_petname = false;
 }
 
 function handle_toggle_edit_petname(e) {
@@ -180,22 +210,7 @@ function handle_toggle_edit_petname(e) {
     $("#contact-details-petname-editor").val(old_petname);
     editing_petname = true;
   } else {
-    var old_petname = $("#contact-details-petname").text();
-    var new_petname = $("#contact-details-petname-editor").val();
-    if (old_petname !== new_petname) {
-      $("#contact-details-petname").text("<updating..>");
-      var req = {"token": token,
-                 "args": {"petname": new_petname,
-                          "cid": $("#contact-details-id").text()
-                         }};
-      d3.json("/api/v1/set-petname").post(JSON.stringify(req),
-                                          function(err, r) {
-                                            console.log("set petname", r.ok);
-                                          });
-    }
-    $("#contact-details-petname").show("slide");
-    $("#contact-details-petname-editor").hide("slide");
-    editing_petname = false;
+    edit_petname_done();
   }
 }
 
