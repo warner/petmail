@@ -192,6 +192,12 @@ class ListAddressbook(BaseHandler):
                 "addressbook": self.agent.command_list_addressbook()}
 handlers["list-addressbook"] = ListAddressbook
 
+class SetPetname(BaseHandler):
+    def handle(self, payload):
+        self.agent.command_set_petname(payload["cid"], payload["petname"]);
+        return {"ok": "ok"}
+handlers["set-petname"] = SetPetname
+
 class SendBasic(BaseHandler):
     def handle(self, payload):
         cid = int(payload["cid"])

@@ -213,6 +213,12 @@ class Agent(service.MultiService):
             resp.append(entry)
         return resp
 
+    def command_set_petname(self, cid, petname):
+        self.db.update("UPDATE addressbook SET petname=? WHERE id=?",
+                       (petname, cid),
+                       "addressbook", cid)
+        self.db.commit()
+
     def command_fetch_all_messages(self):
         c = self.db.execute("SELECT inbound_messages.*,addressbook.petname"
                             " FROM inbound_messages,addressbook"

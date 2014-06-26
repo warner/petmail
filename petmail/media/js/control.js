@@ -38,6 +38,7 @@ function update_messages(e) {
 
 function show_contact_details(e) {
   console.log("details", e.id, e);
+  cancel_edit_petname();
   $("div.contact-details-pane").show();
   $("#address-book div.entry").removeClass("selected");
   $("#address-book div.cid-"+e.id).addClass("selected");
@@ -147,16 +148,55 @@ function main() {
   $("#add-contact").click(function(e) {
     $("#invite").toggle("clip");
   });
-  $("div.contact-details-pane").hide();
   $("#invite-code").on("keyup", function(e) {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
       $("#invite-go").click();
   });
-
   $("#invite-go").on("click", handle_invite_go);
+
+  $("div.contact-details-pane").hide();
+  $("#contact-details-petname-editor").hide();
+  $("#edit-petname").click(handle_toggle_edit_petname);
+
   $("#send-message-go").on("click", handle_send_message_go);
 
   console.log("setup done");
+}
+
+var editing_petname = false;
+function cancel_edit_petname() {
+  if (!editing_petname)
+    return;
+  $("#contact-details-petname").show("slide");
+  $("#contact-details-petname-editor").hide("slide");
+}
+
+function handle_toggle_edit_petname(e) {
+  var editing = ($("#contact-details-petname-editor").css("display") == "none");
+  if (editing) {
+    var old_petname = $("#contact-details-petname").text();
+    $("#contact-details-petname").hide("slide");
+    $("#contact-details-petname-editor").show("slide");
+    $("#contact-details-petname-editor").val(old_petname);
+    editing_petname = true;
+  } else {
+    var old_petname = $("#contact-details-petname").text();
+    var new_petname = $("#contact-details-petname-editor").val();
+    if (old_petname !== new_petname) {
+      $("#contact-details-petname").text("<updating..>");
+      var req = {"token": token,
+                 "args": {"petname": new_petname,
+                          "cid": $("#contact-details-id").text()
+                         }};
+      d3.json("/api/v1/set-petname").post(JSON.stringify(req),
+                                          function(err, r) {
+                                            console.log("set petname", r.ok);
+                                          });
+    }
+    $("#contact-details-petname").show("slide");
+    $("#contact-details-petname-editor").hide("slide");
+    editing_petname = false;
+  }
 }
 
 
