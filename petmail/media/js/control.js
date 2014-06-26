@@ -165,6 +165,10 @@ function main() {
   $("div.contact-details-pane").hide();
   $("#contact-details-petname-editor").hide();
   $("#edit-petname").click(handle_toggle_edit_petname);
+  $("#contact-details-petname-editor").on("keyup", function(e) {
+    if (e.keyCode == 13) // $.ui.keyCode.ENTER
+      edit_petname_done();
+  });
 
   $("#send-message-go").on("click", handle_send_message_go);
 
