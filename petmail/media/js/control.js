@@ -111,13 +111,31 @@ function update_addressbook(e) {
     show_contact_details(addressbook[contact_details_cid]);
   }
 
+  if (new_invite_reqid !== undefined &&
+      data.tags && data.tags.reqid === new_invite_reqid) {
+    delete new_invite_reqid;
+    show_contact_details(addressbook[data.id]);
+    edit_petname_cancel();
+    edit_petname_start();
+  }
 }
+
+var new_invite_reqid;
 
 function handle_invite_go(e) {
   var petname = $("#invite-petname").val();
   var code = $("#invite-code").val();
   console.log("inviting", petname, code);
-  var req = {"token": token, "args": {"petname": petname, "code": code}};
+  // the reqid merely needs to be unique among the invitation requests
+  // submitted by this and other frontends. An accidental collision would
+  // cause a minor UI nuisance (the Contact Details panel will be opened
+  // spontaneously, and the Petname field prepared for editing, even though
+  // the user had not just hit the "Invite" button in that particular
+  // frontend)
+  var reqid = Math.round(Math.random() * 100000);
+  new_invite_reqid = reqid;
+  var req = {"token": token, "args": {"petname": petname, "code": code,
+                                      "reqid": reqid }};
   d3.json("/api/v1/invite").post(JSON.stringify(req),
                                  function(err, r) {
                                    console.log("invited", r.ok);
@@ -177,9 +195,20 @@ function main() {
 
 var editing_petname = false;
 
+function edit_petname_start() {
+  if (editing_petname)
+    return;
+  editing_petname = true;
+  var old_petname = $("#contact-details-petname").text();
+  $("#contact-details-petname").hide("slide");
+  $("#contact-details-petname-editor").show("slide");
+  $("#contact-details-petname-editor").val(old_petname);
+}
+
 function edit_petname_cancel() {
   if (!editing_petname)
     return;
+  editing_petname = false;
   $("#contact-details-petname").show("slide");
   $("#contact-details-petname-editor").hide("slide");
 }
@@ -187,6 +216,7 @@ function edit_petname_cancel() {
 function edit_petname_done() {
   if (!editing_petname)
     return;
+  editing_petname = false;
   var old_petname = $("#contact-details-petname").text();
   var new_petname = $("#contact-details-petname-editor").val();
   if (old_petname !== new_petname) {
@@ -202,17 +232,12 @@ function edit_petname_done() {
   }
   $("#contact-details-petname").show("slide");
   $("#contact-details-petname-editor").hide("slide");
-  editing_petname = false;
 }
 
 function handle_toggle_edit_petname(e) {
   var editing = ($("#contact-details-petname-editor").css("display") == "none");
   if (editing) {
-    var old_petname = $("#contact-details-petname").text();
-    $("#contact-details-petname").hide("slide");
-    $("#contact-details-petname-editor").show("slide");
-    $("#contact-details-petname-editor").val(old_petname);
-    editing_petname = true;
+    edit_petname_start();
   } else {
     edit_petname_done();
   }

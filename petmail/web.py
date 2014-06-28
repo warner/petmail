@@ -173,7 +173,8 @@ class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
         code = str(payload["code"])
-        return self.agent.command_invite(petname, code)
+        reqid = payload["reqid"]
+        return self.agent.command_invite(petname, code, reqid)
 handlers["invite"] = Invite
 
 class OfferMailbox(BaseHandler):

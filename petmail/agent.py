@@ -81,8 +81,9 @@ class Agent(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, code, override_transports=None,
-                       offer_mailbox=False, accept_mailbox=False):
+    def command_invite(self, petname, code, reqid=None,
+                       override_transports=None, offer_mailbox=False,
+                       accept_mailbox=False):
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)
@@ -122,12 +123,12 @@ class Agent(service.MultiService):
              channel_key.encode(Hex),
              channel_key.encode(Hex), # at beginning, old=new
              ),
-            "addressbook")
+            "addressbook", {"reqid": reqid})
 
         iid = self.im.start_invitation(cid, code, my_signkey, payload, private)
         self.db.update("UPDATE addressbook SET invitation_id=? WHERE id=?",
                        (iid, cid), "addressbook", cid)
-        return {"invite-id": iid, "petname": petname,
+        return {"contact-id": cid, "invite-id": iid, "petname": petname,
                 "ok": "invitation for %s started: invite-id: %d" %
                 (petname, iid)}
 
