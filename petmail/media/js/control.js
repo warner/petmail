@@ -123,8 +123,8 @@ function update_addressbook(e) {
 var new_invite_reqid;
 
 function handle_invite_go(e) {
-  var petname = $("#invite-petname").val();
   var code = $("#invite-code").val();
+  var petname = "New Petname";
   console.log("inviting", petname, code);
   // the reqid merely needs to be unique among the invitation requests
   // submitted by this and other frontends. An accidental collision would
@@ -182,6 +182,7 @@ function main() {
 
   $("div.contact-details-pane").hide();
   $("#contact-details-petname-editor").hide();
+  $("#contact-details-petname-editor").focus(function() { this.select(); });
   $("#edit-petname").click(handle_toggle_edit_petname);
   $("#contact-details-petname-editor").on("keyup", function(e) {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
@@ -200,8 +201,10 @@ function edit_petname_start() {
     return;
   editing_petname = true;
   var old_petname = $("#contact-details-petname").text();
-  $("#contact-details-petname").hide("slide");
-  $("#contact-details-petname-editor").show("slide");
+  $("#contact-details-petname").hide();
+  $("#contact-details-petname-editor").show({
+    complete: function() { this.focus(); }
+  });
   $("#contact-details-petname-editor").val(old_petname);
 }
 
@@ -209,8 +212,8 @@ function edit_petname_cancel() {
   if (!editing_petname)
     return;
   editing_petname = false;
-  $("#contact-details-petname").show("slide");
-  $("#contact-details-petname-editor").hide("slide");
+  $("#contact-details-petname").show();
+  $("#contact-details-petname-editor").hide();
 }
 
 function edit_petname_done() {
@@ -230,8 +233,8 @@ function edit_petname_done() {
                                           console.log("set petname", r.ok);
                                         });
   }
-  $("#contact-details-petname").show("slide");
-  $("#contact-details-petname-editor").hide("slide");
+  $("#contact-details-petname").show();
+  $("#contact-details-petname-editor").hide();
 }
 
 function handle_toggle_edit_petname(e) {
