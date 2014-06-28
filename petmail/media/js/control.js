@@ -206,7 +206,6 @@ function handle_send_message_go(e) {
 }
 
 function handle_backend_event(e) {
-  console.log("backend event", e);
   if (e.type == "addressbook")
     update_addressbook(e);
   else if (e.type == "messages")
