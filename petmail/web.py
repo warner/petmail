@@ -62,7 +62,8 @@ class BaseView(resource.Resource):
     def catchup(self, each):
         c = self.db.execute("SELECT * FROM `%s`" % self.table)
         for row in c.fetchall():
-            each(Notice(self.table, "insert", row["id"], row))
+            each(Notice(self.table, "insert", row["id"], row,
+                        {"catchup": True}))
 
     def render_GET(self, request):
         if "text/event-stream" in (request.getHeader("accept") or ""):
@@ -99,6 +100,7 @@ class MessageView(BaseView):
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,
+                            "tags": notice.tags,
                             })
 
 class AddressBookView(BaseView):
@@ -109,6 +111,7 @@ class AddressBookView(BaseView):
         return json.dumps({ "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,
+                            "tags": notice.tags,
                             })
 
 class ViewDispatcher(resource.Resource):

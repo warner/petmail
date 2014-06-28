@@ -351,7 +351,7 @@ class Retrieval(TwoNodeMixin, unittest.TestCase):
 
             # resource should ignore UPDATE and DELETE
             ms.listres.new_message(Notice("mailbox_server_messages",
-                                          "delete", 15, None))
+                                          "delete", 15, None, {}))
             # now trigger a third message
             ms.queue_msgC(tid1, "msgC1_third")
             return self.poll(lambda: check_f(3))

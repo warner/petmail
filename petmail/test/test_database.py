@@ -50,7 +50,7 @@ class Database(BasedirMixin, unittest.TestCase):
         imid = db.insert("INSERT INTO inbound_messages"
                          " (cid, seqnum, payload_json)"
                          " VALUES (?,?,?)", (4, 9, "payload"),
-                         "inbound_messages")
+                         "inbound_messages", {"tag1": "v1"})
         self.failUnlessEqual(n, [])
         db.commit()
         self.failUnlessEqual(n, [])
@@ -62,12 +62,13 @@ class Database(BasedirMixin, unittest.TestCase):
             self.failUnlessEqual(n0.action, "insert")
             self.failUnlessEqual(n0.id, imid)
             self.failUnlessEqual(n0.new_value["seqnum"], 9)
+            self.failUnlessEqual(n0.tags, {"tag1": "v1"})
 
             db.update("UPDATE inbound_messages SET seqnum=10"
                       " WHERE id=?", (imid,),
-                      "inbound_messages", imid)
+                      "inbound_messages", imid, {"tag2": "v2"})
             db.delete("DELETE FROM inbound_messages WHERE id=?", (imid,),
-                      "inbound_messages", imid)
+                      "inbound_messages", imid, {"tag3": "v3"})
             self.failUnlessEqual(len(n), 0)
             db.commit()
             self.failUnlessEqual(len(n), 0)
@@ -80,11 +81,13 @@ class Database(BasedirMixin, unittest.TestCase):
             self.failUnlessEqual(n1.action, "update")
             self.failUnlessEqual(n1.id, imid)
             self.failUnlessEqual(n1.new_value["seqnum"], 10)
+            self.failUnlessEqual(n1.tags, {"tag2": "v2"})
             n2 = n.pop(0)
             self.failUnlessEqual(n2.table, "inbound_messages")
             self.failUnlessEqual(n2.action, "delete")
             self.failUnlessEqual(n2.id, imid)
             self.failUnlessEqual(n2.new_value, None)
+            self.failUnlessEqual(n2.tags, {"tag3": "v3"})
             db.unsubscribe("inbound_messages", n.append)
             db.insert("INSERT INTO inbound_messages"
                       " (cid, seqnum, payload_json)"

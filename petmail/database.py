@@ -4,7 +4,7 @@ from collections import defaultdict, namedtuple
 import sqlite3
 from .eventual import eventually
 
-Notice = namedtuple("Notice", ["table", "action", "id", "new_value"])
+Notice = namedtuple("Notice", ["table", "action", "id", "new_value", "tags"])
 
 class DBError(Exception):
     pass
@@ -41,16 +41,17 @@ class ObservableDatabase:
             return self.conn.execute(sql, values)
         return self.conn.execute(sql)
 
-    def insert(self, sql, values, table=None):
+    def insert(self, sql, values, table=None, tags={}):
         new_id = self.conn.execute(sql, values).lastrowid
         if table:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
                                   (new_id,))
             self.pending_notifications.append(Notice(table, "insert", new_id,
-                                                     serialize(c.fetchone())))
+                                                     serialize(c.fetchone()),
+                                                     tags))
         return new_id
 
-    def update(self, sql, values, table=None, id=None):
+    def update(self, sql, values, table=None, id=None, tags={}):
         self.conn.execute(sql, values)
         if table:
             c = self.conn.execute("SELECT * FROM `%s` WHERE id=?" % table,
@@ -58,11 +59,12 @@ class ObservableDatabase:
             new_value = serialize(c.fetchone())
             if new_value:
                 self.pending_notifications.append(Notice(table, "update", id,
-                                                         new_value))
+                                                         new_value, tags))
 
-    def delete(self, sql, values, table, id):
+    def delete(self, sql, values, table, id, tags={}):
         self.conn.execute(sql, values)
-        self.pending_notifications.append(Notice(table, "delete", id, None))
+        self.pending_notifications.append(Notice(table, "delete", id,
+                                                 None, tags))
 
     def commit(self):
         self.conn.commit()
