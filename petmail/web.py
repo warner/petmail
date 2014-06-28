@@ -19,15 +19,16 @@ def read_media(fn):
     return data
 
 class EventsProtocol:
-    def __init__(self, request, renderer):
+    def __init__(self, request, renderer, event_type=None):
         self.request = request
         self.renderer = renderer
+        self.event_type = event_type
 
     def notify(self, notice):
         # TODO: set name=table and have the control page use exactly one
         # EventSource (add APIs to subscribe/unsubscribe various tables as
         # those panels are displayed). (or just deliver everything always).
-        self.sendEvent(self.renderer(notice))
+        self.sendEvent(self.renderer(notice), name=self.event_type)
 
     def sendComment(self, comment):
         # this is ignored by clients, but can keep the connection open in the
@@ -39,6 +40,9 @@ class EventsProtocol:
     def sendEvent(self, data, name=None, id=None, retry=None):
         if name:
             self.request.write("event: %s\n" % name.encode("utf-8"))
+            # e.g. if name=foo, then the client web page should do:
+            # (new EventSource(url)).addEventListener("foo", handlerfunc)
+            # Note that this defaults to "message".
         if id:
             self.request.write("id: %s\n" % id.encode("utf-8"))
         if retry:
@@ -51,6 +55,9 @@ class EventsProtocol:
         self.request.finish()
 
 class BaseView(resource.Resource):
+    table = None # override me
+    event_type = None # and me
+
     def __init__(self, db, agent):
         resource.Resource.__init__(self)
         self.db = db
@@ -68,7 +75,7 @@ class BaseView(resource.Resource):
     def render_GET(self, request):
         if "text/event-stream" in (request.getHeader("accept") or ""):
             request.setHeader("content-type", "text/event-stream")
-            p = EventsProtocol(request, self.render_event)
+            p = EventsProtocol(request, self.render_event, self.event_type)
             self.catchup(p.notify)
             self.db.subscribe(self.table, p.notify)
             def _done(_):
@@ -91,6 +98,8 @@ def some_keys(value, keys=None):
 
 class MessageView(BaseView):
     table = "inbound_messages"
+    event_type = "messages"
+
     def render_event(self, notice):
         new_value = notice.new_value
         if new_value:
@@ -105,6 +114,8 @@ class MessageView(BaseView):
 
 class AddressBookView(BaseView):
     table = "addressbook"
+    event_type = "addressbook"
+
     def render_event(self, notice):
         new_value = some_keys(notice.new_value, ["id", "petname", "acked",
                                                  "invitation_code"])

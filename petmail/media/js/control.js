@@ -205,6 +205,17 @@ function handle_send_message_go(e) {
   $("#send-message-body").val("");
 }
 
+function handle_backend_event(e) {
+  console.log("backend event", e);
+  if (e.type == "addressbook")
+    update_addressbook(e);
+  else if (e.type == "messages")
+    update_messages(e);
+  else {
+    console.log("unknown backend event type", e.type);
+  }
+}
+
 function main() {
   console.log("onload");
 
@@ -215,9 +226,9 @@ function main() {
 
   var ev;
   ev = new EventSource("/api/v1/views/addressbook?token="+token);
-  ev.onmessage = update_addressbook;
+  ev.addEventListener("addressbook", handle_backend_event);
   ev = new EventSource("/api/v1/views/messages?token="+token);
-  ev.onmessage = update_messages;
+  ev.addEventListener("messages", handle_backend_event);
 
   $("#invite").hide();
   $("#add-contact").click(function(e) {
