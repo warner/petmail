@@ -173,7 +173,7 @@ class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
         code = str(payload["code"])
-        reqid = payload["reqid"]
+        reqid = payload.get("reqid")
         return self.agent.command_invite(petname, code, reqid)
 handlers["invite"] = Invite
 
