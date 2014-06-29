@@ -114,7 +114,8 @@ class EventChannel(resource.Resource):
         self.deliver_event(notice, new_value, "addressbook")
 
     def deliver_message_event(self, notice):
-        new_value = notice.new_value
+        new_value = self.some_keys(notice.new_value,
+                                   ["id", "cid", "seqnum", "payload_json"])
         if new_value:
             c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
                                 (new_value["cid"],))
