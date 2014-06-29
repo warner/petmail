@@ -151,15 +151,35 @@ def command(basedir, command, args, err=sys.stderr):
     else:
         return False, {"err": http_status+"Please see node logs for details\n"}
 
-def follow_events(basedir, command, args={}, err=sys.stderr):
+def follow_events(basedir, topic, catchup=False, err=sys.stderr):
     if _debug_no_http:
-        return _debug_no_http(command, args)
+        raise RuntimeError("unit-test support not implemented yet")
     baseurl, token = get_url_and_token(basedir, err)
     if not baseurl:
         return False, {"err": "Error, node is not yet running"}
-    url = baseurl + "api/v1/views/%s" % command
-    url += "?token=%s" % token
-    if args:
-        url += "&" + urllib.urlencode(args).encode("utf-8")
-    resp = do_http("GET", url, event_stream=True)
-    return resp
+    # first, create the event channel
+    resp = do_http("POST", baseurl + "api/v1/eventchannel-create",
+                   json.dumps({"token": token}))
+    if resp.status != 200:
+        raise RuntimeError("unable to create event channel: %s %s"
+                           % (resp.status, resp.reason))
+    r = json.loads(resp.read().decode("utf-8"))
+    esid = r["esid"]
+    # we'll listen on this one
+    event_resp = do_http("GET", baseurl + "api/v1/events/%s" % esid,
+                         event_stream=True)
+    # and then subscribe to hear about events. I'm not 100% sure this won't
+    # race (the web frontend specifically waits until a "ready" event is
+    # delivered, to make sure the browser has established the EventSource
+    # channel, before subscribing to anything. We're ok as long as do_http()
+    # doesn't return until after it's seen the HTTP headers.
+    resp = do_http("POST", baseurl + "api/v1/eventchannel-subscribe",
+                   json.dumps({"token": token,
+                               "args": {"esid": esid,
+                                        "topic": topic,
+                                        "catchup": catchup}}))
+    if resp.status != 200:
+        raise RuntimeError("unable to subscribe to event channel: %s %s"
+                           % (resp.status, resp.reason))
+
+    return event_resp
