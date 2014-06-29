@@ -166,8 +166,8 @@ class EventChannelDispatcher(resource.Resource):
             self.unclaimed_event_channels.remove(esid) # can raise KeyError
             return self.event_channels[esid]
         except KeyError:
-            request.setResponseCode(http.UNAUTHORIZED, "bad esid")
-            return "Invalid esid"
+            return resource.ErrorPage(http.UNAUTHORIZED, "bad esid",
+                                      "Invalid esid")
 
 
 handlers = {}
@@ -296,12 +296,12 @@ class API(resource.Resource):
         # everything else requires a token, check it here
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
-            request.setResponseCode(http.UNAUTHORIZED, "bad token")
-            return "Invalid token"
+            return resource.ErrorPage(http.UNAUTHORIZED, "bad token",
+                                      "Invalid token")
         rclass = handlers.get(path)
         if not rclass:
-            request.setResponseCode(http.NOT_FOUND, "unknown method")
-            return "Unknown method"
+            return resource.ErrorPage(http.NOT_FOUND, "unknown method",
+                                      "Unknown method")
         r = rclass(self.db, self.agent, self.event_dispatcher, payload)
         return r
 
