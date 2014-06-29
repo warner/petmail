@@ -2,6 +2,7 @@
 console.log("control.js loaded");
 
 var token; // actually interpolated into the enclosing control.html
+var esid;
 var $, d3; // populated in control.html
 var messages = {}; // indexed by cid
 var addressbook = {}; // indexed by cid
@@ -34,9 +35,7 @@ function handle_invite_go(e) {
   $("#invite").hide("clip");
 }
 
-function update_addressbook(e) {
-  var data = JSON.parse(e.data); // .action, .id, .new_value
-
+function update_addressbook(data) {
   // "value" is a subset of an "addressbook" row
   if (data.action == "insert" || data.action == "update")
     addressbook[data.id] = data.new_value;
@@ -166,9 +165,7 @@ function open_contact_room(e) {
                                      + " [" + current_cid + "]");
 }
 
-function update_messages(e) {
-  var data = JSON.parse(e.data); // .action, .id, .new_value
-
+function update_messages(data) {
   if (data.action == "insert" || data.action == "update")
     messages[data.id] = data.new_value;
   else if (data.action == "delete")
@@ -206,13 +203,35 @@ function handle_send_message_go(e) {
 }
 
 function handle_backend_event(e) {
-  if (e.type == "addressbook")
-    update_addressbook(e);
-  else if (e.type == "messages")
-    update_messages(e);
-  else {
-    console.log("unknown backend event type", e.type);
+  console.log("backend_event", e);
+ // everything we send is e.type="message" and e.data=JSON
+  var data = JSON.parse(e.data);
+  if (data.type == "ready") {
+    // EventSource is connected, so start listening
+    console.log("subscribing for addressbook+messages");
+    eventchannel_subscribe(token, esid, "addressbook", true);
+    eventchannel_subscribe(token, esid, "messages", true);
+  } else if (data.type == "addressbook") {
+    update_addressbook(data);
+  } else if (data.type == "messages") {
+    update_messages(data);
+  } else {
+    console.log("unknown backend event type", data.type);
   }
+}
+
+function eventchannel_subscribe(token, esid, topic, catchup) {
+  d3.json("/api/v1/eventchannel-subscribe")
+    .post(JSON.stringify({"token": token,
+                          "args": {
+                            "esid": esid,
+                            "topic": topic,
+                            "catchup": catchup}
+                         }),
+          function(err, r) {
+            if (err)
+              console.log("subscribe-"+topic+" err");
+          });
 }
 
 function main() {
@@ -222,12 +241,6 @@ function main() {
     e.preventDefault();
     $(this).tab("show");
   });
-
-  var ev;
-  ev = new EventSource("/api/v1/views/addressbook?token="+token);
-  ev.addEventListener("addressbook", handle_backend_event);
-  ev = new EventSource("/api/v1/views/messages?token="+token);
-  ev.addEventListener("messages", handle_backend_event);
 
   $("#invite").hide();
   $("#add-contact").click(function(e) {
@@ -249,6 +262,21 @@ function main() {
   });
 
   $("#send-message-go").on("click", handle_send_message_go);
+
+  d3.json("/api/v1/eventchannel-create")
+    .post(JSON.stringify({"token": token}),
+          function(err, r) {
+            if (err) {
+              console.log("create-eventchannel failed", err);
+            } else {
+              console.log("create-eventchannel done", r.esid);
+              esid = r.esid;
+              var ev = new EventSource("/api/v1/events/"+esid);
+              ev.addEventListener("message", handle_backend_event);
+              // when the EventSource's "ready" message is delivered, we'll
+              // subscribe for addressbook and messages
+            }
+          });
 
   console.log("setup done");
 }

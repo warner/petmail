@@ -5,7 +5,7 @@ from twisted.web import server, static, resource, http
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from .database import Notice
-from .util import equal
+from .util import equal, make_nonce
 from .errors import CommandError
 from .invitation import VALID_INVITEID, VALID_MESSAGE
 
@@ -19,16 +19,8 @@ def read_media(fn):
     return data
 
 class EventsProtocol:
-    def __init__(self, request, renderer, event_type=None):
+    def __init__(self, request):
         self.request = request
-        self.renderer = renderer
-        self.event_type = event_type
-
-    def notify(self, notice):
-        # TODO: set name=table and have the control page use exactly one
-        # EventSource (add APIs to subscribe/unsubscribe various tables as
-        # those panels are displayed). (or just deliver everything always).
-        self.sendEvent(self.renderer(notice), name=self.event_type)
 
     def sendComment(self, comment):
         # this is ignored by clients, but can keep the connection open in the
@@ -42,7 +34,7 @@ class EventsProtocol:
             self.request.write("event: %s\n" % name.encode("utf-8"))
             # e.g. if name=foo, then the client web page should do:
             # (new EventSource(url)).addEventListener("foo", handlerfunc)
-            # Note that this defaults to "message".
+            # Note that this basically defaults to "message".
         if id:
             self.request.write("id: %s\n" % id.encode("utf-8"))
         if retry:
@@ -54,99 +46,140 @@ class EventsProtocol:
     def stop(self):
         self.request.finish()
 
-class BaseView(resource.Resource):
-    table = None # override me
-    event_type = None # and me
+# note: no versions of IE (including the current IE11) support EventSource
 
-    def __init__(self, db, agent):
+class EventChannel(resource.Resource):
+    def __init__(self, db, agent, dispatcher, esid):
         resource.Resource.__init__(self)
         self.db = db
         self.agent = agent
+        self.dispatcher = dispatcher
+        self.esid = esid
+        self.db_subscriptions = {} # indexed by topic
 
     # subclasses must define render_event(), which accepts a Notice and
     # returns a JSON-serializable object
 
-    def catchup(self, each):
-        c = self.db.execute("SELECT * FROM `%s`" % self.table)
-        for row in c.fetchall():
-            each(Notice(self.table, "insert", row["id"], row,
-                        {"catchup": True}))
-
     def render_GET(self, request):
-        if "text/event-stream" in (request.getHeader("accept") or ""):
-            request.setHeader("content-type", "text/event-stream")
-            p = EventsProtocol(request, self.render_event, self.event_type)
-            self.catchup(p.notify)
-            self.db.subscribe(self.table, p.notify)
-            def _done(_):
-                self.db.unsubscribe(self.table, p.notify)
-            request.notifyFinish().addErrback(_done)
-            return server.NOT_DONE_YET
-        # no event-stream, deliver the non-streaming equivalent
-        results = []
-        self.catchup(lambda notice: results.append(self.render_event(notice)))
-        request.setResponseCode(http.OK, "OK")
-        request.setHeader("content-type", "application/json; charset=utf-8")
-        return json.dumps(results).encode("utf-8")
+        if "text/event-stream" not in (request.getHeader("accept") or ""):
+            request.setResponseCode(http.BAD_REQUEST, "Must use EventSource")
+            return "Must use EventSource (Content-Type: text/event-stream)"
+        request.setHeader("content-type", "text/event-stream")
+        self.events_protocol = EventsProtocol(request)
+        request.notifyFinish().addErrback(self._shutdown)
+        # tell the frontend it's safe to subscribe
+        self.events_protocol.sendEvent(json.dumps({"type": "ready"}))
+        return server.NOT_DONE_YET
 
-def some_keys(value, keys=None):
-    if value is None:
-        return None
-    if keys is None:
-        return value
-    return dict([(key, value[key]) for key in keys])
+    def _shutdown(self, _):
+        for (table,notifier) in self.db_subscriptions.values():
+            self.db.unsubscribe(table, notifier)
+        self.dispatcher.channel_closed(self.esid)
 
-class MessageView(BaseView):
-    table = "inbound_messages"
-    event_type = "messages"
+    def subscribe(self, topic, catchup):
+        db_topics = {"addressbook": ("addressbook",
+                                     self.deliver_addressbook_event),
+                     "messages": ("inbound_messages",
+                                  self.deliver_message_event),
+                     }
+        if topic in db_topics:
+            table, notifier = db_topics[topic]
+            self.db.subscribe(table, notifier)
+            self.db_subscriptions[topic] = (table, notifier)
+            if catchup:
+                c = self.db.execute("SELECT * FROM `%s`" % table)
+                for row in c.fetchall():
+                    notifier(Notice(table, "insert", row["id"], row,
+                                    {"catchup": True}))
+        else:
+            raise ValueError("unknown subscription topic %s" % topic)
 
-    def render_event(self, notice):
+    def unsubscribe(self, topic):
+        if topic in self.db_subscriptions:
+            (table, notifier) = self.db_subscriptions[topic]
+            self.db.unsubscribe(table, notifier)
+            del self.db_subscriptions[topic]
+
+    def some_keys(self, value, keys=None):
+        if value is None:
+            return None
+        if keys is None:
+            return value
+        return dict([(key, value[key]) for key in keys])
+
+    def deliver_addressbook_event(self, notice):
+        new_value = self.some_keys(notice.new_value,
+                                   ["id", "petname", "acked",
+                                    "invitation_code"])
+        self.deliver_event(notice, new_value, "addressbook")
+
+    def deliver_message_event(self, notice):
         new_value = notice.new_value
         if new_value:
             c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
                                 (new_value["cid"],))
             new_value["petname"] = c.fetchone()["petname"]
-        return json.dumps({ "action": notice.action,
+        self.deliver_event(notice, new_value, "messages")
+
+    def deliver_event(self, notice, new_value, event_type):
+        data = json.dumps({ "type": event_type,
+                            "action": notice.action,
                             "id": notice.id,
                             "new_value": new_value,
                             "tags": notice.tags,
                             })
+        self.events_protocol.sendEvent(data)
 
-class AddressBookView(BaseView):
-    table = "addressbook"
-    event_type = "addressbook"
-
-    def render_event(self, notice):
-        new_value = some_keys(notice.new_value, ["id", "petname", "acked",
-                                                 "invitation_code"])
-        return json.dumps({ "action": notice.action,
-                            "id": notice.id,
-                            "new_value": new_value,
-                            "tags": notice.tags,
-                            })
-
-class ViewDispatcher(resource.Resource):
+class EventChannelDispatcher(resource.Resource):
     def __init__(self, db, agent):
         resource.Resource.__init__(self)
         self.db = db
         self.agent = agent
+        self.event_channels = {}
+        self.unclaimed_event_channels = set()
+        # We keep unclaimed EventChannels alive until a timeout. We keep
+        # claimed EventChannels alive until they tell us they're done.
 
-    def getChild(self, path, request):
-        if path == "messages":
-            return MessageView(self.db, self.agent)
-        if path == "addressbook":
-            return AddressBookView(self.db, self.agent)
-        request.setResponseCode(http.NOT_FOUND, "Unknown Event Type")
-        return "Unknown Event Type"
+    def add_event_channel(self):
+        esid = make_nonce()
+        self.event_channels[esid] = EventChannel(self.db, self.agent,
+                                                 self, esid)
+        self.unclaimed_event_channels.add(esid)
+        # TODO: timeout
+        return esid
+
+    def channel_closed(self, esid):
+        # called by the EventChannel when it hears request.notifyFinish,
+        # which means the client has disconnected
+        self.event_channels.pop(esid)
+        self.unclaimed_event_channels.discard(esid) # just in case
+
+    def subscribe(self, esid, topic, catchup):
+        self.event_channels[esid].subscribe(topic, catchup)
+
+    def unsubscribe(self, esid, topic):
+        self.event_channels[esid].unsubscribe(topic)
+
+    def getChild(self, esid, request):
+        try:
+            # esid tokens are single-use
+            self.unclaimed_event_channels.remove(esid) # can raise KeyError
+            return self.event_channels[esid]
+        except KeyError:
+            request.setResponseCode(http.UNAUTHORIZED, "bad esid")
+            return "Invalid esid"
+
 
 handlers = {}
 
 class BaseHandler(resource.Resource):
-    def __init__(self, db, agent, payload):
+    def __init__(self, db, agent, event_dispatcher, payload):
         resource.Resource.__init__(self)
         self.db = db
         self.agent = agent
+        self.event_dispatcher = event_dispatcher
         self.payload = payload
+
     def render_POST(self, request):
         err = None
         try:
@@ -226,21 +259,41 @@ class FetchMessages(BaseHandler):
                 "messages": self.agent.command_fetch_all_messages()}
 handlers["fetch-messages"] = FetchMessages
 
+class EventChannelCreate(BaseHandler):
+    def handle(self, payload):
+        esid = self.event_dispatcher.add_event_channel()
+        return {"ok": "ok", "esid": esid}
+handlers["eventchannel-create"] = EventChannelCreate
+
+class EventChannelSubscribe(BaseHandler):
+    def handle(self, payload):
+        self.event_dispatcher.subscribe(str(payload["esid"]),
+                                        str(payload["topic"]),
+                                        payload.get("catchup", False))
+        return {"ok": "ok"}
+handlers["eventchannel-subscribe"] = EventChannelSubscribe
+
+class EventChannelUnsubscribe(BaseHandler):
+    def handle(self, payload):
+        self.event_dispatcher.unsubscribe(str(payload["esid"]),
+                                          str(payload["topic"]))
+        return {"ok": "ok"}
+handlers["eventchannel-unsubscribe"] = EventChannelUnsubscribe
+
+
 class API(resource.Resource):
     def __init__(self, access_token, db, agent):
         resource.Resource.__init__(self)
         self.access_token = access_token
         self.db = db
         self.agent = agent
+        self.event_dispatcher = EventChannelDispatcher(db, agent)
 
     def getChild(self, path, request):
-        # everything requires a token, check it here
-        if path == "views":
-            # Server-Sent Events use a GET, token must live in queryargs
-            if not equal(request.args["token"][0], self.access_token):
-                request.setResponseCode(http.UNAUTHORIZED, "bad token")
-                return "Invalid token"
-            return ViewDispatcher(self.db, self.agent)
+        if path == "events":
+            # Server-Sent Events use a GET with a use-once URL, not a token
+            return self.event_dispatcher
+        # everything else requires a token, check it here
         payload = json.loads(request.content.read())
         if not equal(payload["token"], self.access_token):
             request.setResponseCode(http.UNAUTHORIZED, "bad token")
@@ -249,7 +302,7 @@ class API(resource.Resource):
         if not rclass:
             request.setResponseCode(http.NOT_FOUND, "unknown method")
             return "Unknown method"
-        r = rclass(self.db, self.agent, payload)
+        r = rclass(self.db, self.agent, self.event_dispatcher, payload)
         return r
 
 class ControlOpener(resource.Resource):
@@ -334,7 +387,7 @@ class Channel(resource.Resource):
             return "Destroyed\n"
         channel.append(message)
         for p in self.subscribers[self.channelid]:
-            p.notify(message)
+            p.sendEvent(message)
         return "OK\n"
 
     def render_GET(self, request):
@@ -342,10 +395,10 @@ class Channel(resource.Resource):
             and self.enable_eventsource):
             # EventSource protocol
             request.setHeader("content-type", "text/event-stream")
-            p = EventsProtocol(request, lambda m: m)
+            p = EventsProtocol(request)
             p.sendComment("beginning Relay event stream")
             for m in self.channels[self.channelid]:
-                p.notify(m)
+                p.sendEvent(m)
             self.subscribers[self.channelid].add(p)
             def _done(_):
                 self.subscribers[self.channelid].remove(p)

@@ -295,7 +295,7 @@ class RetrievalListResource(resource.Resource):
                 # that will reset the tokens anyways)
                 self.subscribers[tid][0].stop()
             request.setHeader("content-type", "text/event-stream")
-            p = EventsProtocol(request, lambda m: m)
+            p = EventsProtocol(request)
             p.sendComment("beginning Message List event stream")
             for e in entries:
                 p.sendEvent(e)
