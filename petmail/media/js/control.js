@@ -56,16 +56,24 @@ function update_addressbook(data) {
   }
   entries.sort(sorter);
 
+  function petname_of(e) {
+    if (!e.acked) {
+      return e.petname + " (pending)";
+    } else {
+      return e.petname;
+    }
+  }
+
   var s = d3.select("#address-book").selectAll("div.entry")
         .data(entries, function(e) { return e.id; })
-        .text(function(e) {return e.petname;})
+        .text(petname_of)
         .attr("class", function(e) { return "entry contact cid-"+e.id; })
         .on("click", show_contact_details)
         .on("dblclick", open_contact_room)
   ;
 
   s.enter().insert("div")
-    .text(function(e) {return e.petname;})
+    .text(petname_of)
     .attr("class", function(e) { return "entry contact cid-"+e.id; })
     .on("click", show_contact_details)
     .on("dblclick", open_contact_room)
