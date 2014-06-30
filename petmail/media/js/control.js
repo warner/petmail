@@ -253,6 +253,7 @@ function main() {
   $("#invite").hide();
   $("#add-contact").click(function(e) {
     $("#invite").toggle("clip");
+    $("#invite-code").focus();
   });
   $("#invite-code").on("keyup", function(e) {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
