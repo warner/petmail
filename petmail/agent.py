@@ -4,7 +4,7 @@ from nacl.public import PrivateKey
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
-from .errors import CommandError
+from .errors import CommandError, ContactNotReadyError
 from .mailbox import channel, retrieval
 from .util import to_ascii
 
@@ -166,10 +166,17 @@ class Agent(service.MultiService):
         return self.command_invite(petname, code, accept_mailbox=True)
 
     def command_send_basic_message(self, cid, message):
-        self.send_message(cid, {"basic": message}) # ignore Deferred
+        try:
+            self.send_message(cid, {"basic": message}) # ignore Deferred
+        except ContactNotReadyError, e:
+            raise CommandError("cid %d is not ready for messages" % cid)
         return "maybe sent"
 
     def send_message(self, cid, payload):
+        row = self.db.execute("SELECT acked, their_channel_record_json"
+                              " FROM addressbook WHERE id=?", (cid,)).fetchone()
+        if not row["acked"] or not row["their_channel_record_json"]:
+            raise ContactNotReadyError("cid %d is not ready for messages" % cid)
         c = channel.OutboundChannel(self.db, cid)
         return c.send(payload)
 

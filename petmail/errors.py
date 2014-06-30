@@ -20,3 +20,5 @@ class BadSignatureError(Exception):
 class UnknownChannelError(Exception):
     """Message not decryptable by any of our channels."""
 
+class ContactNotReadyError(Exception):
+    pass
