@@ -228,7 +228,8 @@ def render_addressbook(result):
         lines.append('"%s" (%s):' % (entry["petname"], entry["cid"]))
         lines.append(" %s" % {False: "not acknowledged",
                               True: "acknowledged"}[entry["acked"]])
-        lines.append(" their verfkey: %s" % entry["their_verfkey"])
+        if entry.has_key("their_verfkey"):
+            lines.append(" their verfkey: %s" % entry["their_verfkey"])
         lines.append(" (our verfkey): %s" % entry["my_verfkey"])
     return "\n".join(lines)+"\n"
 

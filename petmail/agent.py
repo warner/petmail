@@ -196,21 +196,28 @@ class Agent(service.MultiService):
 
     def command_list_addressbook(self):
         resp = []
+        # these entries might merely be incomplete invitations
         for row in self.db.execute("SELECT * FROM addressbook").fetchall():
             entry = {}
+            # these properties are set right away
             entry["cid"] = row["id"]
-            entry["their_verfkey"] = str(row["their_verfkey"])
-            entry["their_channel_record"] = json.loads(row["their_channel_record_json"])
             entry["petname"] = row["petname"]
-            # TODO: filter out the long-term stuff
-            sk = SigningKey(row["my_signkey"].decode("hex"))
-            entry["my_verfkey"] = sk.verify_key.encode(Hex)
             entry["acked"] = bool(row["acked"])
             entry["invitation_context"] = {
                 "when_invited": row["when_invited"],
-                "when_accepted": row["when_accepted"],
                 "code": row["invitation_code"],
                 }
+            sk = SigningKey(row["my_signkey"].decode("hex"))
+            entry["my_verfkey"] = sk.verify_key.encode(Hex)
+
+            # these appear when the invitation process is complete
+            if row["when_accepted"] is not None:
+                entry["invitation_context"]["when_accepted"] = row["when_accepted"]
+            if row["their_verfkey"] is not None:
+                entry["their_verfkey"] = str(row["their_verfkey"])
+            if row["their_channel_record_json"] is not None:
+                entry["their_channel_record"] = json.loads(row["their_channel_record_json"])
+            # TODO: filter out the long-term stuff
             resp.append(entry)
         return resp
 
