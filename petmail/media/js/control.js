@@ -12,6 +12,12 @@ var contact_details_cid; // the currently-displayed contact
 var new_invite_reqid; // the recently-submitted invitation request
 var editing_petname = false; // whether the "edit petname" box is open
 
+function invite_code_generate(e) {
+  var code = "random code here " + Math.round(100*Math.random()); // not random
+  $("#invite-code").val(code);
+}
+
+
 function handle_invite_go(e) {
   var code = $("#invite-code").val();
   var petname = "New Petname";
@@ -260,6 +266,7 @@ function main() {
       $("#invite-go").click();
   });
   $("#invite-go").on("click", handle_invite_go);
+  $("#invite-code-generate").on("click", invite_code_generate);
 
   $("div.contact-details-pane").hide();
   $("#contact-details-petname-editor").hide();
