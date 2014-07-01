@@ -15,13 +15,12 @@ inspiration from Tahoe-LAFS, Dropbox, Pond/Panda, and others.
 Status / Limitations
 --------------------
 
-Nothing works yet. I'm slowly building functionality to meet the aspirations
-of this document.
+**Nothing works yet**. I'm slowly building functionality to meet the
+aspirations of this document.
 
 What works so far:
 
-* building, if you can get libsodium installed first (perhaps into the
-  deps-venv that 'build_deps' creates).
+* building (if you can get libffi installed first): `setup.py safe_develop`
 * unit tests: `./bin/petmail test`
 * creating two test nodes in the source directory, enabling their "local
   mailboxes", having them invite each other, sending a basic text message
@@ -31,12 +30,13 @@ What works so far:
   * `./bin/petmail -d n1 send-basic 1 hello`
   * `./bin/petmail -d n2 fetch-messages`
 
-The web frontend (`petmail open`) is served, but is empty (actually it
-contains non-functional leftovers from an earlier project).
+The web frontend (`petmail open`) contains addressbook-manipulation UI, and a
+just-barely-functional message-sending UI.
 
-The invitation mechanism only works with two nodes that live underneath the
-same source tree: the real network protocol for invitations has not yet been
-implemented.
+The invitation mechanism is functional but not complete. It does no
+significant keystretching. The default configuration only works with two
+nodes that live underneath the same source tree: there is no real-network
+rendezvous server URL baked in yet.
 
 The message-sending mechanism can only send to localhost, so the
 communicating nodes must live on the same machine.
@@ -44,9 +44,11 @@ communicating nodes must live on the same machine.
 How To Run Petmail
 ------------------
 
-To run from source, you will need Python (2.x) and the development headers
-(python-dev). You will then build the dependencies, create and start a node,
-and open the web-based control panel like so:
+To run from source, you will need Python (2.x), the development headers
+(python-dev), and a C compiler. You will also either need a functional
+python-cffi installation, or a copy of libffi somewhere that "pip install
+cffi" can find it. Given these, you can then build the dependencies, create
+and start a node, and open the web-based control panel like so:
 
 * `python setup.py safe_develop`
 * `./bin/petmail create-node`
@@ -57,12 +59,12 @@ Users are encouraged to run a pre-packaged application instead. Once you
 start this application, use the menu item to open the control panel.
 
 The node's working files are stored in a "basedir", which defaults to
-`~/.petmail` in your home directory. Petmail does not modify or use any files
+`~/.petmail` in your home directory. Petmail does not modify any files
 outside of this base directory. If you'd like to create a node somewhere
 else, use `./bin/petmail create-node OTHERDIR`. The basedir includes a copy
 of the `petmail` executable that knows where its basedir is, so once you've
 created a node in OTHERDIR, you can run e.g. `OTHERDIR/petmail start` and
-`OTHERDIR/petmail open` to launch and access the node's control panel.
+`OTHERDIR/petmail open` to launch the node and access its control panel.
 
 (Note: the `safe_develop` command will install hash-verified dependency
 tarballs into a local virtualenv named "venv/", then uses the setuptools
@@ -90,7 +92,7 @@ own, or with other people).
 To receive messages, you will need a `Mailbox`, which is a server that runs
 all the time and has a publically-reachable IP address. You can run your own
 mailbox, if you have a server like that, or someone else may run a mailbox
-for you.
+for you. Invitations are used to offer and add Mailboxes too.
 
 To store files, either to transfer to others or to synchronize with yourself,
 you'll need a `Storage Server`. Again, this requires uptime and a public IP.
