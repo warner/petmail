@@ -1,19 +1,16 @@
 Petmail
 =======
 
- https://github.com/warner/petmail
+* https://github.com/warner/petmail
 
-
-.. image:: https://travis-ci.org/warner/petmail.png?branch=master
-   :target: https://travis-ci.org/warner/petmail
+[![Build Status](https://travis-ci.org/warner/petmail.png?branch=master)](https://travis-ci.org/warner/petmail)
 
 Petmail is a secure communication/file-sharing system. It is a reboot of my
 earlier "Petmail" spam-resistant mail system (http://petmail.lothar.com/),
 continuing the aims of that project but not sharing any code. It also draws
 inspiration from Tahoe-LAFS, Dropbox, Pond/Panda, and others.
 
-Status / Limitations
---------------------
+## Status / Limitations
 
 **Nothing works yet**. I'm slowly building functionality to meet the
 aspirations of this document.
@@ -41,8 +38,7 @@ rendezvous server URL baked in yet.
 The message-sending mechanism can only send to localhost, so the
 communicating nodes must live on the same machine.
 
-How To Run Petmail
-------------------
+## How To Run Petmail
 
 To run from source, you will need Python (2.x), the development headers
 (python-dev), and a C compiler. You will also either need a functional
@@ -50,10 +46,12 @@ python-cffi installation, or a copy of libffi somewhere that "pip install
 cffi" can find it. Given these, you can then build the dependencies, create
 and start a node, and open the web-based control panel like so:
 
-* `python setup.py safe_develop`
-* `./bin/petmail create-node`
-* `./bin/petmail start`
-* `./bin/petmail open`
+```
+python setup.py safe_develop
+./bin/petmail create-node
+./bin/petmail start
+./bin/petmail open
+```
 
 Users are encouraged to run a pre-packaged application instead. Once you
 start this application, use the menu item to open the control panel.
@@ -72,11 +70,10 @@ tarballs into a local virtualenv named "venv/", then uses the setuptools
 `./bin/petmail` script looks in "venv/" for its source code.)
 
 
-Theory Of Operation
--------------------
+## Theory Of Operation
 
-[this section contains forward-looking statements and is likely to contain
-intentions rather than accomplishments]
+**[this section contains forward-looking statements and is likely to contain
+intentions rather than accomplishments]**
 
 Each Petmail node runs as a background application on your local computer.
 All interaction takes place through a browser-based control panel, which you
@@ -100,14 +97,12 @@ Petmail nodes can be configured to use S3 and other commodity storage systems
 for this role, however some systems are only suitable for share-with-self
 use, not share-with-others.
 
-For More Information
---------------------
+## For More Information
 
 The `docs/` directory contains more information, including additional build
 instructions and protocol specifications.
 
-Thanks
-------
+## Thanks
 
 Thanks for using Petmail!
 
