@@ -116,15 +116,34 @@ class SafeDevelop(Command):
             print "error while creating virtualenv in ./venv"
             sys.exit(1)
         print "venv created"
-        # or import support/peep.py, run peep.commands["install"](args)
+        # TODO: or import support/peep.py, run peep.commands["install"](args)
+
+        # peep uses "pip install --no-deps FILENAME" on hash-verified files,
+        # but --no-deps is not honored when packages use setup_requires= . To
+        # protect these downloads, we need to preemptively install them. peep
+        # doesn't maintain order of requirements.txt lines, so we must run
+        # peep multiple times. "pynacl" has setup_requires=[cffi] and
+        # install_requires=[cffi,six], and cffi has an
+        # install_requires=[pycparser], and six and pycparser have no
+        # dependencies. So requirements1.txt contains [cffi], and
+        # requirements2.txt has everything else.
         cmd = ["venv/bin/python", "support/peep.py",
-               "install", "-r", "requirements.txt"]
+               "install", "-r", "requirements1.txt"]
         if not run_command(cmd):
-            print "error while installing dependencies"
+            print "error while installing dependencies (1)"
             sys.exit(1)
+
+        # TODO: this isn't complete: I see a "Installed pycparser .egg" while
+        # this is downloading pynacl.
+        cmd = ["venv/bin/python", "support/peep.py",
+               "install", "-r", "requirements2.txt"]
+        if not run_command(cmd):
+            print "error while installing dependencies (2)"
+            sys.exit(1)
+
         cmd = ["venv/bin/python", "setup.py", "develop"]
         if not run_command(cmd):
-            print "error while installing dependencies"
+            print "error while installing dependencies (3)"
             sys.exit(1)
         print "dependencies and petmail installed into venv"
         print "Now use './bin/petmail' to create and launch a node."
