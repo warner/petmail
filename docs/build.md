@@ -7,7 +7,7 @@ Twisted and a few crypto libraries:
 * pynacl-0.2.3
 * python-scrypt-??
 
-## Developers: Running From A Source
+## Developers: Running From Source
 
 If you want to hack on Petmail's source code, you'll need to run from a
 source checkout. The following sequence should get you running:
