@@ -34,6 +34,7 @@ class CLIinThreadMixin:
     def mustSucceed(self, (out, err, rc)):
         if rc != 0:
             self.fail("rc=%s out='%s' err='%s'" % (rc, out, err))
+        self.stderr = err
         return out
 
     def cliMustSucceed(self, *args, **kwargs):
@@ -96,6 +97,39 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         def _check(out):
             self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
             self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
+        d.addCallback(_check)
+        return d
+
+    def test_create_unreachable_node(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node", "--hostname", "not-localhost",
+                                basedir)
+        def _check(out):
+            self.failUnless(out.startswith("node created in %s, URL is http://not-localhost:" % basedir), out)
+            self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
+            self.failUnlessEqual(self.stderr.strip(),
+                                 "WARNING: if you set --hostname, you probably want to set --listen too")
+        d.addCallback(_check)
+        return d
+
+    def test_create_node_bad_listener(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cli("create-node", "--listen", "666", basedir)
+        def _check((out, err, rc)):
+            self.failUnlessEqual(rc, 1)
+            self.failUnlessEqual(err.strip(), "--listen currently must start with tcp:")
+            self.failIf(os.path.exists(os.path.join(basedir, "petmail.db")))
+        d.addCallback(_check)
+        return d
+
+    def test_create_advertise_localhost(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node", "--local-mailbox", basedir)
+        def _check(out):
+            self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
+            self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
+            self.failUnlessEqual(self.stderr.strip(),
+                                 "WARNING: --local-mailbox and --hostname=localhost is probably wrong")
         d.addCallback(_check)
         return d
 

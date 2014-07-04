@@ -3,6 +3,23 @@ from nacl.public import PrivateKey
 from .. import rrid, database, util
 
 def create_node(so, stdout, stderr, services):
+    if so["hostname"] != "localhost" and not so["listen"]:
+        # setting --hostname means we'll advertise that hostname, telling
+        # other nodes (via invitations) that they can contact us at the
+        # hostname. But unless you also set --listen, we'll only be listening
+        # on tcp:0:interface=127.0.0.1, which won't accept connections from
+        # the outside world, so that hostname probably won't be reachable.
+        print >>stderr, "WARNING: if you set --hostname, you probably want to set --listen too"
+    if so["listen"] and not so["listen"].startswith("tcp:"):
+        print >>stderr, "--listen currently must start with tcp:"
+        return 1
+    if ("agent" in services
+        and so["local-mailbox"]
+        and so["hostname"] == "localhost"):
+        # telling other nodes about our mailbox port on "localhost" won't be
+        # useful unless those nodes are on our same host. This is useful in
+        # local testing, but not in real deployments, so warn about it
+        print >>stderr, "WARNING: --local-mailbox and --hostname=localhost is probably wrong"
     basedir = so["basedir"]
     if os.path.exists(basedir):
         print >>stderr, "basedir '%s' already exists, refusing to touch it" % basedir
