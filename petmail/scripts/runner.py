@@ -48,7 +48,7 @@ class StartArguments(BasedirArgument):
 
 class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     optParameters = [
-        ("listen", "l", None, "TCP port for the node's HTTP interface."),
+        ("listen", "l", None, "TCP port for the node's HTTP interface (defaults to tcp:0:interface=127.0.0.1)"),
         ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
         ("port", "p", None, "port number to advertise in URLs"),
         ("relay-url", "r", "http://relay.petmail.org:8333/",
