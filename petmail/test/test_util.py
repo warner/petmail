@@ -17,6 +17,46 @@ class Utils(unittest.TestCase):
                               util.split_into, "ABBCCC", [2,1]
                               )
 
+    def test_ascii(self):
+        b2a = util.to_ascii
+        a2b = util.from_ascii
+        for prefix in ("", "prefix-"):
+            for length in range(0, 100):
+                b1 = "a"*length
+                for base in ("base64", "base32", "base16", "hex"):
+                    a = b2a(b1, prefix, base)
+                    b2 = a2b(a, prefix, base)
+                    self.failUnlessEqual(b1, b2)
+        self.failUnlessRaises(NotImplementedError, b2a, "a", encoding="none")
+        self.failUnlessRaises(NotImplementedError, a2b, "a", encoding="none")
+
+    def test_nonce(self):
+        n1 = util.make_nonce()
+        self.failUnlessEqual(len(n1), 52)
+        n2 = util.make_nonce()
+        self.failIfEqual(n1, n2) # not exhaustive
+
+    def test_equal(self):
+        self.failUnless(util.equal("a", "a"))
+        self.failIf(util.equal("a", "b"))
+
+    def test_x_or_none(self):
+        self.failUnlessEqual(util.hex_or_none(None), None)
+        self.failUnlessEqual(util.hex_or_none("A"), "41")
+        self.failUnlessEqual(util.unhex_or_none(None), None)
+        self.failUnlessEqual(util.unhex_or_none("42"), "B")
+
+    def test_remove_prefix(self):
+        self.failUnlessEqual(util.remove_prefix("v1:stuff", "v1:"), "stuff")
+        x = self.failUnlessRaises(util.BadPrefixError,
+                                  util.remove_prefix, "v2:stuff", "v1:")
+        self.failUnlessEqual(str(x), "did not see expected 'v1:' prefix")
+        x = self.failUnlessRaises(ValueError,
+                                  util.remove_prefix, "v2:stuff", "v1:",
+                                  ValueError)
+        self.failUnlessEqual(str(x), "did not see expected 'v1:' prefix")
+
+
 class Signatures(unittest.TestCase):
     def test_verify_with_prefix(self):
         sk = SigningKey.generate()
