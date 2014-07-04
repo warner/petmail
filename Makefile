@@ -79,15 +79,18 @@ test-pynacl:
 test:
 	./bin/petmail test $(TEST)
 
+# to use "coverage", it must be installed into the venv, since "coverage run"
+# needs to both import the coverage library and the petmail code.
 .PHONY: test-coverage coverage-html open-coverage
-test-coverage:
-	coverage run ./bin/petmail test $(TEST)
-coverage-html:
+venv/bin/coverage:
+	venv/bin/pip install coverage
+test-coverage: venv/bin/coverage
+	venv/bin/coverage run ./venv/bin/petmail test $(TEST)
+coverage-html: venv/bin/coverage
 	rm -rf .coverage-html
-	coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*,petmail/_version.py"
+	venv/bin/coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*,petmail/_version.py"
 open-coverage:
 	open .coverage-html/index.html
-# you may need to run "venv/bin/pip install coverage" to use this,
-# and you'll want to load misc/coverage.el in your emacs.
-.coverage.el: .coverage misc/coverage2el.py
-	python misc/coverage2el.py
+# you'll want to load misc/coverage.el in your emacs
+.coverage.el: .coverage misc/coverage2el.py venv/bin/coverage
+	venv/bin/python misc/coverage2el.py
