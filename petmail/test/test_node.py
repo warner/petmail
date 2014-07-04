@@ -26,7 +26,8 @@ class Basic(unittest.TestCase):
 class CLIinThreadMixin:
     def cli(self, *args, **kwargs):
         stdout, stderr = StringIO(), StringIO()
-        d = threads.deferToThread(runner.run, list(args), stdout, stderr)
+        d = threads.deferToThread(runner.run, list(args), stdout, stderr,
+                                  kwargs.get("petmail"))
         def _done(rc):
             return stdout.getvalue(), stderr.getvalue(), rc
         d.addCallback(_done)
@@ -100,6 +101,43 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         d.addCallback(_check)
         return d
 
+    def test_print_baseurl(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        not_basedir = basedir+"-NOT"
+        d = self.cliMustSucceed("create-node", basedir)
+        def _check(out):
+            self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
+        d.addCallback(_check)
+        d.addCallback(lambda _: self.cliMustSucceed("print-baseurl", basedir))
+        def _check_baseurl(out):
+            self.failUnless(out.startswith("http://localhost:"), out)
+        d.addCallback(_check_baseurl)
+        d.addCallback(lambda _: self.cli("print-baseurl", not_basedir))
+        def _check_not_baseurl((out, err, rc)):
+            self.failUnlessEqual(rc, 1)
+            self.failUnlessEqual(err.strip(), "'%s' doesn't look like a Petmail basedir, quitting" % not_basedir)
+        d.addCallback(_check_not_baseurl)
+        return d
+
+    def test_create_node_with_local_petmail(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node", basedir,
+                                petmail="path-to-real-petmail")
+        def _check(out):
+            self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
+            local_petmail = os.path.join(basedir, "petmail")
+            self.failUnless(os.path.exists(local_petmail))
+            with open(local_petmail, "r") as f:
+                contents = f.readlines()
+            self.failUnlessEqual(contents[0].strip(), "#!/bin/sh")
+            pieces = contents[1].split()
+            self.failUnlessEqual(pieces[0], os.path.abspath("path-to-real-petmail"))
+            self.failUnlessEqual(pieces[1], "-d")
+            self.failUnlessEqual(pieces[2], os.path.abspath(basedir))
+            self.failUnlessEqual(pieces[3], '"$@"')
+        d.addCallback(_check)
+        return d
+
     def test_create_unreachable_node(self):
         basedir = os.path.join(self.make_basedir(), "node1")
         d = self.cliMustSucceed("create-node", "--hostname", "not-localhost",
@@ -119,6 +157,16 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(rc, 1)
             self.failUnlessEqual(err.strip(), "--listen currently must start with tcp:")
             self.failIf(os.path.exists(os.path.join(basedir, "petmail.db")))
+        d.addCallback(_check)
+        return d
+
+    def test_create_node_existing_basedir(self):
+        basedir = os.path.join(self.make_basedir(), "node1")
+        d = self.cliMustSucceed("create-node", basedir)
+        d.addCallback(lambda _: self.cli("create-node", basedir))
+        def _check((out, err, rc)):
+            self.failUnlessEqual(rc, 1)
+            self.failUnlessEqual(err.strip(), "basedir '%s' already exists, refusing to touch it" % basedir)
         d.addCallback(_check)
         return d
 
