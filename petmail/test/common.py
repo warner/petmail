@@ -54,14 +54,14 @@ class NodeRunnerMixin:
     def tearDown(self):
         return self.sparent.stopService()
 
-    def createNode(self, basedir, type="agent", relayurl=None,
+    def createNode(self, basedir, type="agent", relayurl="LOCALDIR",
                    local_mailbox=True):
         so = runner.CreateNodeOptions()
         args = []
         if local_mailbox:
             args.append("--local-mailbox")
-        if relayurl:
-            args.extend(["--relay-url", relayurl])
+        assert relayurl
+        args.extend(["--relay-url", relayurl])
         args.append(basedir)
         so.parseOptions(args)
         out,err = StringIO(), StringIO()
@@ -109,14 +109,15 @@ def fake_transport():
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
     def make_nodes(self, transport="test-return", relay="localdir"):
         assert transport in ["test-return", "local", "none"]
-        relayurl = None
+        relayurl = "LOCALDIR"
         if relay == "http":
             basedirR = os.path.join(self.make_basedir(), "relay")
-            self.createNode(basedirR, "relay")
+            self.createNode(basedirR, type="relay")
             nR = self.startNode(basedirR)
             self.relay = nR
             row = nR.db.execute("SELECT baseurl FROM node").fetchone()
             relayurl = row["baseurl"]
+            assert relayurl
 
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         local_mailbox = True

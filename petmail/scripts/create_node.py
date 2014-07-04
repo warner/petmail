@@ -28,16 +28,16 @@ def create_node(so, stdout, stderr, services):
     if "relay" in services:
         db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
     if "agent" in services:
-        if so["relay-url"]:
+        if so["relay-url"] == "LOCALDIR": # only from tests
+            db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
+                       (json.dumps({"type": "localdir"}),))
+        else:
             relay_url = so["relay-url"]
             if not relay_url.endswith("/"):
                 relay_url += "/"
             desc = json.dumps({"type": "http", "url": relay_url})
             db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
                        (desc,))
-        else:
-            db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
-                       (json.dumps({"type": "localdir"}),))
         db.execute("INSERT INTO services (name) VALUES (?)", ("agent",))
         db.execute("INSERT INTO `agent_profile`"
                    " (`name`, `icon_data`, `advertise_local_mailbox`)"
