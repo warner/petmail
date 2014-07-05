@@ -97,7 +97,10 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     optParameters = [
         ("petname", "n", None, "Petname for the person being invited"),
         ]
-    def parseArgs(self, code):
+    optFlags = [
+        ("generate", "g", "Generate a code, instead of pasting one in"),
+        ]
+    def parseArgs(self, code=None):
         self["code"] = code
 
 class OfferMailboxOptions(BasedirParameterMixin, usage.Options):
@@ -223,6 +226,9 @@ def render_text(result):
     return result["ok"]+"\n"
 def render_all(result):
     return pprint.pformat(result)
+def render_invite(result):
+    return (result["ok"] + "\n" +
+            "Invitation code: %s" % result["code"] + "\n")
 def render_addressbook(result):
     lines = []
     for entry in sorted(result["addressbook"], key=lambda e: e["petname"]):
@@ -272,7 +278,8 @@ DISPATCH = {"create-node": create_node,
 
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
-            "invite": WebCommand("invite", ["petname", "code"]),
+            "invite": WebCommand("invite", ["petname", "generate", "code"],
+                                 render=render_invite),
             "offer-mailbox": WebCommand("offer-mailbox", ["petname"]),
             "accept-mailbox": WebCommand("accept-mailbox", ["petname", "code"]),
             "addressbook": WebCommand("list-addressbook", [],

@@ -217,9 +217,12 @@ handlers["sample"] = Sample
 class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
-        code = str(payload["code"])
+        code = payload["code"]
+        if code:
+            code = str(code) # might be None
         reqid = payload.get("reqid")
-        return self.agent.command_invite(petname, code, reqid)
+        generate = payload.get("generate")
+        return self.agent.command_invite(petname, code, reqid, generate)
 handlers["invite"] = Invite
 
 class OfferMailbox(BaseHandler):

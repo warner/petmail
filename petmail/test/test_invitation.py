@@ -53,9 +53,15 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         nA_notices = []
         n1.db.subscribe("addressbook", nA_notices.append)
 
-        n1.agent.command_invite(u"petname-from-1", code,
-                                override_transports=tports1)
+        res = n1.agent.command_invite(u"petname-from-1", code,
+                                      override_transports=tports1)
         inviteID = rclient1.subscriptions.keys()[0]
+        self.failUnlessEqual(res["contact-id"], 1)
+        self.failUnlessEqual(res["petname"], u"petname-from-1")
+        self.failUnlessEqual(res["invite-id"], 1)
+        self.failUnlessEqual(res["code"], code)
+        self.failUnlessEqual(res["ok"], u"invitation for %s started: invite-id: %d" % (res["petname"], res["invite-id"]))
+
         rdir = os.path.join(rclient1.basedir, inviteID)
         self.failUnless(os.path.exists(rdir))
         # messages: node1-M1
@@ -206,6 +212,29 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
                                 override_transports=tports)
         self.failUnlessRaises(CommandError,
                               n1.agent.command_invite, u"new-petname", code)
+
+    def test_generate(self):
+        basedir1 = os.path.join(self.make_basedir(), "node1")
+        self.createNode(basedir1)
+        n1 = self.startNode(basedir1)
+        self.disable_polling(n1)
+        tports = {"local": fake_transport()}
+        res = n1.agent.command_invite(u"petname-from-1",
+                                      code=None, generate=True,
+                                      override_transports=tports)
+        self.failUnless("code" in res)
+        self.failUnless(len(res["code"]) > 10)
+
+    def test_bad_args(self):
+        basedir1 = os.path.join(self.make_basedir(), "node1")
+        self.createNode(basedir1)
+        n1 = self.startNode(basedir1)
+        self.disable_polling(n1)
+        e = self.failUnlessRaises(CommandError,
+                                  n1.agent.command_invite,
+                                  u"new-petname", "code",
+                                  generate=True)
+        self.failUnlessEqual(e.msg, "please use --generate or --code, not both")
 
 
 class Two(TwoNodeMixin, unittest.TestCase):

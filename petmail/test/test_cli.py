@@ -38,11 +38,22 @@ class CLI(unittest.TestCase):
         self.failUnlessEqual(out, "sample ok object\n")
 
     def test_invite(self):
-        path,body,rc,out,err = self.call(OK, "invite", "code")
+        response = {"ok": "ok", "code": "1234"}
+        path,body,rc,out,err = self.call(response, "invite", "1234")
         self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "invite")
-        self.failUnlessEqual(body, {"code": "code", "petname": None})
-        self.failUnlessEqual(out, "ok\n")
+        self.failUnlessEqual(body, {"code": "1234", "petname": None,
+                                    "generate": False})
+        self.failUnlessEqual(out, "ok\nInvitation code: 1234\n")
+
+    def test_invite_generate(self):
+        response = {"ok": "ok", "code": "1234"}
+        path,body,rc,out,err = self.call(response, "invite", "--generate")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "invite")
+        self.failUnlessEqual(body, {"code": None, "petname": None,
+                                    "generate": True})
+        self.failUnlessEqual(out, "ok\nInvitation code: 1234\n")
 
     def test_addressbook(self):
         r = {"ok": "ok",
