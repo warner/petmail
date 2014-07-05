@@ -18,8 +18,13 @@ function invite_code_generate(e) {
           function(err, r) {
             if (err)
               console.log("generate-invitation-code", err);
-            else
+            else {
               $("#invite-code").val(r["code"]);
+              $("#invite-qrcode")
+                .empty()
+                .qrcode({text: "petmail:"+r["code"]})
+                .show();
+            }
           });
 }
 
@@ -42,8 +47,8 @@ function handle_invite_go(e) {
                                  function(err, r) {
                                    console.log("invited", r.ok);
                                  });
-  $("#invite-petname").val("");
   $("#invite-code").val("");
+  $("#invite-qrcode").hide();
   $("#invite").hide("clip");
 }
 
@@ -266,6 +271,8 @@ function main() {
   });
 
   $("#invite").hide();
+  $("#invite-qrcode").hide();
+  $("#invite-code").val("");
   $("#add-contact").click(function(e) {
     $("#invite").toggle("clip");
     $("#invite-code").focus();

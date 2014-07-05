@@ -11,6 +11,10 @@ div.add-contact {
     margin: 2px;
 }
 
+div#invite-qrcode {
+    margin: 10px;
+}
+
 div#invite > div {
     margin-bottom: 4px;
 }
