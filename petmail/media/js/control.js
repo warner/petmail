@@ -108,6 +108,8 @@ function update_addressbook(data) {
 
 function show_contact_details(e) {
   console.log("details", e.id, e);
+  var was_open = (contact_details_cid === e.id);
+  var was_editing_petname = editing_petname;
   contact_details_cid = e.id;
   edit_petname_cancel();
   $("div.contact-details-pane").show();
@@ -124,6 +126,8 @@ function show_contact_details(e) {
     $("#contact-details-state").show();
   }
   $("#contact-details-code code").text(e.invitation_code);
+  if (was_open && was_editing_petname)
+    edit_petname_start();
 }
 
 function edit_petname_start() {
@@ -168,8 +172,7 @@ function edit_petname_done() {
 }
 
 function handle_toggle_edit_petname(e) {
-  var editing = ($("#contact-details-petname-editor").css("display") == "none");
-  if (editing) {
+  if (!editing_petname) {
     edit_petname_start();
   } else {
     edit_petname_done();
@@ -223,9 +226,9 @@ function handle_send_message_go(e) {
 }
 
 function handle_backend_event(e) {
-  console.log("backend_event", e);
  // everything we send is e.type="message" and e.data=JSON
   var data = JSON.parse(e.data);
+  console.log("backend_event", data);
   if (data.type == "ready") {
     // EventSource is connected, so start listening
     console.log("subscribing for addressbook+messages");
