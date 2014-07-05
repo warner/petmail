@@ -71,6 +71,11 @@ dump-n2:
 	sqlite3 n2/petmail.db .dump
 dump-ren:
 	$(PYTHON) petmail/dump-messages.py .rendezvous
+clear-n1:
+	sqlite3 n1/petmail.db "DELETE FROM invitations; DELETE FROM addressbook; DELETE FROM inbound_messages;"
+clear-n2:
+	sqlite3 n2/petmail.db "DELETE FROM invitations; DELETE FROM addressbook; DELETE FROM inbound_messages;"
+
 pyflakes:
 	pyflakes petmail
 
