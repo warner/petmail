@@ -11,6 +11,10 @@ div.add-contact {
     margin: 2px;
 }
 
+div#invite > div {
+    margin-bottom: 4px;
+}
+
 input#invite-code {
     width: 16em;
 }
