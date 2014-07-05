@@ -174,7 +174,7 @@ class Agent(service.MultiService):
     def command_send_basic_message(self, cid, message):
         try:
             self.send_message(cid, {"basic": message}) # ignore Deferred
-        except ContactNotReadyError, e:
+        except ContactNotReadyError:
             raise CommandError("cid %d is not ready for messages" % cid)
         return "maybe sent"
 
