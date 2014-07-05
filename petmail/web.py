@@ -5,7 +5,7 @@ from twisted.web import server, static, resource, http
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from .database import Notice
-from .util import equal, make_nonce
+from .util import equal, make_nonce, to_ascii
 from .errors import CommandError
 from .invitation import VALID_INVITEID, VALID_MESSAGE
 
@@ -224,6 +224,11 @@ class Invite(BaseHandler):
         generate = payload.get("generate")
         return self.agent.command_invite(petname, code, reqid, generate)
 handlers["invite"] = Invite
+
+class GenerateInvitationCode(BaseHandler):
+    def handle(self, payload):
+        return {"ok": "ok", "code": to_ascii(os.urandom(16), "", "base32")}
+handlers["generate-invitation-code"] = GenerateInvitationCode
 
 class OfferMailbox(BaseHandler):
     def handle(self, payload):
