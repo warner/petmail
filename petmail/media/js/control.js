@@ -13,8 +13,14 @@ var new_invite_reqid; // the recently-submitted invitation request
 var editing_petname = false; // whether the "edit petname" box is open
 
 function invite_code_generate(e) {
-  var code = "random code here " + Math.round(100*Math.random()); // not random
-  $("#invite-code").val(code);
+  d3.json("/api/v1/generate-invitation-code")
+    .post(JSON.stringify({"token": token}),
+          function(err, r) {
+            if (err)
+              console.log("generate-invitation-code", err);
+            else
+              $("#invite-code").val(r["code"]);
+          });
 }
 
 

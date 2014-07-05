@@ -11,6 +11,10 @@ div.add-contact {
     margin: 2px;
 }
 
+input#invite-code {
+    width: 16em;
+}
+
 div.contact {
     background-color: #cfc;
     margin: 2px 10px 2px 10px;
