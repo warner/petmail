@@ -4,7 +4,8 @@ console.log("control.js loaded");
 var token; // actually interpolated into the enclosing control.html
 var esid;
 var $, d3; // populated in control.html
-var messages = {}; // indexed by cid
+var inbound_messages = {}; // indexed by cid
+var outbound_messages = {}; // indexed by cid
 var addressbook = {}; // indexed by cid
 var invitations = {}; // indexed by invite-id
 var current_cid = null;
@@ -197,28 +198,67 @@ function open_contact_room(e) {
   $("#tab-rooms").click();
 }
 
-function update_messages(data) {
+function update_inbound_messages(data) {
   if (data.action == "insert" || data.action == "update")
-    messages[data.id] = data.new_value;
+    inbound_messages[data.id] = data.new_value;
   else if (data.action == "delete")
-    delete messages[data.id];
+    delete inbound_messages[data.id];
 
-  // "value" is a row of the "messages" table
+  // "value" is a row of the "inbound_messages" table
   var value = data.new_value; // .id, .cid, .payload_json, .petname
   var payload = JSON.parse(value.payload_json); // .basic
-  console.log("basic message", payload.basic);
+  console.log("basic inbound message", payload.basic);
 
+  update_messages();
+}
+
+function update_outbound_messages(data) {
+  if (data.action == "insert" || data.action == "update")
+    outbound_messages[data.id] = data.new_value;
+  else if (data.action == "delete")
+    delete outbound_messages[data.id];
+
+  // "value" is a row of the "outbound_messages" table
+  var value = data.new_value; // .id, .cid, .payload_json, .petname
+  var payload = JSON.parse(value.payload_json); // .basic
+  console.log("basic outbound message", payload.basic);
+
+  update_messages();
+}
+
+function update_messages() {
   var entries = [];
-  for (var id in messages)
-    entries.push(messages[id]);
+  for (var id in inbound_messages) {
+    var m = inbound_messages[id];
+    entries.push({type: "inbound", when: m.when_received, msg: m});
+  }
+  for (var id in outbound_messages) {
+    var m = outbound_messages[id];
+    entries.push({type: "outbound", when: m.when_sent, msg: m});
+  }
+
+  function sorter(a,b) {
+    if (a.when > b.when)
+      return 1;
+    if (a.when < b.when)
+      return -1;
+    return 0;
+  }
+  entries.sort(sorter);
+
   function render_message(e) {
-    var payload = JSON.parse(e.payload_json); // .basic
-    var d = new Date(e.when_received*1000);
+    var payload = JSON.parse(e.msg.payload_json); // .basic
+    var d = new Date(e.when*1000);
     var ds = d.toLocaleTimeString() + ", " + d.toLocaleDateString();
-    return e.petname+"["+e.cid+"] ("+ds+"): "+payload.basic;
+    var who;
+    if (e.type === "inbound")
+      who = "sent to "+e.msg.petname+"["+e.msg.cid+"]";
+    else
+      who = "received from "+e.msg.petname+"["+e.msg.cid+"]";
+    return payload.basic + "    -- "+ who +" ("+ds+")";
   }
   var s = d3.select("#messages").selectAll("li")
-        .data(entries, function(e) {return e.id;})
+        .data(entries)
         .text(render_message);
   s.enter().append("li")
     .text(render_message);
@@ -281,8 +321,10 @@ function handle_backend_event(e) {
     eventchannel_subscribe(token, esid, "mailboxes", true);
   } else if (data.type == "addressbook") {
     update_addressbook(data);
-  } else if (data.type == "messages") {
-    update_messages(data);
+  } else if (data.type == "inbound-messages") {
+    update_inbound_messages(data);
+  } else if (data.type == "outbound-messages") {
+    update_outbound_messages(data);
   } else if (data.type == "mailboxes") {
     update_mailboxes(data);
   } else if (data.type == "advertise_local_mailbox") {
