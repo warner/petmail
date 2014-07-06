@@ -22,7 +22,7 @@ function invite_code_generate(e) {
             if (err)
               console.log("generate-invitation-code", err);
             else {
-              $("#invite-code").val(r["code"]);
+              $("#invite-code").val(r["code"]).select();
               $("#invite-qrcode")
                 .empty()
                 .qrcode({text: "petmail:"+r["code"]})
