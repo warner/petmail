@@ -183,6 +183,12 @@ class Agent(service.MultiService):
                               " FROM addressbook WHERE id=?", (cid,)).fetchone()
         if not row["acked"] or not row["their_channel_record_json"]:
             raise ContactNotReadyError("cid %d is not ready for messages" % cid)
+        self.db.insert("INSERT INTO outbound_messages"
+                       " (cid, when_sent, payload_json)"
+                       " VALUES (?,?,?)",
+                       (cid, time.time(), json.dumps(payload)),
+                       "outbound_messages")
+        self.db.commit() # XXX ?. Or wait for c.send() to commit?
         c = channel.OutboundChannel(self.db, cid)
         return c.send(payload)
 

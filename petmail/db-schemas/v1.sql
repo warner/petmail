@@ -167,3 +167,11 @@ CREATE TABLE `inbound_messages`
  `when_received` INTEGER,
  `payload_json` VARCHAR
 );
+
+CREATE TABLE `outbound_messages`
+(
+ `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `cid` INTEGER, -- points to addressbook entry
+ `when_sent` INTEGER,
+ `payload_json` VARCHAR
+);
