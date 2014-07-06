@@ -76,6 +76,11 @@ clear-n1:
 clear-n2:
 	sqlite3 n2/petmail.db "DELETE FROM invitations; DELETE FROM addressbook; DELETE FROM inbound_messages;"
 
+run-mocks:
+	cd mocks && twistd web --port 8009 --path .
+	sleep 1
+	open http://localhost:8009/mailbox-server.html
+
 pyflakes:
 	pyflakes petmail
 

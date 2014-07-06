@@ -1,0 +1,29 @@
+
+div.payment-drop {
+    height: 200px;
+    width: 200px;
+    border: 3px solid green;
+    margin: 50px;
+}
+
+div.payment-drop > p {
+    margin: 50px;
+}
+
+div.invitation-code-display {
+    height: 100px;
+    width: 300px;
+    border: 3px solid blue;
+    margin: 50px;
+    padding: 50px;
+}
+
+div.invitation-code-display > p {
+    text-size: 200%;
+}
+
+.code-font {
+    font-size: 150%;
+    font-weight: bold;
+    font-family: "Courier New",Courier,monospace;
+}
