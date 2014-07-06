@@ -71,9 +71,9 @@ class Agent(service.MultiService):
 
     def payload_received(self, cid, seqnum, payload_json):
         self.db.insert("INSERT INTO inbound_messages"
-                        " (cid, seqnum, payload_json)"
-                        " VALUES (?,?,?)",
-                        (cid, seqnum, payload_json),
+                        " (cid, seqnum, when_received, payload_json)"
+                        " VALUES (?,?,?,?)",
+                        (cid, seqnum, time.time(), payload_json),
                        "inbound_messages")
         self.db.commit()
         #payload = json.loads(payload_json)

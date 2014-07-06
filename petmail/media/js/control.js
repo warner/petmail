@@ -213,7 +213,9 @@ function update_messages(data) {
     entries.push(messages[id]);
   function render_message(e) {
     var payload = JSON.parse(e.payload_json); // .basic
-    return e.petname+"["+e.cid+"]: "+payload.basic;
+    var d = new Date(e.when_received*1000);
+    var ds = d.toLocaleTimeString() + ", " + d.toLocaleDateString();
+    return e.petname+"["+e.cid+"] ("+ds+"): "+payload.basic;
   }
   var s = d3.select("#messages").selectAll("li")
         .data(entries, function(e) {return e.id;})

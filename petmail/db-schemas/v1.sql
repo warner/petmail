@@ -164,5 +164,6 @@ CREATE TABLE `inbound_messages`
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `cid` INTEGER, -- points to addressbook entry
  `seqnum` INTEGER, -- scoped to channel
+ `when_received` INTEGER,
  `payload_json` VARCHAR
 );
