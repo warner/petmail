@@ -89,7 +89,13 @@ class EventChannel(resource.Resource):
             self.db.subscribe(table, notifier)
             self.db_subscriptions[topic] = (table, notifier)
             if catchup:
+                c = self.db.execute("SELECT * FROM `%s`" % table)
+                for row in c.fetchall():
+                    notifier(Notice(table, "insert", row["id"], row,
+                                    {"catchup": True}))
                 if topic == "mailboxes":
+                    # send this after any DB row, so the frontend doesn't
+                    # show and then immediately hide the warning box
                     c = self.db.execute("SELECT * FROM agent_profile")
                     row = c.fetchone()
                     adv_local = bool(row["advertise_local_mailbox"])
@@ -97,10 +103,6 @@ class EventChannel(resource.Resource):
                     if adv_local:
                         local_url = self.agent.mailbox_server.baseurl # XXX
                     self.deliver_local_mailbox_event(adv_local, local_url)
-                c = self.db.execute("SELECT * FROM `%s`" % table)
-                for row in c.fetchall():
-                    notifier(Notice(table, "insert", row["id"], row,
-                                    {"catchup": True}))
         else:
             raise ValueError("unknown subscription topic %s" % topic)
 
