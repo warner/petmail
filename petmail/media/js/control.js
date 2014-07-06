@@ -194,6 +194,7 @@ function open_contact_room(e) {
   console.log("open_contact_room", current_cid);
   d3.select("#send-message-to").text(addressbook[current_cid].petname
                                      + " [" + current_cid + "]");
+  $("#tab-rooms").click();
 }
 
 function update_messages(data) {
