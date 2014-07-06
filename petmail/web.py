@@ -55,7 +55,8 @@ class EventChannel(resource.Resource):
         self.agent = agent
         self.dispatcher = dispatcher
         self.esid = esid
-        self.db_subscriptions = {} # indexed by topic
+        # this maps topic to set of (table,notifierfunc)
+        self.db_subscriptions = collections.defaultdict(set)
 
     # subclasses must define render_event(), which accepts a Notice and
     # returns a JSON-serializable object
@@ -72,44 +73,56 @@ class EventChannel(resource.Resource):
         return server.NOT_DONE_YET
 
     def _shutdown(self, _):
-        for (table,notifier) in self.db_subscriptions.values():
-            self.db.unsubscribe(table, notifier)
+        for tns in self.db_subscriptions.values():
+            for (table, notifier) in tns:
+                self.db.unsubscribe(table, notifier)
         self.dispatcher.channel_closed(self.esid)
 
+    def do_db_subscribe(self, topic, table, notifier):
+        self.db.subscribe(table, notifier)
+        self.db_subscriptions[topic].add((table, notifier))
+
+    def do_catchup(self, table, notifier):
+        c = self.db.execute("SELECT * FROM `%s`" % table)
+        for row in c.fetchall():
+            notifier(Notice(table, "insert", row["id"], row,
+                            {"catchup": True}))
+
     def subscribe(self, topic, catchup):
-        db_topics = {"addressbook": ("addressbook",
-                                     self.deliver_addressbook_event),
-                     "messages": ("inbound_messages",
-                                  self.deliver_message_event),
-                     "mailboxes": ("mailboxes",
-                                   self.deliver_mailbox_event),
-                     }
-        if topic in db_topics:
-            table, notifier = db_topics[topic]
-            self.db.subscribe(table, notifier)
-            self.db_subscriptions[topic] = (table, notifier)
+        if topic == "addressbook":
+            self.do_db_subscribe(topic, "addressbook",
+                                 self.deliver_addressbook_event)
             if catchup:
-                c = self.db.execute("SELECT * FROM `%s`" % table)
-                for row in c.fetchall():
-                    notifier(Notice(table, "insert", row["id"], row,
-                                    {"catchup": True}))
-                if topic == "mailboxes":
-                    # send this after any DB row, so the frontend doesn't
-                    # show and then immediately hide the warning box
-                    c = self.db.execute("SELECT * FROM agent_profile")
-                    row = c.fetchone()
-                    adv_local = bool(row["advertise_local_mailbox"])
-                    local_url = None
-                    if adv_local:
-                        local_url = self.agent.mailbox_server.baseurl # XXX
-                    self.deliver_local_mailbox_event(adv_local, local_url)
+                self.do_catchup("addressbook", self.deliver_addressbook_event)
+
+        elif topic == "messages":
+            self.do_db_subscribe(topic, "inbound_messages",
+                                 self.deliver_message_event)
+            if catchup:
+                self.do_catchup("inbound_messages", self.deliver_message_event)
+
+        elif topic == "mailboxes":
+            self.do_db_subscribe(topic, "mailboxes",
+                                 self.deliver_mailbox_event)
+            if catchup:
+                self.do_catchup("mailboxes", self.deliver_mailbox_event)
+                # send this after any DB row, so the frontend doesn't
+                # show and then immediately hide the warning box
+                c = self.db.execute("SELECT * FROM agent_profile")
+                row = c.fetchone()
+                adv_local = bool(row["advertise_local_mailbox"])
+                local_url = None
+                if adv_local:
+                    local_url = self.agent.mailbox_server.baseurl # XXX
+                self.deliver_local_mailbox_event(adv_local, local_url)
+
         else:
             raise ValueError("unknown subscription topic %s" % topic)
 
     def unsubscribe(self, topic):
         if topic in self.db_subscriptions:
-            (table, notifier) = self.db_subscriptions[topic]
-            self.db.unsubscribe(table, notifier)
+            for (table, notifier) in self.db_subscriptions[topic]:
+                self.db.unsubscribe(table, notifier)
             del self.db_subscriptions[topic]
 
     def some_keys(self, value, keys=None):
