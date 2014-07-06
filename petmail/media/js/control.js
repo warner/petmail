@@ -11,6 +11,9 @@ var current_cid = null;
 var contact_details_cid; // the currently-displayed contact
 var new_invite_reqid; // the recently-submitted invitation request
 var editing_petname = false; // whether the "edit petname" box is open
+var mailboxes = {}; // indexed by mid
+var advertise_local_mailbox = false;
+var local_mailbox_url;
 
 function invite_code_generate(e) {
   d3.json("/api/v1/generate-invitation-code")
@@ -230,6 +233,39 @@ function handle_send_message_go(e) {
   $("#send-message-body").val("");
 }
 
+function update_mailboxes(data) {
+  if (data.action == "insert" || data.action == "update")
+    mailboxes[data.id] = data.new_value;
+  else if (data.action == "delete")
+    delete mailboxes[data.id];
+  update_mailbox_warning();
+}
+
+function update_local_mailbox(data) {
+  advertise_local_mailbox = data.adv_local;
+  local_mailbox_url = data.local_url;
+  update_mailbox_warning();
+}
+
+function update_mailbox_warning() {
+  console.log("update_mailbox_warning", mailboxes, advertise_local_mailbox);
+  var mw = $("#mailbox-warning");
+  if (Object.keys(mailboxes).length) {
+    mw.hide("clip");
+  } else {
+    mw.show();
+    if (advertise_local_mailbox) {
+      $("#mailbox-warning-yes-local").show();
+      $("#mailbox-warning-no-local").hide();
+      $("#mailbox-warning-local-listener").text(local_mailbox_url);
+    } else {
+      $("#mailbox-warning-yes-local").hide();
+      $("#mailbox-warning-no-local").show();
+    }
+  }
+}
+
+
 function handle_backend_event(e) {
  // everything we send is e.type="message" and e.data=JSON
   var data = JSON.parse(e.data);
@@ -239,10 +275,15 @@ function handle_backend_event(e) {
     console.log("subscribing for addressbook+messages");
     eventchannel_subscribe(token, esid, "addressbook", true);
     eventchannel_subscribe(token, esid, "messages", true);
+    eventchannel_subscribe(token, esid, "mailboxes", true);
   } else if (data.type == "addressbook") {
     update_addressbook(data);
   } else if (data.type == "messages") {
     update_messages(data);
+  } else if (data.type == "mailboxes") {
+    update_mailboxes(data);
+  } else if (data.type == "advertise_local_mailbox") {
+    update_local_mailbox(data);
   } else {
     console.log("unknown backend event type", data.type);
   }
@@ -269,6 +310,7 @@ function main() {
     e.preventDefault();
     $(this).tab("show");
   });
+  $("#mailbox-warning").hide();
 
   $("#invite").hide();
   $("#invite-qrcode").hide();

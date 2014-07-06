@@ -54,6 +54,30 @@
  </div><!-- /.container-fluid -->
 </nav>
 
+<div id="mailbox-warning">
+  <div id="mailbox-warning-no-local">
+    <p>NOTE: This node is not using (or subscribed to) an external mailbox
+    service, nor it is advertising its local listener port. You will be able
+    to send outbound messages, but your correspondents will not be able to
+    send messages to you.</p>
+
+    <p>To fix this, please sign up for a mailbox service. They will give you
+    an invitation code. Once you accept the invitation, this node will start
+    using the mailbox and this warning will go away.</p>
+  </div>
+  <div id="mailbox-warning-yes-local">
+    <p>NOTE: This node is not using (or subscribed to) an external mailbox
+    service. It is, however, advertising its local listener (<span
+    id="mailbox-warning-local-listener"></span>). Your correspondents will
+    only be able to send you messages if your computer is online and
+    this listener is reachable from the internet.</p>
+
+    <p>To fix this, please sign up for a mailbox service. They will give you
+    an invitation code. Once you accept the invitation, this node will start
+    using the mailbox and this warning will go away.</p>
+  </div>
+</div>
+
 <div class="tab-content">
   <div class="tab-pane fade in active" id="addressbook">
     <div class="row">

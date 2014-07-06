@@ -81,12 +81,22 @@ class EventChannel(resource.Resource):
                                      self.deliver_addressbook_event),
                      "messages": ("inbound_messages",
                                   self.deliver_message_event),
+                     "mailboxes": ("mailboxes",
+                                   self.deliver_mailbox_event),
                      }
         if topic in db_topics:
             table, notifier = db_topics[topic]
             self.db.subscribe(table, notifier)
             self.db_subscriptions[topic] = (table, notifier)
             if catchup:
+                if topic == "mailboxes":
+                    c = self.db.execute("SELECT * FROM agent_profile")
+                    row = c.fetchone()
+                    adv_local = bool(row["advertise_local_mailbox"])
+                    local_url = None
+                    if adv_local:
+                        local_url = self.agent.mailbox_server.baseurl # XXX
+                    self.deliver_local_mailbox_event(adv_local, local_url)
                 c = self.db.execute("SELECT * FROM `%s`" % table)
                 for row in c.fetchall():
                     notifier(Notice(table, "insert", row["id"], row,
@@ -121,6 +131,17 @@ class EventChannel(resource.Resource):
                                 (new_value["cid"],))
             new_value["petname"] = c.fetchone()["petname"]
         self.deliver_event(notice, new_value, "messages")
+
+    def deliver_mailbox_event(self, notice):
+        new_value = self.some_keys(notice.new_value,
+                                   ["id", "mailbox_record_json"])
+        self.deliver_event(notice, new_value, "mailboxes")
+
+    def deliver_local_mailbox_event(self, adv_local, local_url):
+        data = json.dumps({ "type": "advertise_local_mailbox",
+                            "adv_local": adv_local,
+                            "local_url": local_url })
+        self.events_protocol.sendEvent(data)
 
     def deliver_event(self, notice, new_value, event_type):
         data = json.dumps({ "type": event_type,
