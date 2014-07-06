@@ -23,6 +23,8 @@ function invite_code_generate(e) {
             if (err)
               console.log("generate-invitation-code", err);
             else {
+              $("#ask-accept-mailbox input").val("off");
+              $("#ask-accept-mailbox").hide();
               $("#invite-code").val(r["code"]).select();
               $("#invite-qrcode")
                 .empty()
@@ -45,8 +47,10 @@ function handle_invite_go(e) {
   // frontend)
   var reqid = Math.round(Math.random() * 100000);
   new_invite_reqid = reqid;
-  var req = {"token": token, "args": {"petname": petname, "code": code,
-                                      "reqid": reqid }};
+  var accept_mailbox = $("#ask-accept-mailbox input").prop("checked");
+  var req = {token: token, args: {petname: petname, code: code,
+                                  accept_mailbox: accept_mailbox,
+                                  reqid: reqid }};
   d3.json("/api/v1/invite").post(JSON.stringify(req),
                                  function(err, r) {
                                    console.log("invited", r.ok);
@@ -367,6 +371,14 @@ function main() {
   $("#invite-code").on("keyup", function(e) {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
       $("#invite-go").click();
+  });
+  $("#ask-accept-mailbox").hide();
+  $("#invite-code").on("input", function(e) {
+    var code = $(this).val();
+    if (code.indexOf("mailbox") === 0)
+      $("#ask-accept-mailbox").show();
+    else
+      $("#ask-accept-mailbox").hide();
   });
   $("#invite-go").on("click", handle_invite_go);
   $("#invite-code-generate").on("click", invite_code_generate);
