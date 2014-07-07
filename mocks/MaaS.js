@@ -8,11 +8,15 @@ function handlePaymentFile(paymentfile) {
     //payment_data = e.target.result;
     payment_data = this.result; // data:image/jpeg;base64,..
     if (payment_data) {
-      console.log(" 'payment' received");
-      showInvitation();
+      handlePaymentDataURI(payment_data);
     }
   };
   r.readAsDataURL(paymentfile);
+}
+
+function handlePaymentDataURI(data_uri) {
+  console.log(" 'payment' received", data_uri);
+  showInvitation();
 }
 
 function showInvitation() {
@@ -21,6 +25,7 @@ function showInvitation() {
   $("span.invitation-code").text("mailbox12345678");
 }
 
+var stash;
 function main() {
   console.log("onload");
 
@@ -32,13 +37,21 @@ function main() {
     drop: function(e) {
       //e.stopPropagation();
       //e.preventDefault();
-      var file = e.originalEvent.dataTransfer.files[0];
-      var validTypes = ["image/jpeg", "image/png", "image/gif"];
-      if (validTypes.indexOf(file.type) == -1) {
-        alert("payment icon must be image/jpeg, image/png, or image/gif");
-        return false;
+      console.log("drop", e, e.originalEvent);
+      stash = e;
+      var dt = e.originalEvent.dataTransfer;
+      if (dt.types.contains("Files")) {
+        var file = dt.files[0];
+        var validTypes = ["image/jpeg", "image/png", "image/gif"];
+        if (validTypes.indexOf(file.type) == -1) {
+          alert("payment icon must be image/jpeg, image/png, or image/gif");
+          return false;
+        }
+        handlePaymentFile(file);
+      } else if (dt.types.contains("text/uri-list")) {
+        var data_uri = dt.getData("text/uri-list");
+        handlePaymentDataURI(data_uri);
       }
-      handlePaymentFile(file);
       return false;
     },
     dragenter: function(e) {e.stopPropagation();

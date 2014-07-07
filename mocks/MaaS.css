@@ -27,3 +27,7 @@ div.invitation-code-display > p {
     font-weight: bold;
     font-family: "Courier New",Courier,monospace;
 }
+
+div#spend-qrcode {
+    margin: 25px;
+}
