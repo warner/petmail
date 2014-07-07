@@ -48,6 +48,8 @@ function handle_invite_go(e) {
   var reqid = Math.round(Math.random() * 100000);
   new_invite_reqid = reqid;
   var accept_mailbox = $("#ask-accept-mailbox input").prop("checked");
+  if (accept_mailbox)
+    petname = "New Mailbox Server";
   var req = {token: token, args: {petname: petname, code: code,
                                   accept_mailbox: accept_mailbox,
                                   reqid: reqid }};
