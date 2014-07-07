@@ -12,18 +12,14 @@ div.payment-drop > p {
 
 div.invitation-code-display {
     height: 100px;
-    width: 300px;
+    width: 70%;
     border: 3px solid blue;
-    margin: 50px;
+
     padding: 50px;
 }
 
-div.invitation-code-display > p {
-    text-size: 200%;
-}
-
 .code-font {
-    font-size: 150%;
+    font-size: 120%;
     font-weight: bold;
     font-family: "Courier New",Courier,monospace;
 }
