@@ -258,9 +258,9 @@ function update_messages() {
     var ds = d.toLocaleTimeString() + ", " + d.toLocaleDateString();
     var who;
     if (e.type === "inbound")
-      who = "sent to "+e.msg.petname+"["+e.msg.cid+"]";
-    else
       who = "received from "+e.msg.petname+"["+e.msg.cid+"]";
+    else
+      who = "sent to "+e.msg.petname+"["+e.msg.cid+"]";
     return payload.basic + "    -- "+ who +" ("+ds+")";
   }
   var s = d3.select("#messages").selectAll("li")
