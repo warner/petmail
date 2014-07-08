@@ -81,6 +81,24 @@ run-mocks:
 	sleep 1
 	open http://localhost:8009/mailbox-server.html
 
+soups-clean:
+	$(MAKE) stop
+	rm -rf n1 s4
+soups-bob:
+	./bin/petmail create-node --local-mailbox -l tcp:8123 -h 10.0.1.32 s4
+	./bin/petmail create-node n1
+	./s4/petmail start
+	./n1/petmail start
+	./n1/petmail open
+	./n1/petmail accept-mailbox -n "Mailbox Server" `./s4/petmail offer-mailbox Bob|perl -pe 's/.*: //;'`
+soups-alice:
+	./bin/petmail create-node --local-mailbox -l tcp:8123 -h 10.0.1.40 s4
+	./bin/petmail create-node n1
+	./s4/petmail start
+	./n1/petmail start
+	./n1/petmail open
+	./n1/petmail accept-mailbox -n "Mailbox Server" `./s4/petmail offer-mailbox Alice|perl -pe 's/.*: //;'`
+
 pyflakes:
 	pyflakes petmail
 
