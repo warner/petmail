@@ -10,6 +10,7 @@ except ImportError:
     from distutils.core import setup, Command
 
 import versioneer
+versioneer.VCS = "git"
 versioneer.versionfile_source = "petmail/_version.py"
 versioneer.versionfile_build = "petmail/_version.py"
 versioneer.tag_prefix = "v"
