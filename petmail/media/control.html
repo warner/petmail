@@ -85,16 +85,31 @@
       <div class="col-md-4">
         <h2>Address Book</h2>
         <div id="address-book-plus-invitation">
-          <div class="add-contact">
+
+          <div>
             <button id="add-contact" type="button" class="btn btn-default">
               <span class="glyphicon glyphicon-plus"></span> Add Contact
             </button>
           </div>
 
-          <div id="invite">
-            <div><b><center>Invitation</center></b></div>
+          <div id="add-contact-box"><center>
+            <button id="invite-code-generate" type="button" class="btn btn-default">
+              <span class="glyphicon glyphicon-refresh"></span>
+              <span>Generate Invitation Code</span>
+            </button>
 
-            <center><div id="invite-qrcode"></div></center>
+            <button id="open-accept-box" type="button" class="btn btn-default">
+              <span>Accept Invitation Code</span>
+            </button>
+
+            <button id="open-scan-box" type="button" class="btn btn-default">
+              <span class="glyphicon glyphicon-facetime-video"></span>
+              <span>Scan Invitation Code</span>
+            </button>
+          </center></div>
+
+          <div id="accept-box">
+            <div><b><center>Invitation</center></b></div>
 
             <div><center>Code: <input id="invite-code" type="text"/></center></div>
 
@@ -105,8 +120,7 @@
             </div>
 
             <div><center>
-              <button id="invite-code-generate" type="button" class="btn btn-default"><span class="glyphicon glyphicon-refresh"></span></button>
-              <button id="invite-code-scan" type="button" class="btn btn-default"><span class="glyphicon glyphicon-facetime-video"></span></button>
+              <input id="invite-cancel"  type="submit" value="Cancel"/>
               <input id="invite-go"  type="submit" value="Invite!"/>
             </center></div>
           </div>
@@ -129,6 +143,8 @@
             <code id="contact-details-id">????</code></div>
           <div id="contact-details-state">(state)</div>
           <div id="contact-details-code">Invitation Code: <code></code></div>
+          <center><div id="invite-qrcode"></div></center>
+
           <div id="contact-details-messages-sent">Messages Sent: <code>????</code></div>
           <div id="contact-details-messages-received">Messages Received: <code>????</code></div>
         </div>

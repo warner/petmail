@@ -26,10 +26,7 @@ function invite_code_generate(e) {
               $("#ask-accept-mailbox input").val("off");
               $("#ask-accept-mailbox").hide();
               $("#invite-code").val(r["code"]).select();
-              $("#invite-qrcode")
-                .empty()
-                .qrcode({text: "petmail:"+r["code"]})
-                .show();
+              handle_invite_go();
             }
           });
 }
@@ -58,8 +55,6 @@ function handle_invite_go(e) {
                                    console.log("invited", r.ok);
                                  });
   $("#invite-code").val("");
-  $("#invite-qrcode").hide();
-  $("#invite").hide("clip");
 }
 
 function update_addressbook(data) {
@@ -136,11 +131,17 @@ function show_contact_details(e) {
   $("#contact-details-id-type").text("Contact-ID");
   if (e.acked) {
     $("#contact-details-state").hide();
+    $("#invite-qrcode").hide();
   } else {
     $("#contact-details-state").text("State: waiting for ack");
     $("#contact-details-state").show();
+    $("#invite-qrcode")
+      .empty()
+      .qrcode({text: "petmail:"+e.invitation_code})
+      .show();
   }
   $("#contact-details-code code").text(e.invitation_code);
+
   if (was_open && was_editing_petname)
     edit_petname_start();
 }
@@ -357,24 +358,45 @@ function eventchannel_subscribe(token, esid, topic, catchup) {
 function main() {
   console.log("onload");
 
+  // initial state of the UI
+  $("#mailbox-warning").hide();
+  $("#invite").hide();
+  $("#invite-qrcode").hide();
+  $("#invite-code").val("");
+  $("#add-contact-box").hide();
+  $("#accept-box").hide();
+  $("#ask-accept-mailbox").hide();
+  $("div.contact-details-pane").hide();
+  $("#contact-details-petname-editor").hide();
+
+  // top-level navigation tabsbar
   $("ul.nav a").click(function (e) {
     e.preventDefault();
     $(this).tab("show");
   });
-  $("#mailbox-warning").hide();
 
-  $("#invite").hide();
-  $("#invite-qrcode").hide();
-  $("#invite-code").val("");
+  // "Add Contact" button
   $("#add-contact").click(function(e) {
-    $("#invite").toggle("clip");
+    $("#add-contact-box").toggle("clip");
+  });
+
+  // generate/accept buttons
+  $("#invite-code-generate").on("click", function() {
+    $("#add-contact-box").hide("clip");
+    invite_code_generate();
+  });
+  $("#open-accept-box").click(function(e) {
+    $("#add-contact").hide("clip");
+    $("#add-contact-box").hide("clip");
+    $("#accept-box").show("clip");
     $("#invite-code").focus();
   });
+
+  // accept-code box
   $("#invite-code").on("keyup", function(e) {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
       $("#invite-go").click();
   });
-  $("#ask-accept-mailbox").hide();
   $("#invite-code").on("input", function(e) {
     var code = $(this).val();
     if (code.indexOf("mailbox") === 0)
@@ -382,11 +404,18 @@ function main() {
     else
       $("#ask-accept-mailbox").hide();
   });
-  $("#invite-go").on("click", handle_invite_go);
-  $("#invite-code-generate").on("click", invite_code_generate);
+  $("#invite-go").on("click", function () {
+    $("#accept-box").hide("clip");
+    $("#add-contact").show("clip");
+    handle_invite_go();
+  });
+  $("#invite-cancel").on("click", function () {
+    $("#accept-box").hide("clip");
+    $("#add-contact").show("clip");
+    //handle_invite_cancel();
+  });
 
-  $("div.contact-details-pane").hide();
-  $("#contact-details-petname-editor").hide();
+  // contact details
   $("#contact-details-petname-editor").focus(function() { this.select(); });
   $("#edit-petname").click(handle_toggle_edit_petname);
   $("#contact-details-petname-editor").on("keyup", function(e) {
@@ -394,8 +423,10 @@ function main() {
       edit_petname_done();
   });
 
+  // basic message-sending "room" stub
   $("#send-message-go").on("click", handle_send_message_go);
 
+  // finally connect us to the backend event stream
   d3.json("/api/v1/eventchannel-create")
     .post(JSON.stringify({"token": token}),
           function(err, r) {
