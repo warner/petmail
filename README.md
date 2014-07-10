@@ -31,12 +31,12 @@ The web frontend (`petmail open`) contains addressbook-manipulation UI, and a
 just-barely-functional message-sending UI.
 
 The invitation mechanism is functional but not complete. It does no
-significant keystretching. The default configuration only works with two
-nodes that live underneath the same source tree: there is no real-network
-rendezvous server URL baked in yet.
+significant keystretching. The default configuration uses a baked-in
+rendezvous server running on slow unreliable hardware.
 
-The message-sending mechanism can only send to localhost, so the
-communicating nodes must live on the same machine.
+The message-sending mechanism can send to external mailbox servers, and the
+invite-to-use-mailbox code works, but it is difficult to configure the nodes
+correctly.
 
 ## How To Run Petmail
 
@@ -53,8 +53,9 @@ python setup.py safe_develop
 ./bin/petmail open
 ```
 
-Users are encouraged to run a pre-packaged application instead. Once you
-start this application, use the menu item to open the control panel.
+Users are encouraged to run a pre-packaged application instead, but they do
+not exist yet. Once you start this non-existent application, use the menu
+item to open the control panel.
 
 The node's working files are stored in a "basedir", which defaults to
 `~/.petmail` in your home directory. Petmail does not modify any files
@@ -67,7 +68,9 @@ created a node in OTHERDIR, you can run e.g. `OTHERDIR/petmail start` and
 (Note: the `safe_develop` command will install hash-verified dependency
 tarballs into a local virtualenv named "venv/", then uses the setuptools
 "develop" command to link the petmail sources into this virtualenv. The
-`./bin/petmail` script looks in "venv/" for its source code.)
+`./bin/petmail` script looks in "venv/" for its source code. `safe_develop`
+is not yet completely safe: dependencies referenced by `setup_requires=` are
+not currently verified.)
 
 
 ## Theory Of Operation
