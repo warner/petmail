@@ -130,7 +130,8 @@ class Agent(service.MultiService):
              ),
             "addressbook", {"reqid": reqid})
 
-        iid = self.im.start_invitation(cid, code, my_signkey, payload, private)
+        iid = self.im.start_invitation(cid, code, generate,
+                                       my_signkey, payload, private)
         self.db.update("UPDATE addressbook SET invitation_id=? WHERE id=?",
                        (iid, cid), "addressbook", cid, {"reqid": reqid})
         return {"contact-id": cid, "invite-id": iid, "petname": petname,

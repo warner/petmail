@@ -107,6 +107,7 @@ CREATE TABLE `invitations`
 
  -- these are only used during the invitation process, then discarded
  `code` VARCHAR,
+ `generated` INTEGER, -- 1 if this node randomly generated the code
  `invite_key` VARCHAR, -- Ed25519 signing key
  `inviteID` VARCHAR, -- Ed25519 verifying key
  `my_temp_privkey` VARCHAR, -- Curve25519 privkey (ephemeral)

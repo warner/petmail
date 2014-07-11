@@ -100,7 +100,8 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def start_invitation(self, cid, code, my_signkey, payload, private):
+    def start_invitation(self, cid, code, generated,
+                         my_signkey, payload, private):
         # "payload" goes to them, "private" stays with us
         stretched = stretch(code)
         invite_key = SigningKey(stretched)
@@ -113,15 +114,17 @@ class InvitationManager(service.MultiService):
             raise CommandError("invitation code already in use")
         iid = db.insert("INSERT INTO `invitations`"
                         " (channel_id,"
-                        "  code, invite_key,"
+                        "  code, generated,"
+                        "  invite_key,"
                         "  inviteID,"
                         "  my_temp_privkey, my_signkey,"
                         "  payload_for_them_json, my_private_invitation_data,"
                         "  my_messages, their_messages, "
                         "  next_expected_message)"
-                        " VALUES (?, ?,?, ?, ?,?, ?,?, ?,?, ?)",
+                        " VALUES (?, ?,?, ?, ?, ?,?, ?,?, ?,?, ?)",
                         (cid,
-                         code.encode("hex"), stretched.encode("hex"),
+                         code.encode("hex"), int(generated),
+                         stretched.encode("hex"),
                          inviteID,
                          my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
                          json.dumps(payload), json.dumps(private),
