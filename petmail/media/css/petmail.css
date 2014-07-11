@@ -6,9 +6,17 @@ div#mailbox-warning {
     margin-left: 5%;
 }
 
-div#invite {
+div#add-contact-box button {
+    margin: 5px;
+}
+
+div#accept-box {
     border: 2px solid blue;
     padding: 2px;
+}
+
+div#accept-box input {
+    margin: 3px;
 }
 
 div#address-book-plus-invitation {
