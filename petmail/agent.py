@@ -110,18 +110,19 @@ class Agent(service.MultiService):
             tid = self.mailbox_server.allocate_transport(remote=True)
             private["mailbox_tid"] = tid # XXX not used?
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
-        private["accept_mailbox"] = accept_mailbox
 
         cid = self.db.insert(
             "INSERT INTO addressbook"
-            " (petname, acked, when_invited, invitation_code,"
+            " (petname, accept_mailbox_offer,"
+            "  acked, when_invited, invitation_code,"
             "  next_outbound_seqnum, my_signkey,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
             "  my_old_channel_privkey,"
             "  my_new_channel_privkey)"
-            " VALUES (?,?,?,?, ?,?, ?,?, ?, ?, ?)",
-            (petname, 0, time.time(), code,
+            " VALUES (?,?, ?,?,?, ?,?, ?,?, ?, ?, ?)",
+            (petname, accept_mailbox,
+             0, time.time(), code,
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
              0,
@@ -143,21 +144,31 @@ class Agent(service.MultiService):
         self.db.update(
             "UPDATE addressbook SET"
             " when_accepted=?,"
+            " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
             "WHERE id=?",
             (time.time(),
+             json.dumps(them.get("mailbox")),
              json.dumps(them["channel"]),
              0, their_verfkey.encode().encode("hex"),
              cid), "addressbook", cid)
-        mailbox = them.get("mailbox")
-        if mailbox and private["accept_mailbox"]:
+        self.maybe_accept_mailbox(cid)
+        return cid
+
+    def maybe_accept_mailbox(self, cid):
+        c = self.db.execute("SELECT * FROM addressbook WHERE id=?", (cid,))
+        row = c.fetchone()
+        mailbox_json = row["latest_offered_mailbox_json"]
+        accept_mailbox = row["accept_mailbox_offer"]
+        # TODO: make sure this only happens once
+        if mailbox_json and accept_mailbox:
+            mailbox = json.loads(mailbox_json)
             mbid = self.db.insert("INSERT INTO mailboxes"
                                   " (mailbox_record_json) VALUES (?)",
                                   (json.dumps(mailbox),), "mailboxes")
             rc = self.build_retriever(mbid, mailbox["retrieval"])
             self.subscribe_to_mailbox(rc)
-        return cid
 
     def invitation_acked(self, cid):
         self.db.update("UPDATE addressbook SET acked=1, invitation_id=NULL"

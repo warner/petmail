@@ -134,7 +134,7 @@ CREATE TABLE `addressbook`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT, -- the channelID
 
- -- data about the invitation process
+ -- historical data about the invitation process
  `invitation_id` INTEGER, -- or NULL, points at `invitations.id`
  `when_invited` INTEGER, -- memories of how we met them
  `when_accepted` INTEGER,
@@ -143,6 +143,10 @@ CREATE TABLE `addressbook`
 
  -- our private notes and decisions about them
  `petname` VARCHAR,
+ `accept_mailbox_offer` INTEGER, -- boolean
+
+ -- services they've offered to us
+ `latest_offered_mailbox_json` VARCHAR,
 
  -- things used to send outbound messages
     -- these three are shared among all of the recipient's mailboxes
