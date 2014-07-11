@@ -17,25 +17,22 @@ var advertise_local_mailbox = false;
 var local_mailbox_url;
 
 function invite_code_generate(e) {
-  d3.json("/api/v1/generate-invitation-code")
-    .post(JSON.stringify({"token": token}),
-          function(err, r) {
-            if (err)
-              console.log("generate-invitation-code", err);
-            else {
-              $("#ask-accept-mailbox input").val("off");
-              $("#ask-accept-mailbox").hide();
-              $("#invite-code").val(r["code"]).select();
-              handle_invite_go();
-            }
-          });
+  submit_invite(true, null, "New Petname", false);
 }
 
 
-function handle_invite_go(e) {
+function handle_accept_go(e) {
   var code = $("#invite-code").val();
   var petname = "New Petname";
+  var accept_mailbox = $("#ask-accept-mailbox input").prop("checked");
+  if (accept_mailbox)
+    petname = "New Mailbox Server";
   console.log("inviting", petname, code);
+  submit_invite(false, code, petname, accept_mailbox);
+  $("#invite-code").val("");
+}
+
+function submit_invite(generate, code, initial_petname, accept_mailbox) {
   // the reqid merely needs to be unique among the invitation requests
   // submitted by this and other frontends. An accidental collision would
   // cause a minor UI nuisance (the Contact Details panel will be opened
@@ -44,17 +41,15 @@ function handle_invite_go(e) {
   // frontend)
   var reqid = Math.round(Math.random() * 100000);
   new_invite_reqid = reqid;
-  var accept_mailbox = $("#ask-accept-mailbox input").prop("checked");
-  if (accept_mailbox)
-    petname = "New Mailbox Server";
-  var req = {token: token, args: {petname: petname, code: code,
-                                  accept_mailbox: accept_mailbox,
-                                  reqid: reqid }};
+  var req = {token: token, args: {reqid: reqid,
+                                  generate: generate,
+                                  code: code,
+                                  petname: initial_petname,
+                                  accept_mailbox: accept_mailbox }};
   d3.json("/api/v1/invite").post(JSON.stringify(req),
                                  function(err, r) {
                                    console.log("invited", r.ok);
                                  });
-  $("#invite-code").val("");
 }
 
 function update_addressbook(data) {
@@ -407,7 +402,7 @@ function main() {
   $("#invite-go").on("click", function () {
     $("#accept-box").hide("clip");
     $("#add-contact").show("clip");
-    handle_invite_go();
+    handle_accept_go();
   });
   $("#invite-cancel").on("click", function () {
     $("#accept-box").hide("clip");

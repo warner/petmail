@@ -5,7 +5,7 @@ from twisted.web import server, static, resource, http
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
 from .database import Notice
-from .util import equal, make_nonce, to_ascii
+from .util import equal, make_nonce
 from .errors import CommandError
 from .invitation import VALID_INVITEID, VALID_MESSAGE
 
@@ -141,6 +141,12 @@ class EventChannel(resource.Resource):
         new_value = self.some_keys(notice.new_value,
                                    ["id", "petname", "acked",
                                     "invitation_code"])
+        if notice.new_value and notice.new_value["invitation_id"] is not None:
+            c = self.db.execute("SELECT * FROM invitations WHERE id=?",
+                                (notice.new_value["invitation_id"],))
+            row = c.fetchone()
+            new_value["next_expected_message"] = row["next_expected_message"]
+            new_value["generated"] = row["generated"]
         self.deliver_event(notice, new_value, "addressbook")
 
     def deliver_inbound_message_event(self, notice):
@@ -277,11 +283,6 @@ class Invite(BaseHandler):
         return self.agent.command_invite(petname, code, reqid, generate,
                                          accept_mailbox=accept_mailbox)
 handlers["invite"] = Invite
-
-class GenerateInvitationCode(BaseHandler):
-    def handle(self, payload):
-        return {"ok": "ok", "code": to_ascii(os.urandom(16), "", "base32")}
-handlers["generate-invitation-code"] = GenerateInvitationCode
 
 class OfferMailbox(BaseHandler):
     def handle(self, payload):
