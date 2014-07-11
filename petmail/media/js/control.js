@@ -128,12 +128,16 @@ function show_contact_details(e) {
     $("#contact-details-state").hide();
     $("#invite-qrcode").hide();
   } else {
-    $("#contact-details-state").text("State: waiting for ack");
+    $("#contact-details-state").text("State: waiting for ack, ["+e.next_expected_message+"/4]");
     $("#contact-details-state").show();
-    $("#invite-qrcode")
-      .empty()
-      .qrcode({text: "petmail:"+e.invitation_code})
-      .show();
+    if (e.generated) {
+      $("#invite-qrcode")
+        .empty()
+        .qrcode({text: "petmail:"+e.invitation_code})
+        .show();
+    } else {
+      $("#invite-qrcode").hide();
+    }
   }
   $("#contact-details-code code").text(e.invitation_code);
 
