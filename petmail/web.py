@@ -140,7 +140,9 @@ class EventChannel(resource.Resource):
     def deliver_addressbook_event(self, notice):
         new_value = self.some_keys(notice.new_value,
                                    ["id", "petname", "acked",
-                                    "invitation_code"])
+                                    "invitation_code",
+                                    "accept_mailbox_offer",
+                                    ])
         if notice.new_value and notice.new_value["invitation_id"] is not None:
             c = self.db.execute("SELECT * FROM invitations WHERE id=?",
                                 (notice.new_value["invitation_id"],))

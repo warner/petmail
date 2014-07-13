@@ -140,6 +140,10 @@ function show_contact_details(e) {
     }
   }
   $("#contact-details-code code").text(e.invitation_code);
+  if (e.accept_mailbox_offer)
+    $("#contact-details-accept-mailbox").show();
+  else
+    $("#contact-details-accept-mailbox").hide();
 
   if (was_open && was_editing_petname)
     edit_petname_start();
