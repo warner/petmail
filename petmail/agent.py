@@ -165,8 +165,8 @@ class Agent(service.MultiService):
         if mailbox_json and accept_mailbox:
             mailbox = json.loads(mailbox_json)
             mbid = self.db.insert("INSERT INTO mailboxes"
-                                  " (mailbox_record_json) VALUES (?)",
-                                  (json.dumps(mailbox),), "mailboxes")
+                                  " (cid, mailbox_record_json) VALUES (?,?)",
+                                  (cid, json.dumps(mailbox),), "mailboxes")
             rc = self.build_retriever(mbid, mailbox["retrieval"])
             self.subscribe_to_mailbox(rc)
 

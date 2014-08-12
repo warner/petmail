@@ -143,12 +143,17 @@ class EventChannel(resource.Resource):
                                     "invitation_code",
                                     "accept_mailbox_offer",
                                     ])
-        if notice.new_value and notice.new_value["invitation_id"] is not None:
-            c = self.db.execute("SELECT * FROM invitations WHERE id=?",
-                                (notice.new_value["invitation_id"],))
-            row = c.fetchone()
-            new_value["next_expected_message"] = row["next_expected_message"]
-            new_value["generated"] = row["generated"]
+        if notice.new_value:
+            if notice.new_value["invitation_id"] is not None:
+                c = self.db.execute("SELECT * FROM invitations WHERE id=?",
+                                    (notice.new_value["invitation_id"],))
+                row = c.fetchone()
+                new_value["next_expected_message"] = row["next_expected_message"]
+                new_value["generated"] = row["generated"]
+            row = self.db.execute("SELECT * FROM mailboxes WHERE cid=?",
+                                (new_value["id"],)).fetchone()
+            if row:
+                new_value["mailbox_id"] = row["id"]
         self.deliver_event(notice, new_value, "addressbook")
 
     def deliver_inbound_message_event(self, notice):
@@ -172,7 +177,7 @@ class EventChannel(resource.Resource):
 
     def deliver_mailbox_event(self, notice):
         new_value = self.some_keys(notice.new_value,
-                                   ["id", "mailbox_record_json"])
+                                   ["id", "cid", "mailbox_record_json"])
         self.deliver_event(notice, new_value, "mailboxes")
 
     def deliver_local_mailbox_event(self, adv_local, local_url):

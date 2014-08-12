@@ -85,8 +85,10 @@ CREATE TABLE `relay_servers`
 CREATE TABLE `mailboxes` -- one per remote mailbox (no local mailboxes here)
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
+ `cid` INTEGER, -- addressbook.id
  `mailbox_record_json` VARCHAR
 );
+CREATE UNIQUE INDEX `mailbox_cid` ON `mailboxes` (`cid`);
 
 CREATE TABLE `agent_profile` -- contains one row
 (
