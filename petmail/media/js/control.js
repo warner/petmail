@@ -140,10 +140,16 @@ function show_contact_details(e) {
     }
   }
   $("#contact-details-code code").text(e.invitation_code);
-  if (e.accept_mailbox_offer)
-    $("#contact-details-accept-mailbox").show();
-  else
-    $("#contact-details-accept-mailbox").hide();
+  if (e.mailbox_id !== undefined) {
+    $("#contact-details-accepted-mailbox").show();
+    $("#contact-details-will-accept-mailbox").hide();
+  } else {
+    $("#contact-details-accepted-mailbox").hide();
+    if (e.accept_mailbox_offer)
+      $("#contact-details-will-accept-mailbox").show();
+    else
+      $("#contact-details-will-accept-mailbox").hide();
+  }
 
   if (was_open && was_editing_petname)
     edit_petname_start();
