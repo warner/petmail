@@ -9,7 +9,7 @@ PYTHON=venv/bin/python
 
 BASEURL="`./relay/petmail print-baseurl`"
 
-.PHONY: relay n1 n2 n3 s4 stop bounce-all bounce rebuild
+.PHONY: relay n1 n2 n3 s4 stop bounce-all bounce rebuild mailboxes connect
 relay:
 	-./relay/petmail stop relay
 	rm -rf relay
@@ -56,6 +56,11 @@ rebuild: stop
 
 # ./s4/petmail offer-mailbox carol -> CODE
 # ./n3/petmail accept-mailbox CODE
+
+mailboxes:
+	./n1/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox alice |cut -d: -f2 |cut -c2-`
+	./n2/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox bob |cut -d: -f2 |cut -c2-`
+	./n3/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox carol |cut -d: -f2 |cut -c2-`
 
 connect:
 	./n1/petmail invite -n Bob code1
