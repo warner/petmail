@@ -286,9 +286,9 @@ class Invite(BaseHandler):
             code = str(code) # might be None
         reqid = payload.get("reqid")
         generate = payload.get("generate")
-        accept_mailbox = payload.get("accept_mailbox", False)
+        accept_mailbox_offer = payload.get("accept_mailbox", False)
         return self.agent.command_invite(petname, code, reqid, generate,
-                                         accept_mailbox=accept_mailbox)
+                                         accept_mailbox_offer=accept_mailbox_offer)
 handlers["invite"] = Invite
 
 class OfferMailbox(BaseHandler):

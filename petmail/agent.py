@@ -84,7 +84,7 @@ class Agent(service.MultiService):
     def command_invite(self, petname, code, reqid=None,
                        generate=False,
                        override_transports=None, offer_mailbox=False,
-                       accept_mailbox=False):
+                       accept_mailbox_offer=False):
         if generate:
             if code:
                 raise CommandError("please use --generate or --code, not both")
@@ -121,7 +121,7 @@ class Agent(service.MultiService):
             "  my_old_channel_privkey,"
             "  my_new_channel_privkey)"
             " VALUES (?,?, ?,?,?, ?,?, ?,?, ?, ?, ?)",
-            (petname, accept_mailbox,
+            (petname, accept_mailbox_offer,
              0, time.time(), code,
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
@@ -160,9 +160,9 @@ class Agent(service.MultiService):
         c = self.db.execute("SELECT * FROM addressbook WHERE id=?", (cid,))
         row = c.fetchone()
         mailbox_json = row["latest_offered_mailbox_json"]
-        accept_mailbox = row["accept_mailbox_offer"]
+        accept_mailbox_offer = row["accept_mailbox_offer"]
         # TODO: make sure this only happens once
-        if mailbox_json and accept_mailbox:
+        if mailbox_json and accept_mailbox_offer:
             mailbox = json.loads(mailbox_json)
             mbid = self.db.insert("INSERT INTO mailboxes"
                                   " (cid, mailbox_record_json) VALUES (?,?)",
@@ -181,7 +181,7 @@ class Agent(service.MultiService):
         return "invitation code: %s" % code
 
     def command_accept_mailbox(self, petname, code):
-        return self.command_invite(petname, code, accept_mailbox=True)
+        return self.command_invite(petname, code, accept_mailbox_offer=True)
 
     def command_send_basic_message(self, cid, message):
         try:

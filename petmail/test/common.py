@@ -162,13 +162,13 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
 
     def add_new_channel_with_invitation(self, nA, nB,
                                         offer_mailbox=False,
-                                        accept_mailbox=False):
+                                        accept_mailbox_offer=False):
         nA.agent.im._debug_invitations_completed = 0
         nB.agent.im._debug_invitations_completed = 0
         res = nA.agent.command_invite(u"petname-from-A",
                                       code=None, generate=True,
                                       override_transports=self.tports1,
-                                      accept_mailbox=accept_mailbox)
+                                      accept_mailbox_offer=accept_mailbox_offer)
         nB.agent.command_invite(u"petname-from-B", res["code"],
                                 override_transports=self.tports2,
                                 offer_mailbox=offer_mailbox)

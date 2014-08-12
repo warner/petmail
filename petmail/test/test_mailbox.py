@@ -37,7 +37,7 @@ class Invite(TwoNodeMixin, unittest.TestCase):
         nA, nB = self.make_nodes(transport="none", relay="http")
         self.failUnlessEqual(len(nA.agent.get_transports()), 0)
         d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True,
-                                                 accept_mailbox=True)
+                                                 accept_mailbox_offer=True)
         def _then((entA,entB)):
             self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
                                  entA["id"])
