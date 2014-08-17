@@ -520,9 +520,7 @@ class WebPort(service.MultiService):
         token = self.access_token
         self.root.putChild("open-control", ControlOpener(db, token))
         self.root.putChild("control", Control(token))
-        api = resource.Resource() # /api
-        self.root.putChild("api", api)
-        api.putChild("v1", API(token, db, agent)) # /api/v1
+        self.root.putChild("api", API(token, db, agent))
 
     def enable_relay(self):
         self.relay = Relay() # for tests

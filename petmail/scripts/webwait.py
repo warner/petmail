@@ -131,7 +131,7 @@ def command(basedir, command, args, err=sys.stderr):
                        "method": command,
                        "args": args,
                        }).encode("utf-8")
-    resp = do_http("POST", url+"api/v1/%s" % command, body)
+    resp = do_http("POST", url+"api/%s" % command, body)
     # The web API can return three things:
     #  200 (success) with a JSON body, including ["ok"] for the CLI user
     #  400 (error) with a string body (no trailing newline)
@@ -158,7 +158,7 @@ def follow_events(basedir, topic, catchup=False, err=sys.stderr):
     if not baseurl:
         return False, {"err": "Error, node is not yet running"}
     # first, create the event channel
-    resp = do_http("POST", baseurl + "api/v1/eventchannel-create",
+    resp = do_http("POST", baseurl + "api/eventchannel-create",
                    json.dumps({"token": token}))
     if resp.status != 200:
         raise RuntimeError("unable to create event channel: %s %s"
@@ -166,14 +166,14 @@ def follow_events(basedir, topic, catchup=False, err=sys.stderr):
     r = json.loads(resp.read().decode("utf-8"))
     esid = r["esid"]
     # we'll listen on this one
-    event_resp = do_http("GET", baseurl + "api/v1/events/%s" % esid,
+    event_resp = do_http("GET", baseurl + "api/events/%s" % esid,
                          event_stream=True)
     # and then subscribe to hear about events. I'm not 100% sure this won't
     # race (the web frontend specifically waits until a "ready" event is
     # delivered, to make sure the browser has established the EventSource
     # channel, before subscribing to anything. We're ok as long as do_http()
     # doesn't return until after it's seen the HTTP headers.
-    resp = do_http("POST", baseurl + "api/v1/eventchannel-subscribe",
+    resp = do_http("POST", baseurl + "api/eventchannel-subscribe",
                    json.dumps({"token": token,
                                "args": {"esid": esid,
                                         "topic": topic,

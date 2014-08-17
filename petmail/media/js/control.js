@@ -46,10 +46,10 @@ function submit_invite(generate, code, initial_petname, accept_mailbox) {
                                   code: code,
                                   petname: initial_petname,
                                   accept_mailbox: accept_mailbox }};
-  d3.json("/api/v1/invite").post(JSON.stringify(req),
-                                 function(err, r) {
-                                   console.log("invited", r.ok);
-                                 });
+  d3.json("/api/invite").post(JSON.stringify(req),
+                              function(err, r) {
+                                  console.log("invited", r.ok);
+                              });
 }
 
 function update_addressbook(data) {
@@ -187,10 +187,10 @@ function edit_petname_done() {
                "args": {"petname": new_petname,
                         "cid": $("#contact-details-id").text()
                        }};
-    d3.json("/api/v1/set-petname").post(JSON.stringify(req),
-                                        function(err, r) {
-                                          console.log("set petname", r.ok);
-                                        });
+    d3.json("/api/set-petname").post(JSON.stringify(req),
+                                     function(err, r) {
+                                         console.log("set petname", r.ok);
+                                     });
   }
   $("#contact-details-petname").show();
   $("#contact-details-petname-editor").hide();
@@ -285,10 +285,10 @@ function handle_send_message_go(e) {
   var msg = $("#send-message-body").val();
   console.log("sending", msg, "to", current_cid);
   var req = {"token": token, "args": {"cid": current_cid, "message": msg}};
-  d3.json("/api/v1/send-basic").post(JSON.stringify(req),
-                                     function(err, r) {
-                                       console.log("sent", r.ok);
-                                     });
+  d3.json("/api/send-basic").post(JSON.stringify(req),
+                                  function(err, r) {
+                                      console.log("sent", r.ok);
+                                  });
   $("#send-message-body").val("");
 }
 
@@ -351,7 +351,7 @@ function handle_backend_event(e) {
 }
 
 function eventchannel_subscribe(token, esid, topic, catchup) {
-  d3.json("/api/v1/eventchannel-subscribe")
+  d3.json("/api/eventchannel-subscribe")
     .post(JSON.stringify({"token": token,
                           "args": {
                             "esid": esid,
@@ -436,7 +436,7 @@ function main() {
   $("#send-message-go").on("click", handle_send_message_go);
 
   // finally connect us to the backend event stream
-  d3.json("/api/v1/eventchannel-create")
+  d3.json("/api/eventchannel-create")
     .post(JSON.stringify({"token": token}),
           function(err, r) {
             if (err) {
@@ -444,7 +444,7 @@ function main() {
             } else {
               console.log("create-eventchannel done", r.esid);
               esid = r.esid;
-              var ev = new EventSource("/api/v1/events/"+esid);
+              var ev = new EventSource("/api/events/"+esid);
               ev.addEventListener("message", handle_backend_event);
               // when the EventSource's "ready" message is delivered, we'll
               // subscribe for addressbook and messages
