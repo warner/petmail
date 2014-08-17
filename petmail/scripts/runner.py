@@ -248,12 +248,14 @@ def render_messages(result):
         lines.append(str(entry["payload"]))
     return "\n".join(lines)+"\n"
 
-def WebCommand(name, argnames, render=render_text):
+def WebCommand(name, argnames, render=render_text, extra_args={}):
     # Build a dispatch function for simple commands that deliver some string
     # arguments to a web API, then display a result.
     def _command(so, out, err):
         from .webwait import command
         args = dict([(argname, so[argname]) for argname in argnames])
+        for k,v in extra_args.items():
+            args[k] = v
         ok, result = command(so["basedir"], name, args, err)
         if ok:
             print >>out, render(result),
@@ -281,7 +283,8 @@ DISPATCH = {"create-node": create_node,
             "invite": WebCommand("invite", ["petname", "generate", "code"],
                                  render=render_invite),
             "offer-mailbox": WebCommand("offer-mailbox", ["petname"]),
-            "accept-mailbox": WebCommand("accept-mailbox", ["petname", "code"]),
+            "accept-mailbox": WebCommand("invite", ["petname", "code"],
+                                         extra_args={"accept_mailbox": True}),
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),

@@ -180,9 +180,6 @@ class Agent(service.MultiService):
         self.command_invite(petname, code, offer_mailbox=True)
         return "invitation code: %s" % code
 
-    def command_accept_mailbox(self, petname, code):
-        return self.command_invite(petname, code, accept_mailbox_offer=True)
-
     def command_send_basic_message(self, cid, message):
         try:
             self.send_message(cid, {"basic": message}) # ignore Deferred

@@ -285,7 +285,7 @@ class Invite(BaseHandler):
         if code:
             code = str(code) # might be None
         reqid = payload.get("reqid")
-        generate = payload.get("generate")
+        generate = payload.get("generate", False)
         accept_mailbox_offer = payload.get("accept_mailbox", False)
         return self.agent.command_invite(petname, code, reqid, generate,
                                          accept_mailbox_offer=accept_mailbox_offer)
@@ -296,13 +296,6 @@ class OfferMailbox(BaseHandler):
         petname = unicode(payload["petname"])
         return self.agent.command_offer_mailbox(petname)
 handlers["offer-mailbox"] = OfferMailbox
-
-class AcceptMailbox(BaseHandler):
-    def handle(self, payload):
-        petname = unicode(payload["petname"])
-        code = str(payload["code"])
-        return self.agent.command_accept_mailbox(petname, code)
-handlers["accept-mailbox"] = AcceptMailbox
 
 class ListAddressbook(BaseHandler):
     def handle(self, payload):

@@ -123,7 +123,7 @@ class InvitationManager(service.MultiService):
                         "  next_expected_message)"
                         " VALUES (?, ?,?, ?, ?, ?,?, ?,?, ?,?, ?)",
                         (cid,
-                         code.encode("hex"), int(generated),
+                         code.encode("hex"), int(bool(generated)),
                          stretched.encode("hex"),
                          inviteID,
                          my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
