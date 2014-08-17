@@ -89,6 +89,8 @@ class Agent(service.MultiService):
             if code:
                 raise CommandError("please use --generate or --code, not both")
             code = to_ascii(os.urandom(16), "", "base32")
+            if offer_mailbox:
+                code = "mailbox-" + code
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)
@@ -137,8 +139,8 @@ class Agent(service.MultiService):
                        (iid, cid), "addressbook", cid, {"reqid": reqid})
         return {"contact-id": cid, "invite-id": iid, "petname": petname,
                 "code": code,
-                "ok": "invitation for %s started: invite-id: %d" %
-                (petname, iid)}
+                "ok": "invitation for %s started: invite-id=%d, code=%s" %
+                (petname, iid, code)}
 
     def invitation_done(self, cid, private, them, their_verfkey):
         self.db.update(
@@ -174,11 +176,6 @@ class Agent(service.MultiService):
         self.db.update("UPDATE addressbook SET acked=1, invitation_id=NULL"
                        " WHERE id=?", (cid,),
                        "addressbook", cid)
-
-    def command_offer_mailbox(self, petname):
-        code = to_ascii(os.urandom(16), "mailbox-", "base32")
-        self.command_invite(petname, code, offer_mailbox=True)
-        return "invitation code: %s" % code
 
     def command_send_basic_message(self, cid, message):
         try:

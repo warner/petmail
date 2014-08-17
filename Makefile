@@ -58,9 +58,9 @@ rebuild: stop
 # ./n3/petmail accept-mailbox CODE
 
 mailboxes:
-	./n1/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox alice |cut -d: -f2 |cut -c2-`
-	./n2/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox bob |cut -d: -f2 |cut -c2-`
-	./n3/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox carol |cut -d: -f2 |cut -c2-`
+	./n1/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox alice |cut -d= -f3`
+	./n2/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox bob |cut -d= -f3`
+	./n3/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox carol |cut -d= -f3`
 
 connect:
 	./n1/petmail invite -n Bob code1

@@ -60,7 +60,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnlessEqual(res["petname"], u"petname-from-1")
         self.failUnlessEqual(res["invite-id"], 1)
         self.failUnlessEqual(res["code"], code)
-        self.failUnlessEqual(res["ok"], u"invitation for %s started: invite-id: %d" % (res["petname"], res["invite-id"]))
+        self.failUnlessEqual(res["ok"], u"invitation for %s started: invite-id=%d, code=%s" % (res["petname"], res["invite-id"], res["code"]))
 
         rdir = os.path.join(rclient1.basedir, inviteID)
         self.failUnless(os.path.exists(rdir))
