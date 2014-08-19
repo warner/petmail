@@ -5,6 +5,7 @@ from twisted.web import client
 from twisted.python import log
 from nacl.secret import SecretBox
 from nacl.public import PrivateKey, PublicKey, Box
+from ..errors import ReplayError
 from ..eventual import fireEventually
 from ..util import equal, remove_prefix
 from ..eventsource import ReconnectingEventSource
@@ -128,8 +129,15 @@ class HTTPRetriever(service.MultiService):
         d = client.getPage(url, method="GET")
         def _fetched(page):
             if not self.running: return
-            msgC = decrypt_fetch_response(self.symkey, fetch_t, page)
-            self.got_msgC(msgC)
+            try:
+                msgC = decrypt_fetch_response(self.symkey, fetch_t, page)
+                self.got_msgC(msgC)
+            except ReplayError as e:
+                # catch this to avoid an infinite re-fetch loop. TODO: catch
+                # other decrypt errors too. Better yet, always delete the
+                # message, in spite of any sort of error during these two
+                # functions.
+                log.err(e)
         d.addCallback(_fetched)
         def _delete(_):
             if not self.running: return
