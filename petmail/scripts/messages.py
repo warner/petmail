@@ -47,7 +47,7 @@ def follow_messages(so, stdout, stderr):
             fieldname, value = get_field(resp)
             if fieldname == "data":
                 data = json.loads(value)
-                if data["type"] == "messages":
+                if data["type"] == "inbound-messages":
                     stdout.write(render_message(data["new_value"]))
                     stdout.flush()
     except (KeyboardInterrupt, EOFError):
