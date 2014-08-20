@@ -125,11 +125,7 @@ CREATE TABLE `invitations`
  -- they'll get this payload in M2
  --  .channel_pubkey, .CID_key,
  --  .transports[]: .STT, .transport_pubkey, .type, .url
- `payload_for_them_json` VARCHAR,
- -- my private record: .my_signkey, .my_CID_key, .my_{old,new}_channel_privkey,
- --  .transport_ids (points to 'transports' table), .petname,
- --  .invitation_context
- `my_private_invitation_data` VARCHAR
+ `payload_for_them_json` VARCHAR
 );
 
 CREATE TABLE `addressbook`

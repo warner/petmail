@@ -1,5 +1,6 @@
 import os.path, json, time
 from twisted.application import service
+from twisted.python import log
 from nacl.public import PrivateKey
 from nacl.signing import SigningKey
 from nacl.encoding import HexEncoder as Hex
@@ -105,12 +106,9 @@ class Agent(service.MultiService):
                     "transports": transports.values(),
                      }
         payload = { "channel": channel }
-        private = { "petname": petname, # used by process_M3 for logging
-                    }
 
         if offer_mailbox:
             tid = self.mailbox_server.allocate_transport(remote=True)
-            private["mailbox_tid"] = tid # XXX not used?
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
 
         cid = self.db.insert(
@@ -134,7 +132,7 @@ class Agent(service.MultiService):
             "addressbook", {"reqid": reqid})
 
         iid = self.im.start_invitation(cid, code, generate,
-                                       my_signkey, payload, private)
+                                       my_signkey, payload)
         self.db.update("UPDATE addressbook SET invitation_id=? WHERE id=?",
                        (iid, cid), "addressbook", cid, {"reqid": reqid})
         return {"contact-id": cid, "invite-id": iid, "petname": petname,
@@ -142,7 +140,7 @@ class Agent(service.MultiService):
                 "ok": "invitation for %s started: invite-id=%d, code=%s" %
                 (petname, iid, code)}
 
-    def invitation_done(self, cid, private, them, their_verfkey):
+    def invitation_done(self, cid, them, their_verfkey):
         self.db.update(
             "UPDATE addressbook SET"
             " when_accepted=?,"
@@ -176,6 +174,10 @@ class Agent(service.MultiService):
         self.db.update("UPDATE addressbook SET acked=1, invitation_id=NULL"
                        " WHERE id=?", (cid,),
                        "addressbook", cid)
+        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                            (cid,))
+        petname = c.fetchone()["petname"]
+        log.msg("addressbook entry added for petname=%r" % petname)
 
     def command_send_basic_message(self, cid, message):
         try:

@@ -1,6 +1,5 @@
 import re, os, json, hmac
 from hashlib import sha256
-from twisted.python import log
 from twisted.application import service
 from .hkdf import HKDF
 from .errors import CommandError
@@ -100,9 +99,8 @@ class InvitationManager(service.MultiService):
             # resends or reactions to inbound messages
             self.subscribe(str(inviteID))
 
-    def start_invitation(self, cid, code, generated,
-                         my_signkey, payload, private):
-        # "payload" goes to them, "private" stays with us
+    def start_invitation(self, cid, code, generated, my_signkey, payload):
+        # "payload" goes to them
         stretched = stretch(code)
         invite_key = SigningKey(stretched)
         inviteID = invite_key.verify_key.encode(Hex)
@@ -118,16 +116,16 @@ class InvitationManager(service.MultiService):
                         "  invite_key,"
                         "  inviteID,"
                         "  my_temp_privkey, my_signkey,"
-                        "  payload_for_them_json, my_private_invitation_data,"
+                        "  payload_for_them_json,"
                         "  my_messages, their_messages, "
                         "  next_expected_message)"
-                        " VALUES (?, ?,?, ?, ?, ?,?, ?,?, ?,?, ?)",
+                        " VALUES (?, ?,?, ?, ?, ?,?, ?, ?,?, ?)",
                         (cid,
                          code.encode("hex"), int(bool(generated)),
                          stretched.encode("hex"),
                          inviteID,
                          my_temp_privkey.encode(Hex), my_signkey.encode(Hex),
-                         json.dumps(payload), json.dumps(private),
+                         json.dumps(payload),
                          "", "",
                          1),
                         "invitations")
@@ -186,11 +184,6 @@ class Invitation:
         c = self.db.execute("SELECT payload_for_them_json FROM invitations"
                             " WHERE id = ?", (self.iid,))
         return c.fetchone()[0]
-
-    def get_my_private_data(self):
-        c = self.db.execute("SELECT my_private_invitation_data FROM invitations"
-                            " WHERE id = ?", (self.iid,))
-        return json.loads(c.fetchone()[0])
 
 
     def send_first_message(self):
@@ -348,8 +341,7 @@ class Invitation:
 
         cid = self.get_channel_id()
         them = json.loads(payload_for_us_json)
-        me = self.get_my_private_data()
-        self.agent.invitation_done(cid, me, them, their_verfkey)
+        self.agent.invitation_done(cid, them, their_verfkey)
 
         msg3 = "i0:m3:ACK-"+os.urandom(16)
         self.send(msg3)
@@ -359,7 +351,6 @@ class Invitation:
         #print "processM3", repr(msg[:10]), "..."
         if not msg.startswith("ACK-"):
             raise ValueError("bad ACK")
-        petname = self.get_my_private_data()["petname"]
         self.agent.invitation_acked(self.get_channel_id())
         self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
                        "invitations", self.iid)
@@ -368,4 +359,3 @@ class Invitation:
         self.send(msg4, persist=False)
         self.manager.unsubscribe(self.inviteID)
         self.manager._debug_invitations_completed += 1
-        log.msg("addressbook entry added for petname=%r" % petname)
