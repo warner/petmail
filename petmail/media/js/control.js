@@ -16,9 +16,9 @@ var mailboxes = {}; // indexed by mid
 var advertise_local_mailbox = false;
 var local_mailbox_url;
 
-function do_API(api_name, request) {
+function do_API(api_name, args) {
   var d = $.Deferred();
-  d3.json("/api/"+api_name).post(JSON.stringify(request),
+  d3.json("/api/"+api_name).post(JSON.stringify({token: token, args: args}),
           function(err, r) {
             if (err)
               d.reject(err);
@@ -54,12 +54,12 @@ function submit_invite(generate, code, initial_petname, accept_mailbox) {
   // frontend)
   var reqid = Math.round(Math.random() * 100000);
   new_invite_reqid = reqid;
-  var req = {token: token, args: {reqid: reqid,
-                                  generate: generate,
-                                  code: code,
-                                  petname: initial_petname,
-                                  accept_mailbox: accept_mailbox }};
-  do_API("invite", req).then(function(r) { console.log("invited", r.ok);});
+  var args = { reqid: reqid,
+               generate: generate,
+               code: code,
+               petname: initial_petname,
+               accept_mailbox: accept_mailbox };
+  do_API("invite", args).then(function(r) { console.log("invited", r.ok);});
 }
 
 function update_addressbook(data) {
@@ -193,11 +193,10 @@ function edit_petname_done() {
   var new_petname = $("#contact-details-petname-editor").val();
   if (old_petname !== new_petname) {
     $("#contact-details-petname").text("<updating..>");
-    var req = {"token": token,
-               "args": {"petname": new_petname,
-                        "cid": $("#contact-details-id").text()
-                       }};
-    do_API("set-petname", req).then(function(r) {
+    var args = { "petname": new_petname,
+                 "cid": $("#contact-details-id").text()
+               };
+    do_API("set-petname", args).then(function(r) {
       console.log("set petname", r.ok);
     });
   }
@@ -293,8 +292,8 @@ function update_messages() {
 function handle_send_message_go(e) {
   var msg = $("#send-message-body").val();
   console.log("sending", msg, "to", current_cid);
-  var req = {"token": token, "args": {"cid": current_cid, "message": msg}};
-  do_API("send-basic", req).then(function(r) {
+  var args = {"cid": current_cid, "message": msg};
+  do_API("send-basic", args).then(function(r) {
     console.log("sent", r.ok);
   });
   $("#send-message-body").val("");
@@ -359,14 +358,12 @@ function handle_backend_event(e) {
 }
 
 function eventchannel_subscribe(token, esid, topic, catchup) {
-  do_API("eventchannel-subscribe", {"token": token,
-                                    "args": {
-                                      "esid": esid,
-                                      "topic": topic,
-                                      "catchup": catchup}
-                                   }).fail(function(err) {
-                                     console.log("subscribe-"+topic+" err");
-                                   });
+  var args = { "esid": esid,
+               "topic": topic,
+               "catchup": catchup };
+  do_API("eventchannel-subscribe", args).fail(function(err) {
+    console.log("subscribe-"+topic+" err");
+  });
 }
 
 function main() {
@@ -441,7 +438,7 @@ function main() {
   $("#send-message-go").on("click", handle_send_message_go);
 
   // finally connect us to the backend event stream
-  do_API("eventchannel-create", {"token": token}).then(function(r) {
+  do_API("eventchannel-create", {}).then(function(r) {
     console.log("create-eventchannel done", r.esid);
     esid = r.esid;
     var ev = new EventSource("/api/events/"+esid);
