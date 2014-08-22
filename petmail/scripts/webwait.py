@@ -128,7 +128,6 @@ def command(basedir, command, args, err=sys.stderr):
     if not url:
         return False, {"err": "Error, node is not yet running"}
     body = json.dumps({"token": token,
-                       "method": command,
                        "args": args,
                        }).encode("utf-8")
     resp = do_http("POST", url+"api/%s" % command, body)
