@@ -1,6 +1,7 @@
 import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
+from twisted.python import log
 #from nacl.signing import VerifyKey, BadSignatureError
 from nacl.signing import VerifyKey
 from nacl.exceptions import BadSignatureError
@@ -415,6 +416,8 @@ class Channel(resource.Resource):
 
     def render_POST(self, request):
         channel = self.channels[self.channelid]
+        log.msg("msg rx for channel[%s] (had %d msgs)" % (self.channelid[:6],
+                                                          len(channel)))
         destroy_messages = self.destroy_messages[self.channelid]
         message = request.content.read()
         # reject junk
@@ -434,10 +437,13 @@ class Channel(resource.Resource):
         except BadSignatureError:
             request.setResponseCode(http.BAD_REQUEST)
             return "invalid rendezvous message signature"
+        log.msg(" msg is valid and not a duplicate")
+
         # look for two valid deletion messages
         if i0.startswith("i0:destroy:"):
             destroy_messages.add(i0)
         if len(destroy_messages) >= 2:
+            log.msg(" destroying channel[%s]" % (self.channelid[:6],))
             del self.channels[self.channelid]
             del self.destroy_messages[self.channelid]
             for p in self.subscribers[self.channelid]:
@@ -445,6 +451,8 @@ class Channel(resource.Resource):
             del self.subscribers[self.channelid]
             return "Destroyed\n"
         channel.append(message)
+        log.msg(" channel[%s] now has %d msgs" % (self.channelid[:6],
+                                                  len(channel)))
         for p in self.subscribers[self.channelid]:
             p.sendEvent(message)
         return "OK\n"
