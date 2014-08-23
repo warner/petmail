@@ -9,10 +9,6 @@ from ..scripts import runner
 from ..web import SampleError
 from .common import BasedirMixin, NodeRunnerMixin
 
-class Basic(unittest.TestCase):
-    def test_one(self):
-        self.assert_(True, "yay!")
-
 # most tests will just do Node.startService and invoke CLI commands by
 # talking directly to the web handler: no network, no other processes.
 
