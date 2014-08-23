@@ -1,6 +1,8 @@
-import os, json
+import os, sys, json
 from twisted.python import failure
 from twisted.internet import defer
+from twisted.internet import threads # CLI tests use deferToThread
+from twisted.internet.utils import getProcessOutputAndValue
 from twisted.application import service
 from StringIO import StringIO
 from nacl.public import PrivateKey
@@ -86,6 +88,45 @@ class NodeRunnerMixin:
 
     def accelerate_polling(self, n):
         list(n.agent.im)[0].polling_interval = 0.01
+
+
+class CLIinThreadMixin:
+    def cli(self, *args, **kwargs):
+        stdout, stderr = StringIO(), StringIO()
+        d = threads.deferToThread(runner.run, list(args), stdout, stderr,
+                                  kwargs.get("petmail"))
+        def _done(rc):
+            return stdout.getvalue(), stderr.getvalue(), rc
+        d.addCallback(_done)
+        return d
+    def mustSucceed(self, (out, err, rc)):
+        if rc != 0:
+            self.fail("rc=%s out='%s' err='%s'" % (rc, out, err))
+        self.stderr = err
+        return out
+
+    def cliMustSucceed(self, *args, **kwargs):
+        d = self.cli(*args, **kwargs)
+        d.addCallback(self.mustSucceed)
+        return d
+
+class CLIinProcessMixin(CLIinThreadMixin):
+    def cli(self, *args, **kwargs):
+        petmail = runner.petmail_executable[0]
+        d = getProcessOutputAndValue(sys.executable, [petmail] + list(args),
+                                     os.environ)
+        return d
+
+    def anyways(self, res, cb, *args, **kwargs):
+        # always run the cleanup callback
+        d = defer.maybeDeferred(cb, *args, **kwargs)
+        if isinstance(res, failure.Failure):
+            # let the original failure passthrough
+            d.addBoth(lambda _: res)
+        # otherwise the original result was success, so just return the
+        # cleanup result
+        return d
+
 
 def fake_transport():
     privkey = PrivateKey.generate()
