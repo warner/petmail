@@ -225,6 +225,26 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.failUnless("code" in res)
         self.failUnless(len(res["code"]) > 10)
 
+    def test_change_petname(self):
+        basedir1 = os.path.join(self.make_basedir(), "node1")
+        self.createNode(basedir1)
+        n1 = self.startNode(basedir1)
+        self.disable_polling(n1)
+        tports = {"local": fake_transport()}
+        res = n1.agent.command_invite(u"old-petname",
+                                      code=None, generate=True,
+                                      override_transports=tports)
+        self.failUnless("code" in res)
+        self.failUnless(len(res["code"]) > 10)
+        entries = n1.db.execute("SELECT * FROM addressbook").fetchall()
+        self.failUnlessEqual(len(entries), 1)
+        petname = entries[0]["petname"]
+        self.failUnlessEqual(petname, u"old-petname")
+
+        n1.agent.command_set_petname(entries[0]["id"], "new-petname")
+        petname = n1.db.execute("SELECT * FROM addressbook").fetchone()["petname"]
+        self.failUnlessEqual(petname, u"new-petname")
+
     def test_bad_args(self):
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
