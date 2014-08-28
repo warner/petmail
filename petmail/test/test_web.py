@@ -52,11 +52,6 @@ class Web(BasedirMixin, NodeRunnerMixin, CLIinThreadMixin, unittest.TestCase):
 
         return d
 
-    def POST(self, url, args):
-        return getPage(url, method="POST", postdata=json.dumps(args),
-                       headers={"accept": "application/json",
-                                "content-type": "application/json"})
-
     def POST_control(self, url, token):
         postdata = "token=%s" % token
         return getPage(url, method="POST", postdata=postdata,
@@ -83,5 +78,31 @@ class Web(BasedirMixin, NodeRunnerMixin, CLIinThreadMixin, unittest.TestCase):
             self.failUnlessIn("<title>Petmail Control Panel</title>", page)
             self.failUnlessIn('var token = "%s";' % token, page)
         d.addCallback(_check_good_token)
+
+        return d
+
+    def POST(self, url, args):
+        d = getPage(url, method="POST", postdata=json.dumps(args),
+                    headers={"accept": "application/json",
+                             "content-type": "application/json"})
+        d.addCallback(json.loads)
+        return d
+
+    def test_api(self):
+        self.basedir = os.path.join(self.make_basedir(), "node")
+        self.createNode(self.basedir)
+        n = self.startNode(self.basedir)
+        token = n.web.access_token
+        api_url = n.baseurl + "api"
+
+        d = defer.succeed(None)
+
+        d.addCallback(lambda _: self.POST(api_url+"/list-addressbook",
+                                          {"token": token,
+                                           "args": {}}))
+        def _got_response(res):
+            self.failUnlessEqual(res["ok"], "ok")
+            self.failUnlessEqual(res["addressbook"], [])
+        d.addCallback(_got_response)
 
         return d
