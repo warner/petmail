@@ -2,7 +2,7 @@ import os.path
 from twisted.trial import unittest
 from common import BasedirMixin
 from ..eventual import flushEventualQueue
-from ..database import get_db, make_observable_db
+from ..database import get_db, make_observable_db, DBError
 
 class Database(BasedirMixin, unittest.TestCase):
     def test_create(self):
@@ -12,6 +12,29 @@ class Database(BasedirMixin, unittest.TestCase):
 
         row = db.execute("SELECT * FROM version").fetchone()
         self.failUnlessEqual(row["version"], 1)
+
+    def test_create_failure(self):
+        bad_dbfile = "missing/directory/test.db"
+        err = self.failUnlessRaises(DBError, get_db, bad_dbfile)
+        self.failUnlessIn("Unable to create/open db file", str(err))
+        self.failUnlessIn("unable to open database file", str(err))
+
+    def test_versions(self):
+        basedir = self.make_basedir()
+        dbfile = os.path.join(basedir, "test.db")
+        db = get_db(dbfile)
+
+        db.execute("UPDATE version SET version=2")
+        db.commit()
+        err = self.failUnlessRaises(DBError, get_db, dbfile)
+        self.failUnlessEqual("Unable to handle db version 2",
+                             str(err))
+
+        db.execute("DROP TABLE version")
+        db.commit()
+        err = self.failUnlessRaises(DBError, get_db, dbfile)
+        self.failUnlessEqual("db file is unusable: no such table: version",
+                             str(err))
 
     def test_coercion(self):
         # if sqlite doesn't recognize a column type in the schema, it
