@@ -1,5 +1,4 @@
-import re, os, json, hmac
-from hashlib import sha256
+import re, os, json
 from twisted.application import service
 from .hkdf import HKDF
 from .errors import CommandError
@@ -42,9 +41,6 @@ VALID_MESSAGE = re.compile(r'^r0:[0-9a-f]+$')
 def stretch(code):
     # TODO: spend some quality time with scrypt
     return HKDF("stretched-" + code, 32)
-
-def HMAC(key, msg):
-    return hmac.new(key, msg, sha256).digest()
 
 def splitMessages(s):
     if not s:
