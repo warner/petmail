@@ -121,7 +121,7 @@ class HTTPMailboxServer(BaseServer):
 
     def get_local_transport(self):
         row = self.db.execute("SELECT * FROM mailbox_server_transports"
-                              " WHERE symkey = NULL").fetchone()
+                              " WHERE symkey is NULL").fetchone()
         if not row:
             return self.allocate_transport(False)
         return row["id"]

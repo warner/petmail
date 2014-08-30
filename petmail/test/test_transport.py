@@ -44,6 +44,16 @@ class Transports(TwoNodeMixin, unittest.TestCase):
         self.failUnlessEqual(len(transportsAB), 1)
         self.failUnlessEqual(transportsAB[0]["type"], "http")
 
+        local_tids = [row["id"]
+                      for row in (nA.db.execute("SELECT * FROM"
+                                                " mailbox_server_transports")
+                                  .fetchall())
+                      if row["symkey"] is None]
+        self.failUnlessEqual(len(local_tids), 1)
+        tid_1 = nA.agent.mailbox_server.get_local_transport()
+        tid_2 = nA.agent.mailbox_server.get_local_transport()
+        self.failUnlessEqual(tid_1, tid_2)
+
     def test_send_local(self):
         nA, nB, entA, entB = self.make_connected_nodes(transport="local")
         #chanAB = json.loads(entA["their_channel_record_json"])
