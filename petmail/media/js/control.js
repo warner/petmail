@@ -169,6 +169,13 @@ function show_contact_details(e) {
     edit_petname_start();
 }
 
+function accept_mailbox_changestate() {
+  do_API("accept-mailbox", { cid: $("#contact-details-id").text(),
+                             accept: $("#accept-mailbox").prop("checked") })
+    .then(function(r) { console.log("set-accept-mailbox", r.ok); });
+}
+
+
 function edit_petname_start() {
   if (editing_petname)
     return;
@@ -437,6 +444,7 @@ function main() {
     if (e.keyCode == 13) // $.ui.keyCode.ENTER
       edit_petname_done();
   });
+  $("#accept-mailbox").on("click", accept_mailbox_changestate);
 
   // basic message-sending "room" stub
   $("#send-message-go").on("click", handle_send_message_go);

@@ -179,6 +179,18 @@ class Agent(service.MultiService):
         petname = c.fetchone()["petname"]
         log.msg("addressbook entry added for petname=%r" % petname)
 
+    def command_control_accept_mailbox_offer(self, cid, accept):
+        c = self.db.execute("SELECT accept_mailbox_offer FROM addressbook WHERE id=?",
+                            (cid,))
+        old_accept = bool(c.fetchone()["accept_mailbox_offer"])
+        if accept != old_accept:
+            self.db.update("UPDATE addressbook SET accept_mailbox_offer=?"
+                           " WHERE id=?", (accept, cid),
+                           "addressbook", cid)
+            # TODO: add or remove an existing mailbox
+            self.db.commit()
+        return "ok"
+
     def command_send_basic_message(self, cid, message):
         try:
             self.send_message(cid, {"basic": message}) # ignore Deferred

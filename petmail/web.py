@@ -294,6 +294,13 @@ class Invite(BaseHandler):
                                          accept_mailbox_offer=accept_mailbox_offer)
 handlers["invite"] = Invite
 
+class AcceptMailboxOffer(BaseHandler):
+    def handle(self, payload):
+        cid = int(payload["cid"])
+        accept = bool(payload["accept"])
+        return self.agent.command_control_accept_mailbox_offer(cid, accept)
+handlers["accept-mailbox"] = AcceptMailboxOffer
+
 class ListAddressbook(BaseHandler):
     def handle(self, payload):
         return {"ok": "ok",
