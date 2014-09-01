@@ -150,19 +150,25 @@ function show_contact_details(e) {
     }
   }
   $("#contact-details-code code").text(e.invitation_code);
-  if (e.mailbox_id !== undefined) {
-    $("#contact-details-accepted-mailbox").show();
+  function set_accept_mailbox() {
+    $("#accept-mailbox").prop("checked", true);
+    $("#contact-details-will-accept-mailbox").show();
+    $("#contact-details-will-not-accept-mailbox").hide();
+  }
+  function clear_accept_mailbox() {
+    $("#accept-mailbox").prop("checked", false);
     $("#contact-details-will-accept-mailbox").hide();
     $("#contact-details-will-not-accept-mailbox").show();
+  }
+  if (e.mailbox_id !== undefined) {
+    $("#contact-details-accepted-mailbox").show();
   } else {
     $("#contact-details-accepted-mailbox").hide();
-    if (e.accept_mailbox_offer) {
-      $("#contact-details-will-accept-mailbox").show();
-      $("#contact-details-will-not-accept-mailbox").hide();
-    } else {
-      $("#contact-details-will-accept-mailbox").hide();
-      $("#contact-details-will-not-accept-mailbox").show();
-    }
+  }
+  if (e.accept_mailbox_offer) {
+    set_accept_mailbox();
+  } else {
+    clear_accept_mailbox();
   }
 
   if (was_open && was_editing_petname)
