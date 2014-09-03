@@ -102,6 +102,7 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
         ]
     def parseArgs(self, code=None):
         self["code"] = code
+    synopsis = "[CODE]"
 
 class OfferMailboxOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, petname):
@@ -115,11 +116,13 @@ class AcceptMailboxOptions(BasedirParameterMixin, usage.Options):
         ]
     def parseArgs(self, code):
         self["code"] = code
+    synopsis = "[CODE]"
 
 class SendBasicOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, cid, message):
         self["cid"] = cid
         self["message"] = message
+    synopsis = "CONTACT-ID MESSAGE"
 
 class TestOptions(usage.Options):
     def parseArgs(self, *test_args):
@@ -127,6 +130,7 @@ class TestOptions(usage.Options):
             self.test_args = ["petmail"]
         else:
             self.test_args = list(test_args)
+    synopsis = "[TEST-ARGS]"
 
 class Options(usage.Options):
     synopsis = "\nUsage: petmail <command>"
