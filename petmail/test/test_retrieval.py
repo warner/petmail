@@ -121,7 +121,7 @@ class More(unittest.TestCase):
 
 class Server(TwoNodeMixin, unittest.TestCase):
 
-    def test_retrieval_client(self):
+    def test_retrieval_client(self): # TODO: err here, eventsource.py#L166 assert
         n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
         tid1, trec1 = self.add_recipient(n)
