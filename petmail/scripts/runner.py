@@ -117,6 +117,7 @@ class AcceptMailboxOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, code):
         self["code"] = code
     synopsis = "[CODE]"
+    longdesc = "Accept an invitation, and also accept any mailbox offer it might include."
 
 class SendBasicOptions(BasedirParameterMixin, usage.Options):
     def parseArgs(self, cid, message):
