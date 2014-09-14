@@ -295,6 +295,7 @@ class Invite(BaseHandler):
 handlers["invite"] = Invite
 
 class AcceptMailboxOffer(BaseHandler):
+    """Set/clear the 'will accept a mailbox offer' flag for an existing CID."""
     def handle(self, payload):
         cid = int(payload["cid"])
         accept = bool(payload["accept"])
