@@ -155,6 +155,8 @@ class EventChannel(resource.Resource):
                                 (new_value["id"],)).fetchone()
             if row:
                 new_value["mailbox_id"] = row["id"]
+            they_offered = json.loads(notice.new_value["latest_offered_mailbox_json"] or "null")
+            new_value["they_offered_mailbox"] = bool(they_offered)
         self.deliver_event(notice, new_value, "addressbook")
 
     def deliver_inbound_message_event(self, notice):

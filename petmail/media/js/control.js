@@ -150,6 +150,12 @@ function show_contact_details(e) {
     }
   }
   $("#contact-details-code code").text(e.invitation_code);
+
+  if (e.they_offered_mailbox)
+    $("#contact-details-they-offered-mailbox").text("Yes");
+  else
+    $("#contact-details-they-offered-mailbox").text("No");
+
   function set_accept_mailbox() {
     $("#accept-mailbox").prop("checked", true);
     $("#contact-details-will-accept-mailbox").show();
