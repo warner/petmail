@@ -4,6 +4,7 @@ Petmail
 * https://github.com/warner/petmail
 
 [![Build Status](https://travis-ci.org/warner/petmail.png?branch=master)](https://travis-ci.org/warner/petmail)
+[![Coverage Status](https://coveralls.io/repos/warner/petmail/badge.svg)](https://coveralls.io/r/warner/petmail)
 
 Petmail is a secure communication/file-sharing system. It is a reboot of my
 earlier "Petmail" spam-resistant mail system (http://petmail.lothar.com/),

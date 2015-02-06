@@ -3,5 +3,8 @@ python:
   - "2.7"
 install:
   - python setup.py safe_develop
+  - pip install python-coveralls
 script:
-  - make test
+  - make test-coverage
+after_success:
+  - coveralls
