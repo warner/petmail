@@ -37,17 +37,11 @@ class ElispReporter(summary.SummaryReporter):
         out.write(" results)\n")
         out.close()
 
-def main(include):
+def main():
     c = coverage() # defaults to data_file=.coverage
     c.load()
     c._harvest_data()
-    c.config.from_args(include=include)
     ElispReporter(c, c.config).report()
 
 if __name__ == '__main__':
-    ap = argparse.ArgumentParser()
-    ap.add_argument("include", metavar="INCLUDE_DIR", type=str)
-    args = ap.parse_args()
-    main(include=args.include+"/*")
-
-
+    main()

@@ -103,9 +103,9 @@ test-coverage: venv/bin/coverage
 	venv/bin/coverage run ./venv/bin/petmail test $(TEST)
 coverage-html: venv/bin/coverage
 	rm -rf .coverage-html
-	venv/bin/coverage html -d .coverage-html --include="petmail/*" --omit="petmail/test/*,petmail/_version.py"
+	venv/bin/coverage html -d .coverage-html
 open-coverage:
 	open .coverage-html/index.html
 # you'll want to load misc/coverage.el in your emacs
 .coverage.el: .coverage misc/coverage2el.py venv/bin/coverage
-	venv/bin/python misc/coverage2el.py petmail
+	venv/bin/python misc/coverage2el.py

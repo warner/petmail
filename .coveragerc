@@ -1,0 +1,8 @@
+# -*- conf -*-
+
+[run]
+include =
+ petmail/*
+omit =
+ petmail/_version.py
+ petmail/test/*.py
