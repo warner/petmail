@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import argparse
 from coverage import coverage, summary, misc
 

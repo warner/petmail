@@ -113,21 +113,19 @@
   () ; forms run on mode entry/exit
 )
 
-;; if you have other projects that use this scheme, add the following to your
-;; .emacs.el:
-;; (add-to-list 'coverage-annotation-basedirs "/abspath/to/project/source")
 
-(setq coverage-annotation-basedirs '())
+; use this to enable the mode in all .py buffers ('CA' will be shown in the
+; mode line, but you will still need to use C-cC-a to toggle display of
+; annotations):
+;; (add-hook 'python-mode-hook 'coverage-annotation-minor-mode)
 
-;; we live in PETMAIL_SOURCE/misc/coverage.el . At load, add PETMAIL_SOURCE.
-(add-to-list 'coverage-annotation-basedirs
-             (file-name-directory
-              (directory-file-name
-               (file-name-directory buffer-file-name))))
-;; TODO: this buffer-file-name is for whatever buffer is active when
-;; coverage.el is loaded, not the filename of coverage.el itself, so this is
-;; probably dumb. It also causes an error when the load is done from e.g. the
-;; *scratch* buffer.
+; or use something like this to enable the mode in a set of projects which
+; use it:
+
+; (add-hook 'python-mode-hook 'maybe-enable-coverage-mode)
+; (add-to-list 'coverage-annotation-basedirs (expand-file-name "~/project"))
+
+(defvar coverage-annotation-basedirs '())
 
 (defun maybe-enable-coverage-mode ()
   (let ((enable nil))
@@ -138,4 +136,3 @@
         (coverage-annotation-minor-mode t))
     ))
 
-(add-hook 'python-mode-hook 'maybe-enable-coverage-mode)
