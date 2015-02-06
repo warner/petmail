@@ -108,4 +108,4 @@ open-coverage:
 	open .coverage-html/index.html
 # you'll want to load misc/coverage.el in your emacs
 .coverage.el: .coverage misc/coverage2el.py venv/bin/coverage
-	venv/bin/python misc/coverage2el.py
+	venv/bin/python misc/coverage2el.py petmail
