@@ -114,14 +114,16 @@
 )
 
 
-; use this to enable the mode in all .py buffers ('CA' will be shown in the
-; mode line, but you will still need to use C-cC-a to toggle display of
-; annotations):
-;; (add-hook 'python-mode-hook 'coverage-annotation-minor-mode)
+;; use this to enable the mode in all .py buffers ('CA' will be shown in the
+;; mode line, but you will still need to use C-cC-a to toggle display of
+;; annotations):
+; (load-library "coverage-annotation")
+; (add-hook 'python-mode-hook 'coverage-annotation-minor-mode)
 
 ; or use something like this to enable the mode in a set of projects which
 ; use it:
 
+; (load-library "coverage-annotation")
 ; (add-hook 'python-mode-hook 'maybe-enable-coverage-mode)
 ; (add-to-list 'coverage-annotation-basedirs (expand-file-name "~/project"))
 
