@@ -436,6 +436,8 @@ def peep_install(argv):
             print('Not proceeding to installation.')
             return SOMETHING_WENT_WRONG
         else:
+            print('---------')
+            print('All hashes look good, proceeding to installation.')
             pip_install_archives_from(temp_path)
 
             if satisfied_reqs:
