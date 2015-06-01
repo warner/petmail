@@ -50,7 +50,7 @@ def start(so, out, err):
     print >>out, "starting node in %s" % basedir
     child_pid = os.fork()
     if child_pid == 0:
-        # this is the child: turn int othe new app
+        # this is the child: turn into the new app
         twistd.runApp(twistd_config)
         os._exit(1) # should never be called
         # CONTROL NEVER REACHES HERE
