@@ -43,7 +43,7 @@ you, the program author, must provide code (subcommands of your main tool) to
 configure everything. That's a drag. But the upside is that there's no
 confusion about where the state or configuration lives, and there's no
 hard-to-manage race between the user modifying their config and the program
-modifying its state (both a atomic DB transactions).
+modifying its state (both are atomic DB transactions).
 
 For example, in Tahoe we'd kind of like to store the list of known servers in
 a text file (one per line), because that'd be easy for a human to edit. But

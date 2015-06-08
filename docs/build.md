@@ -77,7 +77,7 @@ have any deep dependencies on anything else.
 
 Petmail gets its crypto from the "pynacl" package, which is a cffi-based
 binding to the "libsodium" C library. This will compile libsodium during
-installation, and then compile the python bindinds upon first import, both of
+installation, and then compile the python bindings upon first import, both of
 which require access to a C compiler (and the python development headers). To
 install the (Python) cffi package, the libffi C library must first be
 installed, and its headers must be available. On Debian-like systems, install
@@ -121,8 +121,8 @@ been fully installed, and uses the system-supplied Python executable.
 ## Dependency Verification
 
 To keep the source tree small, Petmail's dependencies are not included.
-`python setup.py safe_develop` fetches these tarballs from PyPI. However the
-command (thanks to `peep`) verifies SHA256 hashes of the tarballs before
+`python setup.py safe_develop` fetches these tarballs from PyPI. However
+(thanks to `peep`) the command verifies SHA256 hashes of the tarballs before
 using them.
 
 **(note: not available yet)** If you wish to avoid downloading additional
