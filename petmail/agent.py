@@ -82,16 +82,13 @@ class Agent(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, code, reqid=None,
-                       generate=False,
+    def command_invite(self, petname, is_initiator, code, reqid=None,
                        override_transports=None, offer_mailbox=False,
                        accept_mailbox_offer=False):
-        if generate:
-            if code:
-                raise CommandError("please use --generate or --code, not both")
-            code = to_ascii(os.urandom(16), "", "base32")
-            if offer_mailbox:
-                code = "mailbox-" + code
+        if is_initiator and code:
+            raise CommandError("please use --initiate or --code, not both")
+        #if offer_mailbox:
+        #    code = "mailbox-" + code
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)
@@ -111,10 +108,13 @@ class Agent(service.MultiService):
             tid = self.mailbox_server.allocate_transport(remote=True)
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
 
+        signed_payload = SIGN(my_signkey, payload)
+        iid = self.im.create_invitation(cid, code, signed_payload)
+
         cid = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, accept_mailbox_offer,"
-            "  acked, when_invited, invitation_code,"
+            "  invitation_id, when_invited, invitation_code, acked,"
             "  next_outbound_seqnum, my_signkey,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
@@ -122,7 +122,7 @@ class Agent(service.MultiService):
             "  my_new_channel_privkey)"
             " VALUES (?,?, ?,?,?, ?,?, ?,?, ?, ?, ?)",
             (petname, accept_mailbox_offer,
-             0, time.time(), code,
+             iid, time.time(), None, 0,
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
              0,
@@ -130,30 +130,29 @@ class Agent(service.MultiService):
              channel_key.encode(Hex), # at beginning, old=new
              ),
             "addressbook", {"reqid": reqid})
+        # self.db.commit() ?
 
-        iid = self.im.start_invitation(cid, code, generate,
-                                       my_signkey, payload)
-        self.db.update("UPDATE addressbook SET invitation_id=? WHERE id=?",
-                       (iid, cid), "addressbook", cid, {"reqid": reqid})
         return {"contact-id": cid, "invite-id": iid, "petname": petname,
                 "code": code,
                 "ok": "invitation for %s started: invite-id=%d, code=%s" %
                 (petname, iid, code)}
 
-    def invitation_done(self, cid, them, their_verfkey):
+    def invitation_done(self, cid, their_payload):
+        them, their_verfkey = ???
         self.db.update(
             "UPDATE addressbook SET"
             " when_accepted=?,"
             " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
-            "WHERE id=?",
+            " WHERE id=?",
             (time.time(),
              json.dumps(them.get("mailbox")),
              json.dumps(them["channel"]),
              0, their_verfkey.encode().encode("hex"),
              cid), "addressbook", cid)
         self.maybe_accept_mailbox(cid)
+        # probably self.db.commit()
         return cid
 
     def maybe_accept_mailbox(self, cid):
