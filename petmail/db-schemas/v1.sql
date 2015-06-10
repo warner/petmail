@@ -108,6 +108,8 @@ CREATE TABLE `invitations`
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `channel_id` INTEGER, -- to correlate with an addressbook entry
 
+ `code` VARCHAR, -- as entered by the user: always present on receiver,
+                 -- only present on sender when not using code-generator
  `wormhole` VARCHAR, -- serialized magic-wormhole state
 
  -- they'll get this payload in M2
@@ -120,11 +122,10 @@ CREATE TABLE `addressbook`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT, -- the channelID
 
- -- historical data about the invitation process
- --  1: iid=iid,iid->data=NULL,icode=NULL,acked=0 : waiting to allocate code
- --  2: iid=iid,icode=code,acked=0 : waiting for invitation to complete
- --  3: iid=NULL,icode=code,acked=1 : invitation complete
- `invitation_id` INTEGER, -- or NULL, points at `invitations.id`
+ -- current+historical data about the invitation process
+ --  1: icode=NULL,acked=0 : waiting to allocate code
+ --  2: icode=code,acked=0 : waiting for invitation to complete
+ --  3: icode=code,acked=1 : invitation complete
  `when_invited` INTEGER, -- memories of how we met them
  `when_accepted` INTEGER,
  `invitation_code` VARCHAR,

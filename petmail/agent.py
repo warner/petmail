@@ -31,19 +31,13 @@ class Agent(service.MultiService):
             rc = self.build_retriever(mbid, rrec)
             self.subscribe_to_mailbox(rc)
 
-        self.im = invitation.InvitationManager(db, self)
-        c = self.db.execute("SELECT * FROM relay_servers")
-        for row in c.fetchall():
-            desc = json.loads(row["descriptor_json"])
-            if desc["type"] == "localdir":
-                from .rendezvous.localdir import LocalDirectoryRendezvousClient
-                rdir = os.path.join(os.path.dirname(basedir), ".rendezvous")
-                rs = LocalDirectoryRendezvousClient(rdir)
-            if desc["type"] == "http":
-                from .rendezvous.web_client import HTTPRendezvousClient
-                rs = HTTPRendezvousClient(str(desc["url"]))
-            self.im.add_rendezvous_service(rs)
-        self.im.setServiceParent(self)
+        # the invitations are activated in startService
+        self.im = invitation.InvitationManager(db)
+
+    def startService(self):
+        service.MultiService.startService(self)
+        for i in self.im.thaw_invitations():
+            self._activate_invitation(i)
 
     def build_retriever(self, mbid, rrec):
         # parse descriptor, import correct module and constructor
@@ -82,11 +76,9 @@ class Agent(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, is_initiator, code, reqid=None,
+    def command_invite(self, petname, code=None, reqid=None,
                        override_transports=None, offer_mailbox=False,
                        accept_mailbox_offer=False):
-        if is_initiator and code:
-            raise CommandError("please use --initiate or --code, not both")
         #if offer_mailbox:
         #    code = "mailbox-" + code
         my_signkey = SigningKey.generate()
@@ -108,13 +100,10 @@ class Agent(service.MultiService):
             tid = self.mailbox_server.allocate_transport(remote=True)
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
 
-        signed_payload = SIGN(my_signkey, payload)
-        iid = self.im.create_invitation(cid, code, signed_payload)
-
         cid = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, accept_mailbox_offer,"
-            "  invitation_id, when_invited, invitation_code, acked,"
+            "  when_invited, invitation_code, acked,"
             "  next_outbound_seqnum, my_signkey,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
@@ -122,7 +111,7 @@ class Agent(service.MultiService):
             "  my_new_channel_privkey)"
             " VALUES (?,?, ?,?,?, ?,?, ?,?, ?, ?, ?)",
             (petname, accept_mailbox_offer,
-             iid, time.time(), None, 0,
+             time.time(), None, 0,
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
              0,
@@ -130,18 +119,29 @@ class Agent(service.MultiService):
              channel_key.encode(Hex), # at beginning, old=new
              ),
             "addressbook", {"reqid": reqid})
-        # self.db.commit() ?
+
+        signed_payload = SIGN(my_signkey, payload)
+        i = self.im.create_invitation(cid, code, signed_payload)
+        iid = i.iid
+        self.db.commit()
+        self._activate_invitation(i)
 
         return {"contact-id": cid, "invite-id": iid, "petname": petname,
-                "code": code,
-                "ok": "invitation for %s started: invite-id=%d, code=%s" %
-                (petname, iid, code)}
+                "ok": "invitation for %s started: invite-id=%d" %
+                (petname, iid)}
 
-    def invitation_done(self, cid, their_payload):
+    def _activate_invitation(self, i):
+        d = i.activate()
+        cid = i.channel_id
+        d.addCallbacks(self.invitation_success, self.invitation_failed,
+                       callbackArgs=(cid,), errbackArgs=(cid,))
+        return d
+
+    def invitation_success(self, their_payload, cid):
         them, their_verfkey = ???
         self.db.update(
             "UPDATE addressbook SET"
-            " when_accepted=?,"
+            " when_accepted=?, acked=1,"
             " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
@@ -152,8 +152,17 @@ class Agent(service.MultiService):
              0, their_verfkey.encode().encode("hex"),
              cid), "addressbook", cid)
         self.maybe_accept_mailbox(cid)
-        # probably self.db.commit()
-        return cid
+        self.db.commit()
+        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                            (cid,))
+        petname = c.fetchone()["petname"]
+        log.msg("addressbook entry added for petname=%r" % petname)
+
+    def invitation_failed(self, err, cid):
+        # TODO: find a better way to signal an error
+        self.db.delete("DELETE FROM addressbook WHERE id=?", (cid,),
+                       "addressbook", cid)
+        self.db.commit()
 
     def maybe_accept_mailbox(self, cid):
         c = self.db.execute("SELECT * FROM addressbook WHERE id=?", (cid,))
@@ -168,15 +177,6 @@ class Agent(service.MultiService):
                                   (cid, json.dumps(mailbox),), "mailboxes")
             rc = self.build_retriever(mbid, mailbox["retrieval"])
             self.subscribe_to_mailbox(rc)
-
-    def invitation_acked(self, cid):
-        self.db.update("UPDATE addressbook SET acked=1, invitation_id=NULL"
-                       " WHERE id=?", (cid,),
-                       "addressbook", cid)
-        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
-                            (cid,))
-        petname = c.fetchone()["petname"]
-        log.msg("addressbook entry added for petname=%r" % petname)
 
     def command_control_accept_mailbox_offer(self, cid, accept):
         c = self.db.execute("SELECT accept_mailbox_offer FROM addressbook WHERE id=?",

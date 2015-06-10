@@ -23,36 +23,25 @@ assert Box.NONCE_SIZE == 24
 #  or body=box.decrypt(ct, nonce)
 #  or body=box.decrypt(ct+nonce)
 
-class InvitationManager(service.MultiService):
-    """I manage all invitations, as well as connections to the rendezvous
-    servers
-    """
-    def __init__(self, db, agent):
-        service.MultiService.__init__(self)
+class InvitationManager:
+    """I manage all invitations."""
+    def __init__(self, db):
         self.db = db
-        self.agent = agent
-        self._debug_invitations_completed = 0
-        # all my service children are Rendezvous services
 
-    def actiavte_all(self):
-        c = self.db.execute("SELECT id FROM invitations")
+    def thaw_invitations(self):
+        c = self.db.execute("SELECT * FROM invitations")
+        ds = []
         for row in c.fetchall():
-            self.activate_one_invitation(c["id"])
+            yield Invitation(int(row["id"]), self.db)
 
-    def create_invitation(self, cid, code, signed_payload):
+    def create_invitation(self, channel_id, code, signed_payload):
         # "payload" goes to them
         iid = db.insert("INSERT INTO `invitations`"
-                        " (channel_id, wormhole_data, stage, payload_for_them)"
+                        " (channel_id, code, wormhole_data, payload_for_them)"
                         " VALUES (?,?,?,?)",
-                        (cid, None, 0, signed_payload.encode("hex")),
+                        (channel_id, code, None, signed_payload.encode("hex")),
                         "invitations")
-        eventually(self.activate_one_invitation, iid)
-        return iid
-
-    def activate_one_invitation(self, iid):
-        i = Invitation(iid, self.db, self, self.agent)
-        d = i.activate()
-        return d
+        return Invitation(iid, self.db)
 
 class Invitation:
     # This object is created in manager.activate_one_invitation(), one tick
@@ -62,30 +51,33 @@ class Invitation:
     # when the invitation process is complete, at which point the database
     # entry is removed.
 
-    def __init__(self, iid, db, manager, agent):
+    def __init__(self, iid, db):
         self.iid = iid
         self.db = db
-        self.manager = manager
-        self.agent = agent
 
     def activate(self):
-        c = self.db.execute("SELECT channel_id, wormhole,"
-                            " payload_for_them"
-                            " FROM invitations WHERE id=?", (iid,))
+        # fires with the peer's data, and an uncommitted DELETE
+        c = self.db.execute("SELECT * FROM invitations WHERE id=?", (self.iid,))
         res = c.fetchone()
         if not res:
-            raise KeyError("no pending Invitation for '%d'" % iid)
-        self.channel_id = int(res["channel_id"])
-        wormhole_data = str(res["wormhole"])
-        self.payload_for_them = res["payload_for_them"].decode("hex")
+            raise KeyError("no pending Invitation for '%d'" % self.iid)
+        self.channel_id = int(row["channel_id"])
+        wormhole_data = res["wormhole"]
+        payload_for_them = res["payload_for_them"].decode("hex")
+        code = res["code"]
         if wormhole_data is None:
-            self.w = WormholeInitiator()
+            self.w = SymmetricWormhole(appid, payload_for_them,
+                                       wormhole.public_relay.RENDEZVOUS_RELAY)
+            if code:
+                self.w.set_code(str(code))
             d = self.w.get_code()
-            d.addCallback(self._got_code)
+            d.addCallback(self._got_code) # saves to DB
         else:
-            self.w = WormholeInitiator.deserialize(wormhole_data)
-            d = self.w.get_data(self.payload_for_them)
-            d.addCallback(self._got_data)
+            self.w = SymmetricWormhole.from_serialized(wormhole_data)
+            d = defer.succeed(None)
+        d.addCallback(lambda _: self.w.get_data())
+        d.addCallback(self._got_data)
+        return d
 
     def _got_code(self, code):
         wormhole_data = self.w.serialize()
@@ -93,13 +85,15 @@ class Invitation:
                         " wormhole=?"
                         " WHERE id=?", (wormhole_data, self.iid),
                         "invitations", self.iid)
+        self.db.execute("UPDATE addressbook SET"
+                        " invitation_code=?"
+                        " WHERE id=?", (code, self.channel_id),
+                        "addressbook", self.channel_id)
         self.db.commit()
-        d = self.w.get_data(self.payload_for_them)
-        d.addCallback(self._got_data)
         return d
 
     def _got_data(self, data):
         self.db.execute("DELETE FROM invitations WHERE id=?", (self.iid,),
                         "invitations", self.iid)
-        # let agent do the commit
-        self.agent.invitation_done(self.channel_id, data)
+        # let agent modify 'addressbook' and do the commit
+        return data
