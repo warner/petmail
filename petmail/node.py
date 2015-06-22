@@ -18,8 +18,6 @@ class Node(service.MultiService):
                 self.init_mailbox_server(self.baseurl)
                 self.init_agent()
                 self.web.enable_agent(self.agent, self.db)
-            elif name == "relay":
-                self.web.enable_relay()
             else:
                 raise ValueError("Unknown service '%s'" % name)
 

@@ -79,7 +79,7 @@ CREATE UNIQUE INDEX `token` ON `retrieval_replay_tokens` (`timestamp`, `pubkey`)
 
 CREATE TABLE `relay_servers`
 (
- `descriptor_json` VARCHAR
+ `url` VARCHAR
 );
 
 CREATE TABLE `mailboxes` -- one per remote mailbox (no local mailboxes here)

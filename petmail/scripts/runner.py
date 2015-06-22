@@ -51,20 +51,13 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("listen", "l", None, "TCP port for the node's HTTP interface (defaults to tcp:0:interface=127.0.0.1)"),
         ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
         ("port", "p", None, "port number to advertise in URLs"),
-        ("relay-url", "r", "http://relay.petmail.org:8333/",
-         "URL of the relay server (for invitations)"),
+        ("relay-url", "r", None,
+         "URL of the wormhole rendezvous server (for invitations)"),
         ]
     optFlags = [
         ("local-mailbox", "m", "Advertise the local mailbox"),
         ]
 
-
-class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
-    optParameters = [
-        ("listen", "l", None, "TCP port for the node's HTTP interface."),
-        ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
-        ("port", "p", None, "port number to advertise in URLs"),
-        ]
 
 class PrintBaseURLOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     pass
@@ -139,7 +132,6 @@ class Options(usage.Options):
         ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
         ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
-                   ("create-relay", None, CreateRelayOptions, "Create a relay"),
                    ("print-baseurl", None, PrintBaseURLOptions, "Print the node's base URL"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
@@ -187,10 +179,6 @@ class Options(usage.Options):
 def create_node(*args):
     from .create_node import create_node
     return create_node(*args, services=["agent"])
-
-def create_relay(*args):
-    from .create_node import create_node
-    return create_node(*args, services=["relay"])
 
 def print_baseurl(*args):
     from . import create_node
@@ -275,7 +263,6 @@ def accept(*args):
     return accept_invitation(*args)
 
 DISPATCH = {"create-node": create_node,
-            "create-relay": create_relay,
             "print-baseurl": print_baseurl,
             "start": start,
             "stop": stop,
