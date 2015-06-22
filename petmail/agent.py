@@ -2,12 +2,11 @@ import os.path, json, time
 from twisted.application import service
 from twisted.python import log
 from nacl.public import PrivateKey
-from nacl.signing import SigningKey
+from nacl.signing import SigningKey, VerifyKey
 from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .errors import CommandError, ContactNotReadyError
 from .mailbox import channel, retrieval
-from .util import to_ascii
 
 class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
@@ -76,7 +75,7 @@ class Agent(service.MultiService):
         #if payload.has_key("basic"):
         #    print "BASIC:", payload["basic"]
 
-    def command_invite(self, petname, code=None, reqid=None,
+    def command_invite(self, petname, maybe_code=None, reqid=None,
                        override_transports=None, offer_mailbox=False,
                        accept_mailbox_offer=False):
         #if offer_mailbox:
@@ -100,18 +99,22 @@ class Agent(service.MultiService):
             tid = self.mailbox_server.allocate_transport(remote=True)
             payload["mailbox"] = self.mailbox_server.get_mailbox_record(tid)
 
+        encoded_payload = json.dumps(payload).encode("utf-8")
+        sigkeypayload = (b"i0:" + my_signkey.verify_key.encode()
+                         + my_signkey.sign(encoded_payload).encode())
+
         cid = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, accept_mailbox_offer,"
-            "  when_invited, invitation_code, acked,"
+            "  when_invited, invitation_code,"
             "  next_outbound_seqnum, my_signkey,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
             "  my_old_channel_privkey,"
             "  my_new_channel_privkey)"
-            " VALUES (?,?, ?,?,?, ?,?, ?,?, ?, ?, ?)",
+            " VALUES (?,?, ?,?, ?,?, ?,?, ?, ?, ?)",
             (petname, accept_mailbox_offer,
-             time.time(), None, 0,
+             time.time(), maybe_code,
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
              0,
@@ -120,8 +123,7 @@ class Agent(service.MultiService):
              ),
             "addressbook", {"reqid": reqid})
 
-        signed_payload = SIGN(my_signkey, payload)
-        i = self.im.create_invitation(cid, code, signed_payload)
+        i = self.im.create_invitation(cid, maybe_code, sigkeypayload)
         iid = i.iid
         self.db.commit()
         self._activate_invitation(i)
@@ -137,8 +139,13 @@ class Agent(service.MultiService):
                        callbackArgs=(cid,), errbackArgs=(cid,))
         return d
 
-    def invitation_success(self, their_payload, cid):
-        them, their_verfkey = ???
+    def invitation_success(self, sigkeypayload, cid):
+        if not sigkeypayload.startswith("i0:"):
+            raise ValueError("expected i0:, got '%r'" % sigkeypayload[:20])
+        their_verfkey = VerifyKey(sigkeypayload[3:3+32])
+        encoded_payload = their_verfkey.verify(sigkeypayload[3+32:])
+        payload = json.loads(encoded_payload.decode("utf-8"))
+
         self.db.update(
             "UPDATE addressbook SET"
             " when_accepted=?, acked=1,"
@@ -147,8 +154,8 @@ class Agent(service.MultiService):
             " they_used_new_channel_key=?, their_verfkey=?"
             " WHERE id=?",
             (time.time(),
-             json.dumps(them.get("mailbox")),
-             json.dumps(them["channel"]),
+             json.dumps(payload.get("mailbox")),
+             json.dumps(payload["channel"]),
              0, their_verfkey.encode().encode("hex"),
              cid), "addressbook", cid)
         self.maybe_accept_mailbox(cid)
@@ -159,7 +166,11 @@ class Agent(service.MultiService):
         log.msg("addressbook entry added for petname=%r" % petname)
 
     def invitation_failed(self, err, cid):
-        # TODO: find a better way to signal an error
+        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                            (cid,))
+        petname = c.fetchone()["petname"]
+        log.msg("invitation failed for petname=%r: err=%r" % (petname, err))
+        # TODO: find a better way to signal an error to the frontend
         self.db.delete("DELETE FROM addressbook WHERE id=?", (cid,),
                        "addressbook", cid)
         self.db.commit()
