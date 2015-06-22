@@ -98,16 +98,20 @@ CREATE TABLE `agent_profile` -- contains one row
 );
 
 -- data on all pending invitations. This row is created when the invitation
--- code is generated or submitted, and removed when the invitation is
--- complete (we have received their transport record, and they have
--- acknowledged receipt of our own transport record). The addressbook
--- table will have a row pointing here until the invitation is complete.
+-- process is started (possibly before the code is known), and removed when
+-- the invitation is complete (we have received their transport record, and
+-- the server has acknowledged receipt of our own transport record). The
+-- addressbook table will have a row pointing here until the invitation is
+-- complete.
 
 CREATE TABLE `invitations`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT,
  `channel_id` INTEGER, -- to correlate with an addressbook entry
 
+ --  1: code=NULL,wormhole=NULL : waiting to allocate channel/code
+ --  2: code=,wormhole= : waiting for invitation to complete
+ --  3: row is deleted
  `code` VARCHAR,
  `wormhole` VARCHAR, -- serialized magic-wormhole state
 
@@ -123,12 +127,12 @@ CREATE TABLE `addressbook`
 
  -- current+historical data about the invitation process
  --  1: iid,iid.wormhole=NULL,icode=NULL : waiting to allocate code
- --  2: iid,iid.wormhole,icode : waiting for invitation to complete
- --  3: iid=NULL,icode : invitation complete
+ --  2: iid,iid.wormhole,icode=NULL : waiting for invitation to complete
+ --  3: iid=NULL,icode= : invitation complete
  `invitation_id` INTEGER, -- points to `invitations` table
  `when_invited` INTEGER, -- memories of how we met them
  `when_accepted` INTEGER,
- `invitation_code` VARCHAR, -- or NULL
+ `invitation_code` VARCHAR, -- or NULL, set after invite is complete
  --`acked` INTEGER, -- don't send messages until this is true
 
  -- our private notes and decisions about them

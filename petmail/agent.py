@@ -7,6 +7,7 @@ from nacl.encoding import HexEncoder as Hex
 from . import invitation, rrid
 from .errors import CommandError, ContactNotReadyError
 from .mailbox import channel, retrieval
+from .eventual import eventually
 
 class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
@@ -79,7 +80,8 @@ class Agent(service.MultiService):
 
     def command_invite(self, petname, maybe_code=None, reqid=None,
                        override_transports=None, offer_mailbox=False,
-                       accept_mailbox_offer=False):
+                       accept_mailbox_offer=False,
+                       _debug_when_done=None):
         #if offer_mailbox:
         #    code = "mailbox-" + code
         my_signkey = SigningKey.generate()
@@ -103,7 +105,7 @@ class Agent(service.MultiService):
 
         encoded_payload = json.dumps(payload).encode("utf-8")
         sigkeypayload = (b"i0:" + my_signkey.verify_key.encode()
-                         + my_signkey.sign(encoded_payload).encode())
+                         + my_signkey.sign(encoded_payload))
 
         cid = self.db.insert(
             "INSERT INTO addressbook"
@@ -128,20 +130,28 @@ class Agent(service.MultiService):
         i = self.im.create_invitation(cid, maybe_code, sigkeypayload)
         iid = i.iid
         self.db.commit()
-        self._activate_invitation(i)
+        self._activate_invitation(i, _debug_when_done)
 
         return {"contact-id": cid, "invite-id": iid, "petname": petname,
                 "ok": "invitation for %s started: invite-id=%d" %
                 (petname, iid)}
 
-    def _activate_invitation(self, i):
+    def _activate_invitation(self, i, _debug_when_done=None):
         d = i.activate()
         cid = i.channel_id
         d.addCallbacks(self.invitation_success, self.invitation_failed,
-                       callbackArgs=(cid,), errbackArgs=(cid,))
+                       callbackArgs=(cid,_debug_when_done),
+                       errbackArgs=(cid,_debug_when_done))
         return d
 
-    def invitation_success(self, sigkeypayload, cid):
+    def petname_for_cid(self, cid):
+        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
+                            (cid,))
+        petname = c.fetchone()["petname"]
+        return petname
+
+    def invitation_success(self, (code, sigkeypayload), cid, _debug_when_done):
+        # called with a "DELETE FROM invitations" outstanding
         if not sigkeypayload.startswith("i0:"):
             raise ValueError("expected i0:, got '%r'" % sigkeypayload[:20])
         their_verfkey = VerifyKey(sigkeypayload[3:3+32])
@@ -150,32 +160,33 @@ class Agent(service.MultiService):
 
         self.db.update(
             "UPDATE addressbook SET"
-            " when_accepted=?, acked=1,"
+            " invitation_id=NULL,"
+            " when_accepted=?, invitation_code=?,"
             " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
             " WHERE id=?",
-            (time.time(),
+            (time.time(), code,
              json.dumps(payload.get("mailbox")),
              json.dumps(payload["channel"]),
              0, their_verfkey.encode().encode("hex"),
              cid), "addressbook", cid)
         self.maybe_accept_mailbox(cid)
         self.db.commit()
-        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
-                            (cid,))
-        petname = c.fetchone()["petname"]
-        log.msg("addressbook entry added for petname=%r" % petname)
+        log.msg("addressbook entry added for petname=%r" %
+                self.petname_for_cid(cid))
+        if _debug_when_done:
+            eventually(_debug_when_done.callback, cid)
 
-    def invitation_failed(self, err, cid):
-        c = self.db.execute("SELECT petname FROM addressbook WHERE id=?",
-                            (cid,))
-        petname = c.fetchone()["petname"]
-        log.msg("invitation failed for petname=%r: err=%r" % (petname, err))
+    def invitation_failed(self, err, cid, _debug_when_done):
+        log.msg("invitation failed for petname=%r: err=%r" %
+                (self.petname_for_cid(cid), err))
         # TODO: find a better way to signal an error to the frontend
         self.db.delete("DELETE FROM addressbook WHERE id=?", (cid,),
                        "addressbook", cid)
         self.db.commit()
+        if _debug_when_done:
+            eventually(_debug_when_done.callback, err)
 
     def maybe_accept_mailbox(self, cid):
         c = self.db.execute("SELECT * FROM addressbook WHERE id=?", (cid,))
@@ -253,7 +264,7 @@ class Agent(service.MultiService):
             # these properties are set right away
             entry["cid"] = row["id"]
             entry["petname"] = row["petname"]
-            entry["acked"] = bool(row["acked"])
+            #entry["acked"] = bool(row["acked"])
             entry["invitation_context"] = {
                 "when_invited": row["when_invited"],
                 "code": row["invitation_code"],
