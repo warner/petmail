@@ -1,5 +1,6 @@
 import os, json
 from nacl.public import PrivateKey
+from wormhole import public_relay
 from .. import rrid, database, util
 
 def create_node(so, stdout, stderr, services):
@@ -42,19 +43,11 @@ def create_node(so, stdout, stderr, services):
 
     db.execute("INSERT INTO node (listenport, baseurl) VALUES (?,?)",
                (listenport, baseurl))
-    if "relay" in services:
-        db.execute("INSERT INTO services (name) VALUES (?)", ("relay",))
     if "agent" in services:
-        if so["relay-url"] == "LOCALDIR": # only from tests
-            db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
-                       (json.dumps({"type": "localdir"}),))
-        else:
-            relay_url = so["relay-url"]
-            if not relay_url.endswith("/"):
-                relay_url += "/"
-            desc = json.dumps({"type": "http", "url": relay_url})
-            db.execute("INSERT INTO relay_servers (descriptor_json) VALUES (?)",
-                       (desc,))
+        relay_url = so["relay-url"] or public_relay.RENDEZVOUS_RELAY
+        if not relay_url.endswith("/"):
+            relay_url += "/"
+        db.execute("INSERT INTO relay_servers (url) VALUES (?)", (relay_url,))
         db.execute("INSERT INTO services (name) VALUES (?)", ("agent",))
         db.execute("INSERT INTO `agent_profile`"
                    " (`name`, `icon_data`, `advertise_local_mailbox`)"

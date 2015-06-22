@@ -31,7 +31,9 @@ class Agent(service.MultiService):
             self.subscribe_to_mailbox(rc)
 
         # the invitations are activated in startService
-        self.im = invitation.InvitationManager(db)
+        row = self.db.execute("SELECT * FROM relay_servers").fetchone()
+        relay_url = row["url"].encode("ascii")
+        self.im = invitation.InvitationManager(db, relay_url)
 
     def startService(self):
         service.MultiService.startService(self)
