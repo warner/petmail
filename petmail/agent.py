@@ -84,6 +84,14 @@ class Agent(service.MultiService):
                        _debug_when_done=None):
         #if offer_mailbox:
         #    code = "mailbox-" + code
+
+        if maybe_code:
+            count = self.db.execute("SELECT COUNT(*) FROM invitations"
+                                   " WHERE code=?",
+                                    (maybe_code,)).fetchone()[0]
+            if count:
+                raise CommandError("invitation code already in use")
+
         my_signkey = SigningKey.generate()
         channel_key = PrivateKey.generate()
         my_CID_key = os.urandom(32)

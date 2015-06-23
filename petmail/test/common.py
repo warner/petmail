@@ -221,8 +221,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
             return
         d.addCallback(_B_done)
         def _done(_):
-            entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
-            entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
+            entA = nA.agent.command_list_addressbook()[0]
+            entB = nB.agent.command_list_addressbook()[0]
             return entA, entB
         d.addCallback(_done)
         return d

@@ -1,14 +1,13 @@
-import os, json, time
+import os, json
 from twisted.trial import unittest
 from twisted.internet import defer
-from wormhole.twisted.transcribe import SymmetricWormhole
+from wormhole.twisted.transcribe import SymmetricWormhole, WrongPasswordError
 from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
 from ..errors import CommandError
 
 class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
+    # low-level test of the Invitation class
     def test_one(self):
-        start = time.time()
-
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
         n1 = self.startNode(basedir1)
@@ -58,72 +57,12 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         basedir1 = os.path.join(self.make_basedir(), "node1")
         self.createNode(basedir1)
         n1 = self.startNode(basedir1)
-        self.disable_polling(n1)
-        code = "code"
+        code = "123-code"
         tports = {"local": fake_transport()}
         n1.agent.command_invite(u"petname-from-1", code,
                                 override_transports=tports)
         self.failUnlessRaises(CommandError,
                               n1.agent.command_invite, u"new-petname", code)
-
-    def test_generate(self):
-        basedir1 = os.path.join(self.make_basedir(), "node1")
-        self.createNode(basedir1)
-        n1 = self.startNode(basedir1)
-        self.disable_polling(n1)
-        tports = {"local": fake_transport()}
-        res = n1.agent.command_invite(u"petname-from-1",
-                                      code=None, generate=True,
-                                      override_transports=tports)
-        self.failUnless("code" in res)
-        self.failUnless(len(res["code"]) > 10)
-
-    def test_change_petname(self):
-        basedir1 = os.path.join(self.make_basedir(), "node1")
-        self.createNode(basedir1)
-        n1 = self.startNode(basedir1)
-        self.disable_polling(n1)
-        tports = {"local": fake_transport()}
-        res = n1.agent.command_invite(u"old-petname",
-                                      code=None, generate=True,
-                                      override_transports=tports)
-        self.failUnless("code" in res)
-        self.failUnless(len(res["code"]) > 10)
-        entries = n1.db.execute("SELECT * FROM addressbook").fetchall()
-        self.failUnlessEqual(len(entries), 1)
-        petname = entries[0]["petname"]
-        self.failUnlessEqual(petname, u"old-petname")
-
-    def test_change_accept_mailbox(self):
-        basedir1 = os.path.join(self.make_basedir(), "node1")
-        self.createNode(basedir1)
-        n1 = self.startNode(basedir1)
-        self.disable_polling(n1)
-        tports = {"local": fake_transport()}
-        res = n1.agent.command_invite(u"petname",
-                                      code=None, generate=True,
-                                      override_transports=tports)
-        self.failUnless("code" in res)
-        self.failUnless(len(res["code"]) > 10)
-        entries = n1.db.execute("SELECT * FROM addressbook").fetchall()
-        self.failUnlessEqual(len(entries), 1)
-        old_accept = entries[0]["accept_mailbox_offer"]
-        self.failUnlessEqual(old_accept, False)
-
-        n1.agent.command_control_accept_mailbox_offer(entries[0]["id"], True)
-        new_accept = n1.db.execute("SELECT * FROM addressbook").fetchone()["accept_mailbox_offer"]
-        self.failUnlessEqual(new_accept, True)
-
-    def test_bad_args(self):
-        basedir1 = os.path.join(self.make_basedir(), "node1")
-        self.createNode(basedir1)
-        n1 = self.startNode(basedir1)
-        self.disable_polling(n1)
-        e = self.failUnlessRaises(CommandError,
-                                  n1.agent.command_invite,
-                                  u"new-petname", "code",
-                                  generate=True)
-        self.failUnlessEqual(e.msg, "please use --generate or --code, not both")
 
 
 class Two(TwoNodeMixin, unittest.TestCase):
@@ -131,9 +70,48 @@ class Two(TwoNodeMixin, unittest.TestCase):
         nA, nB = self.make_nodes()
         d = self.add_new_channel_with_invitation(nA, nB)
         def _done((entA,entB)):
-            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
-                                 entA["id"])
-            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
-                                 entB["id"])
+            self.failUnlessEqual(entA["their_verfkey"], entB["my_verfkey"])
+            self.failUnlessEqual(entB["their_verfkey"], entA["my_verfkey"])
         d.addCallback(_done)
         return d
+
+    def test_external_code(self):
+        nA, nB = self.make_nodes()
+        code = "123-code"
+
+        d1 = defer.Deferred()
+        nA.agent.command_invite(u"petname-from-A", code,
+                                override_transports=self.tports1,
+                                _debug_when_done=d1)
+        d2 = defer.Deferred()
+        nB.agent.command_invite(u"petname-from-B", code,
+                                override_transports=self.tports2,
+                                _debug_when_done=d2)
+        d1.addCallback(lambda _: d2)
+        def _done(res):
+            entA = nA.agent.command_list_addressbook()[0]
+            entB = nB.agent.command_list_addressbook()[0]
+            self.failUnlessEqual(entA["their_verfkey"], entB["my_verfkey"])
+            self.failUnlessEqual(entB["their_verfkey"], entA["my_verfkey"])
+        d1.addCallback(_done)
+        return d1
+
+    def test_wrong_password(self):
+        nA, nB = self.make_nodes()
+        code = "123-code"
+
+        d1 = defer.Deferred()
+        nA.agent.command_invite(u"petname-from-A", code,
+                                override_transports=self.tports1,
+                                _debug_when_done=d1)
+        d2 = defer.Deferred()
+        nB.agent.command_invite(u"petname-from-B", code+"WRONG",
+                                override_transports=self.tports2,
+                                _debug_when_done=d2)
+        d3 = self.assertFailure(d1, WrongPasswordError)
+        d3.addCallback(lambda _: self.assertFailure(d2, WrongPasswordError))
+        def _done(res):
+            self.failUnlessEqual(nA.agent.command_list_addressbook(), [])
+            self.failUnlessEqual(nB.agent.command_list_addressbook(), [])
+        d3.addCallback(_done)
+        return d3
