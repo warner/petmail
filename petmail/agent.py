@@ -170,6 +170,7 @@ class Agent(service.MultiService):
             "UPDATE addressbook SET"
             " invitation_id=NULL,"
             " when_accepted=?, invitation_code=?,"
+            " acked=1,"  # TODO: faked. add a roundtrip?
             " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
@@ -272,7 +273,7 @@ class Agent(service.MultiService):
             # these properties are set right away
             entry["cid"] = row["id"]
             entry["petname"] = row["petname"]
-            #entry["acked"] = bool(row["acked"])
+            entry["acked"] = bool(row["acked"])
             entry["invitation_context"] = {
                 "when_invited": row["when_invited"],
                 "code": row["invitation_code"],

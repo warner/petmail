@@ -133,7 +133,7 @@ CREATE TABLE `addressbook`
  `when_invited` INTEGER, -- memories of how we met them
  `when_accepted` INTEGER,
  `invitation_code` VARCHAR, -- or NULL, set after invite is complete
- --`acked` INTEGER, -- don't send messages until this is true
+ `acked` INTEGER, -- don't send messages until this is true
 
  -- our private notes and decisions about them
  `petname` VARCHAR,
