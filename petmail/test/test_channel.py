@@ -44,8 +44,6 @@ class msgC(TwoNodeMixin, unittest.TestCase):
 
     def test_channel_dispatch(self):
         nA, nB, entA, entB = self.make_connected_nodes()
-        self.disable_polling(nA)
-        self.disable_polling(nB)
         entA2, entB2 = self.add_new_channel(nA, nB)
         entA3, entB3 = self.add_new_channel(nA, nB)
         self.failUnlessEqual(self.get_outbound_seqnum(nA.db, entA2["id"]), 1)

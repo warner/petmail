@@ -34,15 +34,13 @@ class Creation(TwoNodeMixin, unittest.TestCase):
 class Invite(TwoNodeMixin, unittest.TestCase):
 
     def test_offer_mailbox(self):
-        nA, nB = self.make_nodes(transport="none", relay="http")
+        nA, nB = self.make_nodes(transport="none")
         self.failUnlessEqual(len(nA.agent.get_transports()), 0)
         d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True,
                                                  accept_mailbox_offer=True)
         def _then((entA,entB)):
-            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
-                                 entA["id"])
-            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
-                                 entB["id"])
+            self.failUnlessEqual(entA["their_verfkey"], entB["my_verfkey"])
+            self.failUnlessEqual(entB["their_verfkey"], entA["my_verfkey"])
             st = fetchone(nB.db, "mailbox_server_transports")
             sj = fetchone(nB.db, "mailbox_server_config")
             s = json.loads(sj["mailbox_config_json"])
@@ -83,14 +81,12 @@ class Invite(TwoNodeMixin, unittest.TestCase):
         return d
 
     def test_offer_mailbox_rejected(self):
-        nA, nB = self.make_nodes(transport="none", relay="http")
+        nA, nB = self.make_nodes(transport="none")
         self.failUnlessEqual(len(nA.agent.get_transports()), 0)
         d = self.add_new_channel_with_invitation(nA, nB, offer_mailbox=True)
         def _then((entA,entB)):
-            self.failUnlessEqual(nA.agent.command_list_addressbook()[0]["cid"],
-                                 entA["id"])
-            self.failUnlessEqual(nB.agent.command_list_addressbook()[0]["cid"],
-                                 entB["id"])
+            self.failUnlessEqual(entA["their_verfkey"], entB["my_verfkey"])
+            self.failUnlessEqual(entB["their_verfkey"], entA["my_verfkey"])
             transports = nA.agent.get_transports()
             self.failIf(transports)
         d.addCallback(_then)
