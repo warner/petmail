@@ -7,13 +7,13 @@ all:
 # this python knows to look in venv for our dependencies
 PYTHON=venv/bin/python
 
-BASEURL="`./relay/petmail print-baseurl`"
+BASEURL = "http://localhost:5000/wormhole-relay/"
 
 .PHONY: relay n1 n2 n3 s4 stop bounce-all bounce rebuild mailboxes connect
 relay:
-	-./relay/petmail stop relay
+	-cd relay && wormhole server stop
 	rm -rf relay
-	./bin/petmail create-relay relay
+	mkdir relay
 n1:
 	-./n1/petmail stop n1
 	rm -rf n1
@@ -36,9 +36,9 @@ stop:
 	-./n2/petmail stop n2
 	-./n3/petmail stop n3
 	-./s4/petmail stop s4
-	-./relay/petmail stop relay
+	-cd relay && wormhole server stop
 bounce-all:
-	-./relay/petmail restart relay
+	cd relay && wormhole server restart --rendezvous tcp:5000 --transit tcp:5001
 	-./n1/petmail restart n1
 	-./n2/petmail restart n2
 	-./n3/petmail restart n3
@@ -58,17 +58,17 @@ rebuild: stop
 # ./n3/petmail accept-mailbox CODE
 
 mailboxes:
-	./n1/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox alice |cut -d= -f3`
-	./n2/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox bob |cut -d= -f3`
-	./n3/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox carol |cut -d= -f3`
+	./n1/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox alice |cut -d' ' -f3`
+	./n2/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox bob |cut -d' ' -f3`
+	./n3/petmail accept-mailbox -n s1 `./s4/petmail offer-mailbox carol |cut -d' ' -f3`
 
 connect:
-	./n1/petmail invite -n Bob code1
-	./n2/petmail invite -n Alice code1
-	./n1/petmail invite -n Carol code2
-	./n3/petmail invite -n Alice code2
-	./n2/petmail invite -n Carol code3
-	./n3/petmail invite -n Bob code3
+	./n1/petmail invite -n Bob 1-code
+	./n2/petmail invite -n Alice 1-code
+	./n1/petmail invite -n Carol 2-code
+	./n3/petmail invite -n Alice 2-code
+	./n2/petmail invite -n Carol 3-code
+	./n3/petmail invite -n Bob 3-code
 
 dump-n1:
 	sqlite3 n1/petmail.db .dump
