@@ -136,16 +136,10 @@ class EventChannel(resource.Resource):
     def deliver_addressbook_event(self, notice):
         new_value = self.some_keys(notice.new_value,
                                    ["id", "petname", "acked",
-                                    "invitation_code",
+                                    "invitation_state", "invitation_code",
                                     "accept_mailbox_offer",
                                     ])
         if notice.new_value:
-            if notice.new_value["invitation_id"] is not None:
-                c = self.db.execute("SELECT * FROM invitations WHERE id=?",
-                                    (notice.new_value["invitation_id"],))
-                row = c.fetchone()
-                new_value["next_expected_message"] = row["next_expected_message"]
-                new_value["generated"] = row["generated"]
             row = self.db.execute("SELECT * FROM mailboxes WHERE cid=?",
                                 (new_value["id"],)).fetchone()
             if row:
@@ -283,10 +277,9 @@ class Invite(BaseHandler):
         if maybe_code:
             maybe_code = str(maybe_code) # might be None
         reqid = payload.get("reqid")
-        generate = payload.get("generate", False)
         accept_mailbox_offer = payload.get("accept_mailbox", False)
         offer_mailbox = payload.get("offer_mailbox", False)
-        return self.agent.command_invite(petname, maybe_code, reqid, generate,
+        return self.agent.command_invite(petname, maybe_code, reqid,
                                          offer_mailbox=offer_mailbox,
                                          accept_mailbox_offer=accept_mailbox_offer)
 handlers["invite"] = Invite

@@ -90,9 +90,6 @@ class InviteOptions(BasedirParameterMixin, usage.Options):
     optParameters = [
         ("petname", "n", None, "Petname for the person being invited"),
         ]
-    optFlags = [
-        ("generate", "g", "Generate a code, instead of pasting one in"),
-        ]
     def parseArgs(self, code=None):
         self["code"] = code
     synopsis = "[CODE]"
@@ -200,6 +197,16 @@ def open_control_panel(*args):
     from .open import open_control_panel
     return open_control_panel(*args)
 
+def invite(*args):
+    from . import invite
+    return invite.invite(*args)
+def offer_mailbox(*args):
+    from . import invite
+    return invite.invite(*args, offer_mailbox=True)
+def accept_mailbox(*args):
+    from . import invite
+    return invite.invite(*args, accept_mailbox=True)
+
 def follow_messages(*args):
     from . import messages
     return messages.follow_messages(*args)
@@ -219,9 +226,6 @@ def render_text(result):
     return result["ok"]+"\n"
 def render_all(result):
     return pprint.pformat(result)
-def render_invite(result):
-    return (result["ok"] + "\n" +
-            "Invitation code: %s" % result["code"] + "\n")
 def render_addressbook(result):
     lines = []
     for entry in sorted(result["addressbook"], key=lambda e: e["petname"]):
@@ -272,13 +276,9 @@ DISPATCH = {"create-node": create_node,
 
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
-            "invite": WebCommand("invite", ["petname", "generate", "code"],
-                                 render=render_invite),
-            "offer-mailbox": WebCommand("invite", ["petname"],
-                                        extra_args={"offer_mailbox": True,
-                                                    "generate": True}),
-            "accept-mailbox": WebCommand("invite", ["petname", "code"],
-                                         extra_args={"accept_mailbox": True}),
+            "invite": invite,
+            "offer-mailbox": offer_mailbox,
+            "accept-mailbox": accept_mailbox,
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),

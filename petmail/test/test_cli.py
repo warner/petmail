@@ -38,22 +38,32 @@ class CLI(unittest.TestCase):
         self.failUnlessEqual(out, "sample ok object\n")
 
     def test_invite(self):
-        response = {"ok": "ok", "code": "1234"}
-        path,body,rc,out,err = self.call(response, "invite", "1234")
+        response = {"ok": "ok", "contact-id": "1"}
+        path,body,rc,out,err = self.call(response, "invite",
+                                         "--petname", "alice",
+                                         "123-purple")
         self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "invite")
-        self.failUnlessEqual(body, {"code": "1234", "petname": None,
-                                    "generate": False})
-        self.failUnlessEqual(out, "ok\nInvitation code: 1234\n")
+        self.failUnlessEqual(body, {"code": "123-purple", "petname": "alice"})
+        self.failUnlessEqual(out, "Invitation code: 123-purple\n")
+
+    def test_invite_no_petname(self):
+        response = {"ok": "ok", "contact-id": "1"}
+        path,body,rc,out,err = self.call(response, "invite",
+                                         "123-purple")
+        self.failUnlessEqual((rc, err), (0, ""))
+        self.failUnlessEqual(path, "invite")
+        self.failUnlessEqual(body, {"code": "123-purple", "petname": None})
+        self.failUnlessEqual(out, "Invitation code: 123-purple\n")
 
     def test_invite_generate(self):
-        response = {"ok": "ok", "code": "1234"}
-        path,body,rc,out,err = self.call(response, "invite", "--generate")
+        raise unittest.SkipTest("this requires mocking the stream of addressbook events too")
+        response = {"ok": "ok", "contact-id": "1"}
+        path,body,rc,out,err = self.call(response, "invite")
         self.failUnlessEqual((rc, err), (0, ""))
         self.failUnlessEqual(path, "invite")
-        self.failUnlessEqual(body, {"code": None, "petname": None,
-                                    "generate": True})
-        self.failUnlessEqual(out, "ok\nInvitation code: 1234\n")
+        self.failUnlessEqual(body, {"code": "123-purple", "petname": "alice"})
+        self.failUnlessEqual(out, "Invitation code: 123-purple\n")
 
     def test_addressbook(self):
         r = {"ok": "ok",

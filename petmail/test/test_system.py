@@ -67,7 +67,7 @@ class System(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, PollMixin,
 
         d = self.cli_1("offer-mailbox", "bob")
         def _offered(res):
-            mo = re.search(r'code=([\w\-]+)', res)
+            mo = re.search(r'Invitation code: ([\w\-]+)', res)
             code = mo.group(1)
             return code
         d.addCallback(_offered)
