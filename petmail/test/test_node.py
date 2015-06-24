@@ -1,6 +1,5 @@
-import os, json
+import os
 from twisted.trial import unittest
-from twisted.internet import defer
 from ..web import SampleError
 from .common import (BasedirMixin, NodeRunnerMixin,
                      CLIinThreadMixin, CLIinProcessMixin)

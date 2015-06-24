@@ -86,9 +86,11 @@ class Agent(service.MultiService):
         #    code = "mailbox-" + code
 
         if maybe_code:
-            count = self.db.execute("SELECT COUNT(*) FROM invitations"
-                                   " WHERE code=?",
-                                    (maybe_code,)).fetchone()[0]
+            count = self.db.execute("SELECT COUNT(*) FROM addressbook"
+                                    " WHERE invitation_state != ?"
+                                    "  AND invitation_code=?",
+                                    (invitation.INVITE_COMPLETE, maybe_code)
+                                    ).fetchone()[0]
             if count:
                 raise CommandError("invitation code already in use")
 
@@ -118,15 +120,17 @@ class Agent(service.MultiService):
         cid = self.db.insert(
             "INSERT INTO addressbook"
             " (petname, accept_mailbox_offer,"
-            "  when_invited, invitation_code,"
+            "  invitation_state, when_invited, invitation_code,"
+            "  wormhole_payload,"
             "  next_outbound_seqnum, my_signkey,"
             "  my_CID_key, next_CID_token,"
             "  highest_inbound_seqnum,"
             "  my_old_channel_privkey,"
             "  my_new_channel_privkey)"
-            " VALUES (?,?, ?,?, ?,?, ?,?, ?, ?, ?)",
+            " VALUES (?,?, ?,?,?, ?, ?,?, ?,?, ?, ?, ?)",
             (petname, accept_mailbox_offer,
-             time.time(), maybe_code,
+             invitation.INVITE_WAITING_FOR_CODE, time.time(), maybe_code,
+             sigkeypayload.encode("hex"),
              1, my_signkey.encode(Hex),
              my_CID_key.encode("hex"), None,
              0,
@@ -135,18 +139,15 @@ class Agent(service.MultiService):
              ),
             "addressbook", {"reqid": reqid})
 
-        i = self.im.create_invitation(cid, maybe_code, sigkeypayload)
-        iid = i.iid
+        i = self.im.create_invitation(cid)
         self.db.commit()
-        self._activate_invitation(i, _debug_when_done)
+        self._activate_invitation(i, cid, _debug_when_done)
 
-        return {"contact-id": cid, "invite-id": iid, "petname": petname,
-                "ok": "invitation for %s started: invite-id=%d" %
-                (petname, iid)}
+        return {"contact-id": cid, "petname": petname,
+                "ok": "invitation for %s started: cid=%d" % (petname, cid)}
 
-    def _activate_invitation(self, i, _debug_when_done=None):
+    def _activate_invitation(self, i, cid, _debug_when_done=None):
         d = i.activate()
-        cid = i.channel_id
         d.addCallbacks(self.invitation_success, self.invitation_failed,
                        callbackArgs=(cid,_debug_when_done),
                        errbackArgs=(cid,_debug_when_done))
@@ -158,8 +159,7 @@ class Agent(service.MultiService):
         petname = c.fetchone()["petname"]
         return petname
 
-    def invitation_success(self, (code, sigkeypayload), cid, _debug_when_done):
-        # called with a "DELETE FROM invitations" outstanding
+    def invitation_success(self, sigkeypayload, cid, _debug_when_done):
         if not sigkeypayload.startswith("i0:"):
             raise ValueError("expected i0:, got '%r'" % sigkeypayload[:20])
         their_verfkey = VerifyKey(sigkeypayload[3:3+32])
@@ -168,14 +168,15 @@ class Agent(service.MultiService):
 
         self.db.update(
             "UPDATE addressbook SET"
-            " invitation_id=NULL,"
-            " when_accepted=?, invitation_code=?,"
+            " invitation_state=?, wormhole=?, wormhole_payload=?,"
+            " when_accepted=?,"
             " acked=1,"  # TODO: faked. add a roundtrip?
             " latest_offered_mailbox_json=?,"
             " their_channel_record_json=?,"
             " they_used_new_channel_key=?, their_verfkey=?"
             " WHERE id=?",
-            (time.time(), code,
+            (invitation.INVITE_COMPLETE, None, None,
+             time.time(),
              json.dumps(payload.get("mailbox")),
              json.dumps(payload["channel"]),
              0, their_verfkey.encode().encode("hex"),

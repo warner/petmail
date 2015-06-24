@@ -192,8 +192,8 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
         return nA, nB
 
     def wait_for_code(self, node, res):
-        iid = res["invite-id"]
-        i = node.agent.im._debug_invitations[iid]
+        channel_id = res["contact-id"]
+        i = node.agent.im._debug_invitations[channel_id]
         d = i._debug_when_got_code = defer.Deferred()
         return d
 

@@ -2,6 +2,7 @@ import os, json
 from twisted.trial import unittest
 from twisted.internet import defer
 from wormhole.twisted.transcribe import SymmetricWormhole, WrongPasswordError
+from .. import invitation
 from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
 from ..errors import CommandError
 
@@ -12,30 +13,41 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
         self.createNode(basedir1)
         n1 = self.startNode(basedir1)
 
-        cid = 456
         sp = b"alice signed payload"
-        i = n1.agent.im.create_invitation(cid, None, sp)
+        maybe_code = None
+        cid = n1.db.insert(
+            "INSERT INTO addressbook"
+            " (petname,"
+            "  invitation_state, when_invited, invitation_code,"
+            "  wormhole_payload)"
+            " VALUES (?, ?,?,?, ?)",
+            ("bob",
+             invitation.INVITE_WAITING_FOR_CODE, 0, maybe_code,
+             sp.encode("hex")))
+        n1.db.commit()
+
+        i = n1.agent.im.create_invitation(cid)
         d1 = i._debug_when_got_code = defer.Deferred()
         d2 = i.activate()
         # this requires a server roundtrip to allocate the channel, so the
         # code won't be known yet
-        rows = list(n1.db.execute("SELECT * from invitations").fetchall())
+        rows = list(n1.db.execute("SELECT * from addressbook").fetchall())
         self.failUnlessEqual(len(rows), 1)
         r = rows[0]
-        self.failUnlessEqual(r["channel_id"], 456)
-        self.failUnlessEqual(r["code"], None)
+        self.failUnlessEqual(r["id"], cid)
+        self.failUnlessEqual(r["invitation_code"], None)
         self.failUnlessEqual(r["wormhole"], None)
-        self.failUnlessEqual(r["payload_for_them"], sp.encode("hex"))
+        self.failUnlessEqual(r["wormhole_payload"], sp.encode("hex"))
 
         def _got_code(code):
             self.code = code
-            rows = list(n1.db.execute("SELECT * from invitations").fetchall())
+            rows = list(n1.db.execute("SELECT * from addressbook").fetchall())
             self.failUnlessEqual(len(rows), 1)
             r = rows[0]
-            self.failUnlessEqual(r["channel_id"], 456)
-            self.failUnlessEqual(r["code"], code)
+            self.failUnlessEqual(r["invitation_code"], code)
             wormhole_data = r["wormhole"]
             json.loads(wormhole_data)
+            self.failUnlessEqual(r["wormhole_payload"], sp.encode("hex"))
 
             w = SymmetricWormhole(i.appid, i.relay)
             w.set_code(code)
@@ -46,9 +58,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(alice_data, sp)
             return d2 # now wait for alice's side to finish
         d1.addCallback(_bob_done)
-        def _alice_done(code_and_bob_data):
-            code, bob_data = code_and_bob_data
-            self.failUnlessEqual(code, self.code)
+        def _alice_done(bob_data):
             self.failUnlessEqual(bob_data, b"bob signed payload")
         d1.addCallback(_alice_done)
         return d1
@@ -93,6 +103,13 @@ class Two(TwoNodeMixin, unittest.TestCase):
             entB = nB.agent.command_list_addressbook()[0]
             self.failUnlessEqual(entA["their_verfkey"], entB["my_verfkey"])
             self.failUnlessEqual(entB["their_verfkey"], entA["my_verfkey"])
+            rows = list(nA.db.execute("SELECT * from addressbook").fetchall())
+            self.failUnlessEqual(len(rows), 1)
+            r = rows[0]
+            self.failUnlessEqual(r["id"], entA["cid"])
+            self.failUnlessEqual(r["invitation_code"], code)
+            self.failUnlessEqual(r["wormhole"], None)
+            self.failUnlessEqual(r["wormhole_payload"], None)
         d1.addCallback(_done)
         return d1
 

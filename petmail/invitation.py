@@ -3,6 +3,10 @@ from wormhole.twisted.transcribe import SymmetricWormhole
 from twisted.internet import defer
 from .eventual import eventually
 
+INVITE_WAITING_FOR_CODE = 0
+INVITE_WAITING_TO_COMPLETE = 1
+INVITE_COMPLETE = 2
+
 class InvitationManager:
     """I manage all invitations."""
     def __init__(self, db, relay):
@@ -12,23 +16,18 @@ class InvitationManager:
         self._debug_invitations = weakref.WeakValueDictionary()
 
     def thaw_invitations(self):
-        c = self.db.execute("SELECT * FROM invitations")
+        c = self.db.execute("SELECT * FROM addressbook"
+                            " WHERE invitation_state != ?", (INVITE_COMPLETE,))
         for row in c.fetchall():
-            iid = int(row["id"])
-            i = Invitation(iid, self.db, self.appid, self.relay)
-            self._debug_invitations[iid] = i
+            channel_id = int(row["id"])
+            i = Invitation(channel_id, self.db, self.appid, self.relay)
+            self._debug_invitations[channel_id] = i
             yield i
 
-    def create_invitation(self, channel_id, maybe_code, signed_payload):
+    def create_invitation(self, channel_id):
         # "payload" goes to them
-        iid = self.db.insert("INSERT INTO `invitations`"
-                             " (channel_id, code, wormhole, payload_for_them)"
-                             " VALUES (?,?,?,?)",
-                             (channel_id, maybe_code, None,
-                              signed_payload.encode("hex")),
-                             "invitations")
-        i = Invitation(iid, self.db, self.appid, self.relay)
-        self._debug_invitations[iid] = i
+        i = Invitation(channel_id, self.db, self.appid, self.relay)
+        self._debug_invitations[channel_id] = i
         return i
 
 class Invitation:
@@ -39,23 +38,23 @@ class Invitation:
     # when the invitation process is complete, at which point the database
     # entry is removed.
 
-    def __init__(self, iid, db, appid, relay):
-        self.iid = iid
+    def __init__(self, channel_id, db, appid, relay):
+        self.channel_id = channel_id
         self.db = db
         self.appid = appid
         self.relay = relay
         self._debug_when_got_code = None
 
     def activate(self):
-        # fires with (code, peerdata), and an uncommitted DELETE
-        c = self.db.execute("SELECT * FROM invitations WHERE id=?", (self.iid,))
+        # fires with peerdata
+        c = self.db.execute("SELECT * FROM addressbook WHERE id=?",
+                            (self.channel_id,))
         row = c.fetchone()
         if not row:
-            raise KeyError("no pending Invitation for '%d'" % self.iid)
-        self.channel_id = int(row["channel_id"])
+            raise KeyError("no pending Invitation for '%d'" % self.channel_id)
         wormhole_data = row["wormhole"]
-        payload_for_them = row["payload_for_them"].decode("hex")
-        self.code = row["code"]
+        payload_for_them = row["wormhole_payload"].decode("hex")
+        self.code = row["invitation_code"]
         if wormhole_data is None:
             self.w = SymmetricWormhole(self.appid, self.relay)
             if self.code:
@@ -69,26 +68,18 @@ class Invitation:
             self.w = SymmetricWormhole.from_serialized(wormhole_data)
             d = defer.succeed(None)
         d.addCallback(lambda _: self.w.get_data(payload_for_them))
-        d.addCallback(self._got_data)
-        d.addBoth(self._remove_invitation)
         return d
 
     def _got_code(self, code):
         self.code = code
         wormhole_data = self.w.serialize()
-        self.db.update("UPDATE invitations SET"
-                       " code=?, wormhole=?"
-                       " WHERE id=?", (code, wormhole_data, self.iid),
-                       "invitations", self.iid)
+        self.db.update("UPDATE addressbook SET"
+                       " invitation_state=?,"
+                       " invitation_code=?, wormhole=?"
+                       " WHERE id=?", (INVITE_WAITING_TO_COMPLETE,
+                                       code, wormhole_data,
+                                       self.channel_id),
+                       "addressbook", self.channel_id)
         self.db.commit()
         if self._debug_when_got_code:
             eventually(self._debug_when_got_code.callback, code)
-
-    def _got_data(self, data):
-        return (self.code, data)
-
-    def _remove_invitation(self, res):
-        self.db.delete("DELETE FROM invitations WHERE id=?", (self.iid,),
-                       "invitations", self.iid)
-        # let agent add the record to 'addressbook' and do the commit
-        return res
