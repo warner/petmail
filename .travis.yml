@@ -5,6 +5,6 @@ install:
   - pip install -e .
   - pip install coverage python-coveralls
 script:
-  - coverage run petmail test
+  - coverage run `which petmail` test
 after_success:
   - coveralls
