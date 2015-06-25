@@ -71,8 +71,11 @@ function update_addressbook(data) {
 
   var entries = [];
   var id;
-  for (id in addressbook) // id, petname, acked
+  for (id in addressbook) {
+    // id, petname, acked, invitation_state, invitation_code,
+    // accept_mailbox_offer. maybe: mailbox_id, they_offered_mailbox
     entries.push(addressbook[id]);
+  }
 
   function sorter(a,b) {
     if (a.petname.toLowerCase() > b.petname.toLowerCase())
@@ -84,7 +87,7 @@ function update_addressbook(data) {
   entries.sort(sorter);
 
   function petname_of(e) {
-    if (!e.acked) {
+    if (e.invitation_state != 2) {
       return e.petname + " (pending)";
     } else {
       return e.petname;
@@ -134,13 +137,14 @@ function show_contact_details(e) {
   $("#contact-details-id").text(e.id);
 
   $("#contact-details-id-type").text("Contact-ID");
-  if (e.acked) {
+  if (e.invitation_state == 2) {
     $("#contact-details-state").hide();
     $("#invite-qrcode").hide();
   } else {
-    $("#contact-details-state").text("State: waiting for ack, ["+e.next_expected_message+"/4]");
+    $("#contact-details-state").text("State: waiting, ["+e.invitation_state+"]");
     $("#contact-details-state").show();
-    if (e.generated) {
+    if (e.invitation_state == 1) {
+      // emphasize invitation code
       $("#invite-qrcode")
         .empty()
         .qrcode({text: "petmail:"+e.invitation_code})
@@ -236,7 +240,7 @@ function handle_toggle_edit_petname(e) {
 }
 
 function open_contact_room(e) {
-  if (!e.acked)
+  if (e.invitation_state != 2)
     return;
   current_cid = e.id;
   console.log("open_contact_room", current_cid);
