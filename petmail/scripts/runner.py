@@ -160,7 +160,8 @@ class Options(usage.Options):
         """Display detailed version information"""
         from .._version import get_versions
         v = get_versions()
-        print "Petmail version: %s (%s)" % (v["version"], v["full"])
+        print "Petmail version: %s (git %s)" % (v["version"],
+                                                v["full-revisionid"])
         import twisted.copyright
         print "Twisted version: %s" % twisted.copyright.version
         sys.exit(0)
