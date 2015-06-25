@@ -7,6 +7,9 @@ from twisted.application import service
 from StringIO import StringIO
 from nacl.public import PrivateKey
 from nacl.signing import SigningKey
+import wormhole
+from wormhole.twisted.util import allocate_port
+from wormhole.servers.relay import RelayServer
 from ..scripts import runner, startstop
 from ..scripts.create_node import create_node
 from .. import rrid
@@ -52,18 +55,24 @@ class NodeRunnerMixin:
     def setUp(self):
         self.sparent = service.MultiService()
         self.sparent.startService()
+        d = allocate_port()
+        def _allocated(port):
+            p = "tcp:%d:interface=127.0.0.1" % port
+            r = RelayServer(p, None, wormhole.__version__)
+            r.setServiceParent(self.sparent)
+            self.relay_url = "http://127.0.0.1:%d/wormhole-relay/" % port
+        d.addCallback(_allocated)
+        return d
 
     def tearDown(self):
         return self.sparent.stopService()
 
-    def createNode(self, basedir, type="agent", relayurl="LOCALDIR",
-                   local_mailbox=True):
+    def createNode(self, basedir, type="agent", local_mailbox=True):
         so = runner.CreateNodeOptions()
         args = []
         if local_mailbox:
             args.append("--local-mailbox")
-        assert relayurl
-        args.extend(["--relay-url", relayurl])
+        args.extend(["--relay-url", self.relay_url])
         args.append(basedir)
         so.parseOptions(args)
         out,err = StringIO(), StringIO()
@@ -82,12 +91,6 @@ class NodeRunnerMixin:
         n = self.buildNode(basedir)
         n.setServiceParent(self.sparent)
         return n
-
-    def disable_polling(self, n):
-        list(n.agent.im)[0].enable_polling = False
-
-    def accelerate_polling(self, n):
-        list(n.agent.im)[0].polling_interval = 0.01
 
 
 class CLIinThreadMixin:
@@ -148,27 +151,16 @@ def fake_transport():
 
 
 class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
-    def make_nodes(self, transport="test-return", relay="localdir"):
+    def make_nodes(self, transport="test-return"):
         assert transport in ["test-return", "local", "none"]
-        relayurl = "LOCALDIR"
-        if relay == "http":
-            basedirR = os.path.join(self.make_basedir(), "relay")
-            self.createNode(basedirR, type="relay")
-            nR = self.startNode(basedirR)
-            self.relay = nR
-            row = nR.db.execute("SELECT baseurl FROM node").fetchone()
-            relayurl = row["baseurl"]
-            assert relayurl
 
         basedirA = os.path.join(self.make_basedir(), "nodeA")
         local_mailbox = True
         if transport == "none":
             local_mailbox = False
-        self.createNode(basedirA, relayurl=relayurl,
-                        local_mailbox=local_mailbox)
+        self.createNode(basedirA, local_mailbox=local_mailbox)
         basedirB = os.path.join(self.make_basedir(), "nodeB")
-        self.createNode(basedirB, relayurl=relayurl,
-                        local_mailbox=local_mailbox)
+        self.createNode(basedirB, local_mailbox=local_mailbox)
 
         # TODO: do we need to pre-instantiate these anymore?
         self.buildNode(basedirA)
@@ -197,34 +189,40 @@ class TwoNodeMixin(BasedirMixin, NodeRunnerMixin, PollMixin):
                           (json.dumps(self.tports2["local"]),))
             nB.db.commit()
 
-        self.accelerate_polling(nA)
-        self.accelerate_polling(nB)
         return nA, nB
+
+    def wait_for_code(self, node, res):
+        channel_id = res["contact-id"]
+        i = node.agent.im._debug_invitations[channel_id]
+        d = i._debug_when_got_code = defer.Deferred()
+        return d
 
     def add_new_channel_with_invitation(self, nA, nB,
                                         offer_mailbox=False,
                                         accept_mailbox_offer=False):
-        nA.agent.im._debug_invitations_completed = 0
-        nB.agent.im._debug_invitations_completed = 0
-        res = nA.agent.command_invite(u"petname-from-A",
-                                      code=None, generate=True,
+        d1 = defer.Deferred()
+        d2 = defer.Deferred()
+        res = nA.agent.command_invite(u"petname-from-A", maybe_code=None,
                                       override_transports=self.tports1,
-                                      accept_mailbox_offer=accept_mailbox_offer)
-        nB.agent.command_invite(u"petname-from-B", res["code"],
-                                override_transports=self.tports2,
-                                offer_mailbox=offer_mailbox)
-        rclientA = list(nA.agent.im)[0]
-        rclientB = list(nB.agent.im)[0]
-        def check():
-            return (nA.agent.im._debug_invitations_completed
-                    and nB.agent.im._debug_invitations_completed
-                    and rclientA.is_idle()
-                    and rclientB.is_idle()
-                    )
-        d = self.poll(check)
+                                      accept_mailbox_offer=accept_mailbox_offer,
+                                      _debug_when_done=d1)
+        d = self.wait_for_code(nA, res)
+        def _got_code(code):
+            nB.agent.command_invite(u"petname-from-B", code,
+                                    override_transports=self.tports2,
+                                    offer_mailbox=offer_mailbox,
+                                    _debug_when_done=d2)
+            return d1
+        d.addCallback(_got_code)
+        def _A_done(cid_a):
+            return d2
+        d.addCallback(_A_done)
+        def _B_done(cid_b):
+            return
+        d.addCallback(_B_done)
         def _done(_):
-            entA = nA.db.execute("SELECT * FROM addressbook").fetchone()
-            entB = nB.db.execute("SELECT * FROM addressbook").fetchone()
+            entA = nA.agent.command_list_addressbook()[0]
+            entB = nB.agent.command_list_addressbook()[0]
             return entA, entB
         d.addCallback(_done)
         return d

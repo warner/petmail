@@ -11,9 +11,6 @@ class Import(unittest.TestCase):
         from .. import hkdf, invitation, netstring, node, rrid, util, web
         del hkdf, invitation, netstring, node, rrid, util, web
 
-        from ..rendezvous import localdir, web_client
-        del localdir, web_client
-
         from ..scripts import create_node, messages, open, runner, startstop, webwait
         del create_node, messages, open, runner, startstop, webwait
 

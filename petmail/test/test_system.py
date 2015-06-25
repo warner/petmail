@@ -20,8 +20,8 @@ class System(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, PollMixin,
         self.createNode(self.basedir2)
         n2 = self.startNode(self.basedir2)
 
-        d = self.cli_1("invite", "-n", "bob", "code")
-        d.addCallback(lambda _: self.cli_2("invite", "-n", "alice", "code"))
+        d = self.cli_1("invite", "-n", "bob", "12-code")
+        d.addCallback(lambda _: self.cli_2("invite", "-n", "alice", "12-code"))
 
         def until_invited():
             a1 = n1.agent.command_list_addressbook()
@@ -67,7 +67,7 @@ class System(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, PollMixin,
 
         d = self.cli_1("offer-mailbox", "bob")
         def _offered(res):
-            mo = re.search(r'code=([\w\-]+)', res)
+            mo = re.search(r'Invitation code: ([\w\-]+)', res)
             code = mo.group(1)
             return code
         d.addCallback(_offered)

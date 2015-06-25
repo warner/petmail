@@ -79,7 +79,7 @@ CREATE UNIQUE INDEX `token` ON `retrieval_replay_tokens` (`timestamp`, `pubkey`)
 
 CREATE TABLE `relay_servers`
 (
- `descriptor_json` VARCHAR
+ `url` VARCHAR
 );
 
 CREATE TABLE `mailboxes` -- one per remote mailbox (no local mailboxes here)
@@ -97,47 +97,23 @@ CREATE TABLE `agent_profile` -- contains one row
  `icon_data` VARCHAR
 );
 
--- data on all pending invitations. This row is created when the invitation
--- code is submitted, and removed when the invitation M3 message is received
--- (e.g. the other side has acknowledged receipt of our M2). The addressbook
--- table will have a row pointing here until the invitation is complete.
-
-CREATE TABLE `invitations`
-(
- `id` INTEGER PRIMARY KEY AUTOINCREMENT,
- `channel_id` INTEGER, -- to correlate with an addressbook entry
-
- -- these are only used during the invitation process, then discarded
- `code` VARCHAR,
- `generated` INTEGER, -- 1 if this node randomly generated the code
- `invite_key` VARCHAR, -- Ed25519 signing key
- `inviteID` VARCHAR, -- Ed25519 verifying key
- `my_temp_privkey` VARCHAR, -- Curve25519 privkey (ephemeral)
- `their_temp_pubkey` VARCHAR, -- Curve25519 pubkey (ephemeral)
- -- these track the state of the invitation process
- `my_messages` VARCHAR, -- r0:hex,r0-hex of all my sent messages
- `their_messages` VARCHAR, -- r0:hex,r0-hex of all processed inbound messages
- `next_expected_message` INTEGER,
-
- -- this is a copy of addressbook.my_signkey
- `my_signkey` VARCHAR, -- Ed25519 privkey (long-term), for this peer
-
- -- they'll get this payload in M2
- --  .channel_pubkey, .CID_key,
- --  .transports[]: .STT, .transport_pubkey, .type, .url
- `payload_for_them_json` VARCHAR
-);
-
 CREATE TABLE `addressbook`
 (
  `id` INTEGER PRIMARY KEY AUTOINCREMENT, -- the channelID
 
- -- historical data about the invitation process
- `invitation_id` INTEGER, -- or NULL, points at `invitations.id`
+ -- current+historical data about the invitation process
+ `invitation_state` INTEGER,
+ --  0: waiting to allocate code: wormhole,icode are NULL
+ --  1: waiting for invitation to complete: wormhole,icode present
+ --  2: invitation complete: wormhole=NULL, icode present
+ `wormhole` VARCHAR, -- serialized magic-wormhole state
+ `wormhole_payload` VARCHAR, -- they'll get this payload through wormhole
+ --  .channel_pubkey, .CID_key,
+ --  .transports[]: .STT, .transport_pubkey, .type, .url
+ `invitation_code` VARCHAR, -- or NULL, set after invite is complete
  `when_invited` INTEGER, -- memories of how we met them
  `when_accepted` INTEGER,
- `invitation_code` VARCHAR,
- `acked` INTEGER, -- don't send message until this is true
+ `acked` INTEGER, -- don't send messages until this is true
 
  -- our private notes and decisions about them
  `petname` VARCHAR,

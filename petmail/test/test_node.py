@@ -1,6 +1,5 @@
-import os, json
+import os
 from twisted.trial import unittest
-from twisted.internet import defer
 from ..web import SampleError
 from .common import (BasedirMixin, NodeRunnerMixin,
                      CLIinThreadMixin, CLIinProcessMixin)
@@ -27,22 +26,6 @@ class Run(CLIinProcessMixin, BasedirMixin, unittest.TestCase):
             self.failUnlessSubstring("Please open: http://localhost:", out)
             self.failUnlessSubstring("/open-control?opener-token=", out)
         d.addCallback(_check_url)
-        d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
-        return d
-
-    def test_node_with_relay(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-node",
-                                "--relay-url", "http://localhost:1234/",
-                                basedir)
-        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
-        d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
-        return d
-
-    def test_relay(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-relay", basedir)
-        d.addCallback(lambda _: self.cliMustSucceed("start", basedir))
         d.addBoth(self.anyways, self.cliMustSucceed, "stop", basedir)
         return d
 
@@ -134,82 +117,6 @@ class CLI(CLIinThreadMixin, BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             self.failUnlessEqual(self.stderr.strip(),
                                  "WARNING: --local-mailbox and --hostname=localhost is probably wrong")
         d.addCallback(_check)
-        return d
-
-    def test_create_node_with_relay(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-node",
-                                "--relay-url", "http://localhost:1234/",
-                                basedir)
-        def _check(out):
-            n = self.buildNode(basedir)
-            rows = n.db.execute("SELECT * FROM relay_servers").fetchall()
-            self.failUnlessEqual(len(rows), 1)
-            desc = json.loads(rows[0]["descriptor_json"])
-            self.failUnlessEqual(str(desc["type"]), "http")
-            self.failUnlessEqual(str(desc["url"]), "http://localhost:1234/")
-        d.addCallback(_check)
-        return d
-
-    def test_create_node_with_relay_no_slash(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-node",
-                                "--relay-url", "http://localhost:1234",
-                                basedir)
-        def _check(out):
-            n = self.buildNode(basedir)
-            rows = n.db.execute("SELECT * FROM relay_servers").fetchall()
-            self.failUnlessEqual(len(rows), 1)
-            desc = json.loads(rows[0]["descriptor_json"])
-            self.failUnlessEqual(str(desc["type"]), "http")
-            # create-node should add the missing slash
-            self.failUnlessEqual(str(desc["url"]), "http://localhost:1234/")
-        d.addCallback(_check)
-        return d
-
-    def test_create_relay(self):
-        basedir = os.path.join(self.make_basedir(), "node1")
-        d = self.cliMustSucceed("create-relay", basedir)
-        def _check(out):
-            self.failUnless(out.startswith("node created in %s, URL is http://localhost:" % basedir), out)
-            self.failUnless(os.path.exists(os.path.join(basedir, "petmail.db")))
-            n = self.startNode(basedir)
-            url = str(n.db.execute("SELECT * from node").fetchone()["baseurl"])
-            self.failUnless(url.startswith("http://localhost:"), url)
-        d.addCallback(_check)
-        return d
-
-    def test_create_relay_urls(self):
-        b = self.make_basedir()
-        def create(*args):
-            return self.cliMustSucceed("create-relay", *args)
-        def check(out, basedir, hostport):
-            exp = "node created in %s, URL is http://%s/\n"
-            self.failUnlessEqual(out, exp % (basedir, hostport))
-        d = defer.succeed(None)
-        b1 = os.path.join(b, "node1")
-        d.addCallback(lambda out: create("--listen", "tcp:1234", b1))
-        d.addCallback(lambda out: check(out, b1, "localhost:1234"))
-        b2 = os.path.join(b, "node2")
-        d.addCallback(lambda out: create("--listen", "tcp:1234",
-                                         "--hostname", "example.org", b2))
-        d.addCallback(lambda out: check(out, b2, "example.org:1234"))
-        b3 = os.path.join(b, "node3")
-        d.addCallback(lambda out: create("--listen", "tcp:1234",
-                                         "--hostname", "example.org",
-                                         "--port", "3456", b3))
-        d.addCallback(lambda out: check(out, b3, "example.org:3456"))
-        b4 = os.path.join(b, "node4")
-        d.addCallback(lambda out: create("--hostname", "example.org",
-                                         "--port", "3457", b4))
-        d.addCallback(lambda out: check(out, b4, "example.org:3457"))
-        b5 = os.path.join(b, "node5")
-        d.addCallback(lambda out: create("--port", "3458", b5))
-        d.addCallback(lambda out: check(out, b5, "localhost:3458"))
-        b6 = os.path.join(b, "node6")
-        d.addCallback(lambda out: create("--listen", "tcp:1234",
-                                         "--port", "3459", b6))
-        d.addCallback(lambda out: check(out, b6, "localhost:3459"))
         return d
 
     def test_sample(self):

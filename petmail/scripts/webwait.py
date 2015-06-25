@@ -182,3 +182,26 @@ def follow_events(basedir, topic, catchup=False, err=sys.stderr):
                            % (resp.status, resp.reason))
 
     return event_resp
+
+class EOFError(Exception):
+    pass
+
+def get_line(r):
+    buf = ""
+    while True:
+        data = r.read(1)
+        if not data:
+            raise EOFError
+        if data == "\n":
+            return buf
+        buf += data
+
+def get_field(r):
+    first_line = get_line(r)
+    fieldname, data = first_line.split(": ", 1)
+    lines = [data]
+    while True:
+        line = get_line(r)
+        if not line:
+            return fieldname, "\n".join(lines)
+        lines.append(line)

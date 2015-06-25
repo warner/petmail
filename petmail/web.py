@@ -1,14 +1,9 @@
 import os, json, collections
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
-from twisted.python import log
-#from nacl.signing import VerifyKey, BadSignatureError
-from nacl.signing import VerifyKey
-from nacl.exceptions import BadSignatureError
 from .database import Notice
 from .util import equal, make_nonce
 from .errors import CommandError
-from .invitation import VALID_INVITEID, VALID_MESSAGE
 
 MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
 
@@ -141,16 +136,10 @@ class EventChannel(resource.Resource):
     def deliver_addressbook_event(self, notice):
         new_value = self.some_keys(notice.new_value,
                                    ["id", "petname", "acked",
-                                    "invitation_code",
+                                    "invitation_state", "invitation_code",
                                     "accept_mailbox_offer",
                                     ])
         if notice.new_value:
-            if notice.new_value["invitation_id"] is not None:
-                c = self.db.execute("SELECT * FROM invitations WHERE id=?",
-                                    (notice.new_value["invitation_id"],))
-                row = c.fetchone()
-                new_value["next_expected_message"] = row["next_expected_message"]
-                new_value["generated"] = row["generated"]
             row = self.db.execute("SELECT * FROM mailboxes WHERE cid=?",
                                 (new_value["id"],)).fetchone()
             if row:
@@ -284,14 +273,13 @@ handlers["sample"] = Sample
 class Invite(BaseHandler):
     def handle(self, payload):
         petname = unicode(payload["petname"])
-        code = payload.get("code")
-        if code:
-            code = str(code) # might be None
+        maybe_code = payload.get("code")
+        if maybe_code:
+            maybe_code = str(maybe_code) # might be None
         reqid = payload.get("reqid")
-        generate = payload.get("generate", False)
         accept_mailbox_offer = payload.get("accept_mailbox", False)
         offer_mailbox = payload.get("offer_mailbox", False)
-        return self.agent.command_invite(petname, code, reqid, generate,
+        return self.agent.command_invite(petname, maybe_code, reqid,
                                          offer_mailbox=offer_mailbox,
                                          accept_mailbox_offer=accept_mailbox_offer)
 handlers["invite"] = Invite
@@ -413,106 +401,6 @@ class Control(resource.Resource):
         return read_media("control.html") % {"token": token}
 
 
-class Channel(resource.Resource):
-    def __init__(self, channelid, channels, destroy_messages, subscribers,
-                 enable_eventsource=True, reverse_messages=False):
-        resource.Resource.__init__(self)
-        self.channelid = channelid
-        self.channels = channels
-        self.destroy_messages = destroy_messages
-        self.subscribers = subscribers
-        self.enable_eventsource = enable_eventsource
-        self._test_reverse_messages = reverse_messages
-
-    def render_POST(self, request):
-        channel = self.channels[self.channelid]
-        log.msg("msg rx for channel[%s] (had %d msgs)" % (self.channelid[:6],
-                                                          len(channel)))
-        destroy_messages = self.destroy_messages[self.channelid]
-        message = request.content.read()
-        # reject junk
-        if not message.startswith("r0:"):
-            request.setResponseCode(http.BAD_REQUEST)
-            return "unrecognized rendezvous message prefix"
-        if not VALID_MESSAGE.search(message):
-            request.setResponseCode(http.BAD_REQUEST)
-            return "invalid rendezvous message"
-        # ignore dups
-        if message in channel:
-            return "ignoring duplicate message\n"
-        # check signature
-        try:
-            m = message[len("r0:"):].decode("hex")
-            i0 = VerifyKey(self.channelid.decode("hex")).verify(m)
-        except BadSignatureError:
-            request.setResponseCode(http.BAD_REQUEST)
-            return "invalid rendezvous message signature"
-        log.msg(" msg is valid and not a duplicate")
-
-        # look for two valid deletion messages
-        if i0.startswith("i0:destroy:"):
-            destroy_messages.add(i0)
-        if len(destroy_messages) >= 2:
-            log.msg(" destroying channel[%s]" % (self.channelid[:6],))
-            del self.channels[self.channelid]
-            del self.destroy_messages[self.channelid]
-            for p in self.subscribers[self.channelid]:
-                p.stop()
-            del self.subscribers[self.channelid]
-            return "Destroyed\n"
-        channel.append(message)
-        log.msg(" channel[%s] now has %d msgs" % (self.channelid[:6],
-                                                  len(channel)))
-        for p in self.subscribers[self.channelid]:
-            p.sendEvent(message)
-        return "OK\n"
-
-    def render_GET(self, request):
-        if ("text/event-stream" in (request.getHeader("accept") or "")
-            and self.enable_eventsource):
-            # EventSource protocol
-            request.setHeader("content-type", "text/event-stream")
-            p = EventsProtocol(request)
-            p.sendComment("beginning Relay event stream")
-            for m in self.channels[self.channelid]:
-                p.sendEvent(m)
-            self.subscribers[self.channelid].add(p)
-            def _done(_):
-                self.subscribers[self.channelid].remove(p)
-            request.notifyFinish().addErrback(_done)
-            return server.NOT_DONE_YET
-        if not self.channelid in self.channels:
-            return ""
-        messages = self.channels[self.channelid]
-        if self._test_reverse_messages:
-            messages = reversed(messages)
-        return "".join(["data: %s\n\n" % msg for msg in messages])
-
-class Relay(resource.Resource):
-    enable_eventsource = True # disabled for certain tests
-    reverse_messages = False # enabled for certain tests
-
-    def __init__(self):
-        resource.Resource.__init__(self)
-        self.channels = collections.defaultdict(list)
-        self.destroy_messages = collections.defaultdict(set)
-        self.subscribers = collections.defaultdict(set)
-
-    def getChild(self, path, request):
-        if not VALID_INVITEID.search(path):
-            return resource.ErrorPage(http.BAD_REQUEST,
-                                      "invalid channel id",
-                                      "invalid channel id")
-        return Channel(path, self.channels, self.destroy_messages,
-                       self.subscribers, self.enable_eventsource,
-                       self.reverse_messages)
-
-    def unsubscribe_all(self):
-        # for tests
-        for eps in self.subscribers.values():
-            for ep in eps:
-                ep.stop()
-
 class Root(resource.Resource):
     # child_FOO is a nevow thing, not a twisted.web.resource thing
     def __init__(self):
@@ -535,10 +423,6 @@ class WebPort(service.MultiService):
         self.root.putChild("open-control", ControlOpener(db, token))
         self.root.putChild("control", Control(token))
         self.root.putChild("api", API(token, db, agent))
-
-    def enable_relay(self):
-        self.relay = Relay() # for tests
-        self.root.putChild("relay", self.relay)
 
     def get_root(self):
         return self.root

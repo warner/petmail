@@ -51,20 +51,13 @@ class CreateNodeOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
         ("listen", "l", None, "TCP port for the node's HTTP interface (defaults to tcp:0:interface=127.0.0.1)"),
         ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
         ("port", "p", None, "port number to advertise in URLs"),
-        ("relay-url", "r", "http://relay.petmail.org:8333/",
-         "URL of the relay server (for invitations)"),
+        ("relay-url", "r", None,
+         "URL of the wormhole rendezvous server (for invitations)"),
         ]
     optFlags = [
         ("local-mailbox", "m", "Advertise the local mailbox"),
         ]
 
-
-class CreateRelayOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
-    optParameters = [
-        ("listen", "l", None, "TCP port for the node's HTTP interface."),
-        ("hostname", "h", "localhost", "hostname/IP-addr to advertise in URLs"),
-        ("port", "p", None, "port number to advertise in URLs"),
-        ]
 
 class PrintBaseURLOptions(BasedirParameterMixin, BasedirArgument, usage.Options):
     pass
@@ -96,9 +89,6 @@ class SampleOptions(BasedirParameterMixin, usage.Options):
 class InviteOptions(BasedirParameterMixin, usage.Options):
     optParameters = [
         ("petname", "n", None, "Petname for the person being invited"),
-        ]
-    optFlags = [
-        ("generate", "g", "Generate a code, instead of pasting one in"),
         ]
     def parseArgs(self, code=None):
         self["code"] = code
@@ -139,7 +129,6 @@ class Options(usage.Options):
         ("basedir", "d", os.path.expanduser("~/.petmail"), "Base directory"),
         ]
     subCommands = [("create-node", None, CreateNodeOptions, "Create a node"),
-                   ("create-relay", None, CreateRelayOptions, "Create a relay"),
                    ("print-baseurl", None, PrintBaseURLOptions, "Print the node's base URL"),
                    ("start", None, StartNodeOptions, "Start a node"),
                    ("stop", None, StopNodeOptions, "Stop a node"),
@@ -188,10 +177,6 @@ def create_node(*args):
     from .create_node import create_node
     return create_node(*args, services=["agent"])
 
-def create_relay(*args):
-    from .create_node import create_node
-    return create_node(*args, services=["relay"])
-
 def print_baseurl(*args):
     from . import create_node
     return create_node.print_baseurl(*args)
@@ -212,6 +197,16 @@ def open_control_panel(*args):
     from .open import open_control_panel
     return open_control_panel(*args)
 
+def invite(*args):
+    from . import invite
+    return invite.invite(*args)
+def offer_mailbox(*args):
+    from . import invite
+    return invite.invite(*args, offer_mailbox=True)
+def accept_mailbox(*args):
+    from . import invite
+    return invite.invite(*args, accept_mailbox=True)
+
 def follow_messages(*args):
     from . import messages
     return messages.follow_messages(*args)
@@ -231,9 +226,6 @@ def render_text(result):
     return result["ok"]+"\n"
 def render_all(result):
     return pprint.pformat(result)
-def render_invite(result):
-    return (result["ok"] + "\n" +
-            "Invitation code: %s" % result["code"] + "\n")
 def render_addressbook(result):
     lines = []
     for entry in sorted(result["addressbook"], key=lambda e: e["petname"]):
@@ -275,7 +267,6 @@ def accept(*args):
     return accept_invitation(*args)
 
 DISPATCH = {"create-node": create_node,
-            "create-relay": create_relay,
             "print-baseurl": print_baseurl,
             "start": start,
             "stop": stop,
@@ -285,13 +276,9 @@ DISPATCH = {"create-node": create_node,
 
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
-            "invite": WebCommand("invite", ["petname", "generate", "code"],
-                                 render=render_invite),
-            "offer-mailbox": WebCommand("invite", ["petname"],
-                                        extra_args={"offer_mailbox": True,
-                                                    "generate": True}),
-            "accept-mailbox": WebCommand("invite", ["petname", "code"],
-                                         extra_args={"accept_mailbox": True}),
+            "invite": invite,
+            "offer-mailbox": offer_mailbox,
+            "accept-mailbox": accept_mailbox,
             "addressbook": WebCommand("list-addressbook", [],
                                       render=render_addressbook),
             "send-basic": WebCommand("send-basic", ["cid", "message"]),

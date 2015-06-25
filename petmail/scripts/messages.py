@@ -1,5 +1,5 @@
 import json
-from .webwait import follow_events
+from .webwait import follow_events, get_field
 
 def render_message(msg):
     lines = []
@@ -11,29 +11,6 @@ def render_message(msg):
     else:
         lines.append(str(msg["payload_json"]))
     return "\n".join(lines)+"\n"
-
-class EOFError(Exception):
-    pass
-
-def get_line(r):
-    buf = ""
-    while True:
-        data = r.read(1)
-        if not data:
-            raise EOFError
-        if data == "\n":
-            return buf
-        buf += data
-
-def get_field(r):
-    first_line = get_line(r)
-    fieldname, data = first_line.split(": ", 1)
-    lines = [data]
-    while True:
-        line = get_line(r)
-        if not line:
-            return fieldname, "\n".join(lines)
-        lines.append(line)
 
 
 def follow_messages(so, stdout, stderr):
