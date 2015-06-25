@@ -2,7 +2,7 @@ language: python
 python:
   - "2.7"
 install:
-  - python setup.py safe_develop
+  - pip install -e .
   - pip install python-coveralls
 script:
   - make test-coverage
