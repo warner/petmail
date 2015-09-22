@@ -1,5 +1,5 @@
 import weakref
-from wormhole.twisted.transcribe import SymmetricWormhole
+from wormhole.twisted.transcribe import Wormhole
 from twisted.internet import defer
 from .eventual import eventually
 
@@ -56,7 +56,7 @@ class Invitation:
         payload_for_them = row["wormhole_payload"].decode("hex")
         self.code = row["invitation_code"]
         if wormhole_data is None:
-            self.w = SymmetricWormhole(self.appid, self.relay)
+            self.w = Wormhole(self.appid, self.relay)
             if self.code:
                 self.w.set_code(str(self.code))
                 d = defer.succeed(str(self.code))
@@ -65,7 +65,7 @@ class Invitation:
             d.addCallback(self._got_code) # saves to DB
         else:
             assert self.code is not None
-            self.w = SymmetricWormhole.from_serialized(wormhole_data)
+            self.w = Wormhole.from_serialized(wormhole_data)
             d = defer.succeed(None)
         d.addCallback(lambda _: self.w.get_data(payload_for_them))
         return d

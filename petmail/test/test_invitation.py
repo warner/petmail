@@ -1,7 +1,7 @@
 import os, json
 from twisted.trial import unittest
 from twisted.internet import defer
-from wormhole.twisted.transcribe import SymmetricWormhole, WrongPasswordError
+from wormhole.twisted.transcribe import Wormhole, WrongPasswordError
 from .. import invitation
 from .common import BasedirMixin, NodeRunnerMixin, TwoNodeMixin, fake_transport
 from ..errors import CommandError
@@ -49,7 +49,7 @@ class Invite(BasedirMixin, NodeRunnerMixin, unittest.TestCase):
             json.loads(wormhole_data)
             self.failUnlessEqual(r["wormhole_payload"], sp.encode("hex"))
 
-            w = SymmetricWormhole(i.appid, i.relay)
+            w = Wormhole(i.appid, i.relay)
             w.set_code(code)
             d3 = w.get_data(b"bob signed payload")
             return d3 # wait for bob's side to finish
