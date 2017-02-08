@@ -121,6 +121,8 @@ libraries that come from other places. To avoid being infected by evil
 variants of the dependencies, the build or install process needs to apply
 cryptographic checks to them too.
 
+**[note: petmail's "safe_develop" command is out of order, so this is not currently true]**
+
 Petmail attempts to use a model in which the Petmail author locks down the
 exact contents of the dependencies. Downstream users are responsible for
 getting the "right" copy of Petmail, then Petmail will ensure that it gets

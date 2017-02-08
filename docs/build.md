@@ -15,31 +15,15 @@ source checkout. The following sequence should get you running:
 ```
 git clone https://github.com/warner/petmail.git
 cd petmail
-python setup.py safe_develop
-./bin/petmail create-node
-./bin/petmail start
-./bin/petmail open
+virtualenv venv
+source venv/bin/activate
+pip install -e .
+petmail create-node
+petmail start
+petmail open
 ```
 
 You can also unpack a release tarball, instead of using a git checkout.
-
-The `safe_develop` command is shorthand for:
-
-* `virtualenv venv`, which creates a self-contained virtual environment in
-  the `./venv` directory. This virtualenv uses the system Python and stdlib,
-  but none of the libraries installed to site-packages.
-* `peep install -r requirements.txt`, which (mostly) safely installs
-  Petmail's dependencies into the virtualenv. Safety not guaranteed (yet),
-  but eventually this will do its best to obtain the "correct" versions of
-  all dependencies before running any downloaded code.
-* `setup.py develop`, which installs a `bin/petmail` and a link to the source
-  tree into the virtualenv. Each time you run this `venv/bin/petmail`, it
-  will import the current sources, so you don't need to re-install after
-  modifying the source files.
-
-The `./bin/petmail` script simply checks for the existence of the virtualenv
-and delegates control to `./venv/bin/petmail`. You could run
-`./venv/bin/petmail` directly, but it requires more typing.
 
 ### Using Multiple Nodes
 
@@ -55,10 +39,10 @@ that has its node-dir baked in. So the following is an easy way to launch two
 independent nodes:
 
 ```
-./bin/petmail create-node NODE1
+petmail create-node NODE1
 ./NODE1/petmail start
 ./NODE1/petmail open
-./bin/petmail create-node NODE2
+petmail create-node NODE2
 ./NODE2/petmail start
 ./NODE2/petmail open
 ```
@@ -66,8 +50,9 @@ independent nodes:
 ### Overriding Dependencies
 
 To test Petmail against alternate versions of its dependencies, you can
-simply use `PYTHONPATH=/path/to/otherdeps ./bin/petmail`, and the extra
-directories will be searched before the virtualenv's contents.
+simply use `PYTHONPATH=/path/to/otherdeps petmail`, and the extra directories
+will be searched before the virtualenv's contents. Or install the other deps
+into the virtualenv (perhaps with `-e`).
 
 ### Hints On Dependencies
 
@@ -94,12 +79,11 @@ install it:
 
 * `python setup.py install`
 
-This may require root access, and may not be as safe as `safe_develop` (for
-example, the "install" command does not know how to check hashes on
-dependency tarballs). You might also try `pip install petmail` to download
-the current release, or `pip install .` from an unpacked source tree. You can
-also do any of these from within a virtualenv, or you could use `pip install
---user petmail` to install them to your home directory instead of site-wide.
+This may require root access. You might also try `pip install petmail` to
+download the current release, or `pip install .` from an unpacked source
+tree. You can also do any of these from within a virtualenv, or you could use
+`pip install --user petmail` to install them to your home directory instead
+of site-wide.
 
 
 ## Normal Users: Running From A Packaged Application
@@ -117,16 +101,3 @@ node. By default, the app is launched whenever the user logs in.
 
 This app contains a copy of the virtualenv, into which the Petmail source has
 been fully installed, and uses the system-supplied Python executable.
-
-## Dependency Verification
-
-To keep the source tree small, Petmail's dependencies are not included.
-`python setup.py safe_develop` fetches these tarballs from PyPI. However
-(thanks to `peep`) the command verifies SHA256 hashes of the tarballs before
-using them.
-
-**(note: not available yet)** If you wish to avoid downloading additional
-files during the build_deps process, use a "SUMO" source tarball, which
-includes copies of the dependencies. You can also run `python setup.py
-fetch-deps` to download and verify them, after which `safe_develop` will not
-download anything.
