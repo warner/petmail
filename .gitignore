@@ -16,3 +16,4 @@
 /src/petmail.egg-info/
 /mocks/twistd.log
 /mocks/twistd.pid
+/.tox/
