@@ -115,14 +115,6 @@ class SendBasicOptions(BasedirParameterMixin, usage.Options):
         self["message"] = message
     synopsis = "CONTACT-ID MESSAGE"
 
-class TestOptions(usage.Options):
-    def parseArgs(self, *test_args):
-        if not test_args:
-            self.test_args = ["petmail"]
-        else:
-            self.test_args = list(test_args)
-    synopsis = "[TEST-ARGS]"
-
 class Options(usage.Options):
     synopsis = "\nUsage: petmail <command>"
     optParameters = [
@@ -144,8 +136,6 @@ class Options(usage.Options):
                    ("send-basic", None, SendBasicOptions, "Send a basic message"),
                    ("fetch-messages", None, NoOptions, "Fetch all stored messages"),
                    ("follow-messages", None, NoOptions, "Fetch messages"),
-
-                   ("test", None, TestOptions, "Run unit tests"),
                    ]
 
     def opt_version(self):
@@ -213,16 +203,6 @@ def follow_messages(*args):
     return messages.follow_messages(*args)
 
 
-petmail_executable = []
-
-def test(so, stdout, stderr):
-    petmail = os.path.abspath(sys.argv[0])
-    petmail_executable.append(petmail) # to run bin/petmail in a subprocess
-    from twisted.scripts import trial as twisted_trial
-    sys.argv = ["trial"] + so.test_args
-    twisted_trial.run() # this does not return
-    sys.exit(0) # just in case
-
 def render_text(result):
     return result["ok"]+"\n"
 def render_all(result):
@@ -273,7 +253,6 @@ DISPATCH = {"create-node": create_node,
             "stop": stop,
             "restart": restart,
             "open": open_control_panel,
-            "test": test,
 
             "sample": WebCommand("sample", ["data", "success-object",
                                             "error", "server-error"]),
@@ -324,3 +303,6 @@ def entry():
     """This is used by a setuptools entry_point. When invoked this way,
     setuptools has already put the installed package on sys.path ."""
     return run(sys.argv[1:], sys.stdout, sys.stderr, petmail=sys.argv[0])
+
+if __name__ == "__main__":
+    entry()
