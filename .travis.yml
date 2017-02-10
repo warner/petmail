@@ -1,11 +1,13 @@
 sudo: false
 language: python
+cache: pip
+before_cache:
+  - rm -f $HOME/.cache/pip/log/debug.log
 python:
   - "2.7"
 install:
-  - pip install -e .
-  - pip install coverage python-coveralls
+  - pip install -U pip tox virtualenv codecov
 script:
-  - coverage run `which petmail` test
+  - tox -e coverage
 after_success:
-  - coveralls
+  - codecov
