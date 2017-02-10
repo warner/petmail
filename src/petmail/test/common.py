@@ -115,8 +115,8 @@ class CLIinThreadMixin:
 
 class CLIinProcessMixin(CLIinThreadMixin):
     def cli(self, *args, **kwargs):
-        petmail = runner.petmail_executable[0]
-        d = getProcessOutputAndValue(sys.executable, [petmail] + list(args),
+        d = getProcessOutputAndValue(sys.executable,
+                                     ["-m", "petmail.scripts.runner"] + list(args),
                                      os.environ)
         return d
 

@@ -1,6 +1,7 @@
 
 import os, sys
 from collections import defaultdict, namedtuple
+from pkg_resources import resource_string
 import sqlite3
 from .eventual import eventually
 
@@ -10,9 +11,8 @@ class DBError(Exception):
     pass
 
 def get_schema(version):
-    schema_fn = os.path.join(os.path.dirname(__file__),
-                             "db-schemas", "v%d.sql" % version)
-    return open(schema_fn, "r").read()
+    schema_bytes = resource_string("petmail", "db-schemas/v%d.sql" % version)
+    return schema_bytes
 
 def serialize(row):
     if row is None:

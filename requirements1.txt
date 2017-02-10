@@ -1,4 +1,0 @@
-
-# cffi -I-> pycparser
-# sha256: gZI5NkD3vDBM6CZps165BZJWajCru0kkRW9SB5r8GOI
-cffi==0.8.2

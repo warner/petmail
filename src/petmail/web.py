@@ -1,18 +1,15 @@
-import os, json, collections
+import json, collections
+from pkg_resources import resource_string, resource_filename
 from twisted.application import service, strports
 from twisted.web import server, static, resource, http
 from .database import Notice
 from .util import equal, make_nonce
 from .errors import CommandError
 
-MEDIA_DIRNAME = os.path.join(os.path.dirname(__file__), "media")
+MEDIA_DIRNAME = resource_filename("petmail", "media")
 
 def read_media(fn):
-    f = open(os.path.join(MEDIA_DIRNAME,fn), "rb")
-    #data = f.read().decode("utf-8")
-    data = f.read()
-    f.close()
-    return data
+    return resource_string("petmail", "media/%s" % fn)
 
 class EventsProtocol:
     def __init__(self, request):

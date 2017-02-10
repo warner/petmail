@@ -3,6 +3,6 @@
 include MANIFEST.in LICENSE NEWS README.rst
 
 # version-number-updating files
-include versioneer.py petmail/_version.py
+include versioneer.py src/petmail/_version.py
 
-recursive-include petmail *.py *.sql *.html *.js *.css
+recursive-include src/petmail *.py *.sql *.html *.js *.css *.eot *.svg *.ttf *.woff
