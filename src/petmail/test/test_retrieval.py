@@ -1,5 +1,6 @@
 import os
 from twisted.trial import unittest
+from twisted.internet.defer import inlineCallbacks
 from nacl.public import PrivateKey
 from nacl.secret import SecretBox
 from nacl.exceptions import CryptoError
@@ -121,6 +122,7 @@ class More(unittest.TestCase):
 
 class Server(TwoNodeMixin, unittest.TestCase):
 
+    @inlineCallbacks
     def test_retrieval_client(self): # TODO: err here, eventsource.py#L166 assert
         n = self.make_nodes(transport="local")[1]
         ms = n.mailbox_server
@@ -141,32 +143,45 @@ class Server(TwoNodeMixin, unittest.TestCase):
         r = retrieval.HTTPRetriever(mbrec["retrieval"], messages.append)
         r.setServiceParent(self.sparent)
         self.failUnlessEqual(len(messages), 0)
-        d = self.poll(lambda: check(messages, 2))
+        print "1"
+        yield self.poll(lambda: check(messages, 2))
+
         def _messages_deleted():
             c = n.db.execute("SELECT COUNT(*) FROM mailbox_server_messages"
                              " WHERE tid=?", (tid1,))
             return bool(c.fetchall())
-        d.addCallback(lambda _: self.poll(_messages_deleted))
-        def _then1(_):
-            self.failUnlessEqual(messages[0], "msgC1_first")
-            self.failUnlessEqual(messages[1], "msgC1_second")
-            ms.queue_msgC(tid1, "msgC1_third")
-            return self.poll(lambda: check(messages, 3))
-        d.addCallback(_then1)
-        def _then2(_):
-            self.failUnlessEqual(messages[2], "msgC1_third")
-        d.addCallback(_then2)
-        d.addCallback(lambda _: self.poll(_messages_deleted))
+        print "2"
+        yield self.poll(_messages_deleted)
+
+        self.failUnlessEqual(messages[0], "msgC1_first")
+        self.failUnlessEqual(messages[1], "msgC1_second")
+        ms.queue_msgC(tid1, "msgC1_third")
+        print "3"
+        yield self.poll(lambda: check(messages, 3))
+        self.failUnlessEqual(messages[2], "msgC1_third")
+        print "4"
+        yield self.poll(_messages_deleted)
 
         # wait for the ReconnectingEventSource to become active again, which
         # indicates that HTTPRetriever.fetch has finished grabbing all
         # messages and is back to waiting for a new one
-        d.addCallback(lambda _: self.poll(lambda: r.source.active))
+        print "5"
+        yield self.poll(lambda: r.source.active)
 
         # now it's safe to shut down the retriever
-        d.addCallback(lambda _: r.disownServiceParent())
-        d.addCallback(lambda _: self.poll(lambda:
-                                          not len(ms.listres.subscribers)
-                                          and r.source.isStopped()))
-        d.addCallback(flushEventualQueue)
-        return d
+        print "6"
+        yield r.disownServiceParent()
+        print "7", ms.listres.subscribers, r.source.isStopped()
+        print ms, ms.listres
+        def _done():
+            #print ms.listres.subscribers, r.source.isStopped()
+            if ms.listres.subscribers:
+                return False
+            if r.source.isStopped():
+                return True
+            return False
+        yield self.poll(_done)
+        print "8"
+        yield flushEventualQueue()
+        print "9"
+
