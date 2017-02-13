@@ -8,12 +8,15 @@ from . import invitation, rrid
 from .errors import CommandError, ContactNotReadyError
 from .mailbox import channel, retrieval
 from .eventual import eventually
+from .journal import JournalManager
 
 class Agent(service.MultiService):
     def __init__(self, db, basedir, mailbox_server):
         service.MultiService.__init__(self)
         self.db = db
         self.mailbox_server = mailbox_server
+
+        self._jm = JournalManager(self._save_checkpoint)
 
         self.mailbox_retrievers = set()
         c = self.db.execute("SELECT * FROM agent_profile").fetchone()
@@ -40,6 +43,11 @@ class Agent(service.MultiService):
         service.MultiService.startService(self)
         for i in self.im.thaw_invitations():
             self._activate_invitation(i)
+
+    def _load_from_checkpoint(self, db):
+        pass
+    def _save_checkpoint(self):
+        
 
     def build_retriever(self, mbid, rrec):
         # parse descriptor, import correct module and constructor
