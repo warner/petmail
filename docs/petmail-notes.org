@@ -218,6 +218,7 @@ Unsorted design notes.
      to use ed25519 internal functions. Pure-python boring-coordinates
      ed25519.py takes: 2.3ms add, 900ms scalarmult. With smarter coordinates
      (XYZT): 4.3ms scalarmult. None are constant-time.
+**** OOPS, wait, you have to send PK=Bx to all senders, enables correlation
 *** rerandomized encryption doesn't help receiver figure out which channel to
     decrypt with. The sender must provide the mailbox with a token. The
     sender must produce a new randomized token for each message (to avoid
